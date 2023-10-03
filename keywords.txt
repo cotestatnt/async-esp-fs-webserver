@@ -1,0 +1,17 @@
+WebServer	  KEYWORD1
+webserver   KEYWORD3
+FSWebServer KEYWORD1
+
+begin	            KEYWORD2
+run		            KEYWORD2
+addHandler		    KEYWORD2
+setCaptiveWebage	KEYWORD2
+setAPmode	        KEYWORD2
+startWiFi			    KEYWORD2
+getRequest		    KEYWORD2
+addOptionBox  	  KEYWORD2
+addJavascript			KEYWORD2
+addHTML     			KEYWORD2
+addOption		      KEYWORD2
+getOptionValue	  KEYWORD2
+saveOptionValue	  KEYWORD2
