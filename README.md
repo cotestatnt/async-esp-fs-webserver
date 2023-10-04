@@ -18,7 +18,7 @@ Thanks to the built-in **/edit** page (enabled by default), is possible upload, 
 
 
 ## WiFi manager
-I've added also another built-in page **/setup**, also enabled by default, with which it is possible to set the WiFi credentials and other freely configurable parameters.
+I've added also another built-in page **/setup**, which can be enabled at runtime using the method `enableFsCodeEditor()`, with which it is possible to set the WiFi credentials and other freely configurable parameters.
 By **/setup** is also possible perform remote firmware update. 
 
 ![image](https://github.com/cotestatnt/async-esp-fs-webserver/assets/27758688/e16cf5cb-252a-42bb-b111-305387f9d0cc)
