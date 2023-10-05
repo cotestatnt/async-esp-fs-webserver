@@ -1,15 +1,9 @@
-#include <WebSocketsServer.h>   // https://github.com/Links2004/arduinoWebSockets
-#include <esp-fs-webserver.h>  // https://github.com/cotestatnt/esp-fs-webserver
-#include <ArduinoJson.h>
-
 #include <FS.h>
 #include <LittleFS.h>
+#include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
+
 #define FILESYSTEM LittleFS
-
-WebServerClass server(80);
-FSWebServer myWebServer(FILESYSTEM, server);
-WebSocketsServer webSocket = WebSocketsServer(81);
-
+AsyncFsWebServer server(80, FILESYSTEM);
 
 // Define a struct for store all info about each gpio
 struct gpio_type {
@@ -24,7 +18,7 @@ struct gpio_type {
 /* (ESP32-C3) */
 /*
 gpio_type gpios[NUM_GPIOS] = {
-  {"input", "INPUT 2", 2}, 
+  {"input", "INPUT 2", 2},
   {"input", "INPUT 4", 4},
   {"input", "INPUT 5", 5},
   {"output", "OUTPUT 6", 6},
@@ -47,9 +41,9 @@ gpio_type gpios[NUM_GPIOS] = {
 
 /* ESP32 - NodeMCU-32S */
 gpio_type gpios[] = {
-  {"input", "INPUT 18", 18},  
+  {"input", "INPUT 18", 18},
   {"input", "INPUT 19", 19},
-  {"input", "INPUT 21", 21},  
+  {"input", "INPUT 21", 21},
   {"output", "OUTPUT 4", 4},
   {"output", "OUTPUT 5", 5},
   {"output", "LED BUILTIN", 2} // Led ON with signal HIGH
@@ -57,20 +51,31 @@ gpio_type gpios[] = {
 
 
 ////////////////////////////////   WebSocket Handler  /////////////////////////////
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t len) {
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
   switch (type) {
-    case WStype_DISCONNECTED:
-      Serial.printf("[%u] Disconnected!\n", num);
+    case WS_EVT_DISCONNECT:
+      Serial.print("WebSocket client disconnected!\n");
       break;
-    case WStype_CONNECTED:
-      Serial.printf("[%u] Client connected\n", num);
+    case WS_EVT_CONNECT:  {
+        IPAddress ip = client->remoteIP();
+        Serial.printf("WebSocket client %d.%d.%d.%d connected.\n", ip[0], ip[1], ip[2], ip[3]);
+        client->printf("%s", "{\"Connected\": true}");
+      }
       break;
-    case WStype_TEXT: {
-        Serial.printf("[%u] get Text: %s\n", num, payload);
-        // Copy content of payload to a temporary char array
-        String json = (char*)payload;
-        parseMessage(json);
-        break;
+    case WS_EVT_DATA: {
+        AwsFrameInfo * info = (AwsFrameInfo*)arg;
+        String msg = "";
+        if(info->final && info->index == 0 && info->len == len){
+          //the whole message is in a single frame and we got all of it's data
+          if (info->opcode == WS_TEXT){
+            for(size_t i=0; i < info->len; i++) {
+              msg += (char) data[i];
+            }
+          }
+          Serial.printf("WS message: %s\n",msg.c_str());
+          if (msg[0] == '{')
+            parseMessage(msg);
+        }
       }
     default:
       break;
@@ -78,7 +83,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t len) {
 }
 
 
-void parseMessage(String& json) {
+void parseMessage(const String json) {
   DynamicJsonDocument doc(512);
   DeserializationError error = deserializeJson(doc, json);
 
@@ -93,7 +98,7 @@ void parseMessage(String& json) {
           Serial.printf("Set pin %d to %d\n", pin, level);
           gpio.level = level ;
           digitalWrite(pin, level);
-          updateGpioList();
+          updateGpioList(nullptr);
           return;
         }
       }
@@ -103,10 +108,11 @@ void parseMessage(String& json) {
   Serial.println(error.f_str());
 }
 
-void updateGpioList() {
+void updateGpioList(AsyncWebServerRequest *request) {
   StaticJsonDocument<512> doc;
   JsonArray array = doc.to<JsonArray>();
 
+  // Create a JSON message with current GPIO state
   for (gpio_type &gpio : gpios) {
     JsonObject obj = array.createNestedObject();
     obj["type"] = gpio.type;
@@ -114,15 +120,13 @@ void updateGpioList() {
     obj["label"] = gpio.label;
     obj["level"] = gpio.level;
   }
-
+  // Update client via websocket
   String json;
   serializeJson(doc, json);
-  webSocket.broadcastTXT(json);
+  server.wsBroadcast(json.c_str());
 
-  // If this is a reply to HTPP request, get reference to client request.
-  WebServerClass* webRequest = myWebServer.getRequest();
-  if (webRequest->client())
-    webRequest->send(200, "text/plain", json);
+  if (request != nullptr)
+    request->send(200, "text/plain", json);
 }
 
 bool updateGpioState() {
@@ -140,54 +144,60 @@ bool updateGpioState() {
 }
 
 
+
 void setup() {
   Serial.begin(115200);
 
   // FILESYSTEM initialization
-  if ( !FILESYSTEM.begin() ) {
+  if (!FILESYSTEM.begin()) {
     Serial.println("ERROR on mounting filesystem.");
     //FILESYSTEM.format();
     ESP.restart();
   }
-  
-  IPAddress myIP = myWebServer.startWiFi(15000, "ESP32-AP", "123456789");  //timeout, AP SSID, AP password
-  if (WiFi.status() == WL_CONNECTED) {
-    myIP = WiFi.localIP();
-    Serial.print(F("\nConnected! IP address: "));
-    Serial.println(myIP);
-  }
+
+  // Try to connect to flash stored SSID, start AP if fails after timeout
+  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
+
+  // Enable ACE FS file web editor and add FS info callback fucntion
+  server.enableFsCodeEditor();
+
+  /*
+  * Getting FS info (total and free bytes) is strictly related to
+  * filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
+  */
+  #ifdef ESP32
+  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
+  });
+  #endif
 
   // Add custom page handlers
-  myWebServer.addHandler("/getGpioList", HTTP_GET, updateGpioList);
+  server.on("/getGpioList", HTTP_GET, updateGpioList);
 
-  // Start webserver
-  if (myWebServer.begin()) {
-    Serial.println(F("ESP Web Server started"));
-    Serial.println(F("Open /setup page to configure optional parameters"));
-    Serial.println(F("Open /edit page to view and edit files"));
-    Serial.println(F("Open /update page to upload firmware and filesystem updates"));
-  }
-
-  // Start WebSocket server on port 81
-  Serial.println("Start WebSocket server");
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
+  // Start server with custom websocket event handler
+  server.init(onWsEvent);
+  Serial.print(F("ESP Web Server started on IP Address: "));
+  Serial.println(myIP);
+  Serial.println(F(
+    "This is \"gpio_list.ino\" example.\n"
+    "Open /setup page to configure optional parameters.\n"
+    "Open /edit page to view, edit or upload example or your custom webserver source files."
+  ));
 
   // GPIOs configuration
   for (gpio_type &gpio : gpios) {
-    if (strcmp(gpio.type, "input") == 0)     
+    if (strcmp(gpio.type, "input") == 0)
         pinMode(gpio.pin, INPUT_PULLUP);
-    else 
-      pinMode(gpio.pin, OUTPUT); 
+    else
+      pinMode(gpio.pin, OUTPUT);
   }
 }
 
 void loop() {
-  myWebServer.run();
-  webSocket.loop();
 
   // True on pin state change
   if (updateGpioState()) {
-    updateGpioList();   // Push new state to web clients via websocket
+    updateGpioList(nullptr);   // Push new state to web clients via websocket
   }
 }

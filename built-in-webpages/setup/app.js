@@ -1,4 +1,4 @@
-svgLogo ='<svg width=128px height=128px viewBox="0 0 28 28"><path d="M12.926 19.324a7.6 7.6 0 0 0-2.983-6.754 7.44 7.44 0 0 0-3.828-1.554.697.697 0 0 1-.606-.731.674.674 0 0 1 .743-.617 8.97 8.97 0 0 1 8 9.805 7.828 7.828 0 0 1-.298 1.542l1.989.56a11.039 11.039 0 0 0 1.714-.651 12.159 12.159 0 0 0 .217-2.343A12.57 12.57 0 0 0 7.212 6.171a5.53 5.53 0 0 0-2 0 4.354 4.354 0 0 0-2.16 1.337 4.274 4.274 0 0 0 1.909 6.856 9.896 9.896 0 0 0 1.074.195 4.011 4.011 0 0 1 3.337 3.954 3.965 3.965 0 0 1-.64 2.16l1.371.88a10.182 10.182 0 0 0 2.057.342 7.52 7.52 0 0 0 .754-2.628m.16 4.73A13.073 13.073 0 0 1 .001 10.983 12.982 12.982 0 0 1 3.83 1.737l.743.697a12.067 12.067 0 0 0 0 17.141 12.067 12.067 0 0 0 17.141 0l.697.697a12.97 12.97 0 0 1-9.336 3.726M24 10.993A10.993 10.993 0 0 0 12.949 0l-1.143.057-.252.732a18.912 18.912 0 0 1 11.588 11.576l.731-.263c0-.366.069-.732.069-1.143m-1.269 5.165A17.53 17.53 0 0 0 7.818 1.27a11.119 11.119 0 0 0-2.457 1.77v1.635A13.919 13.919 0 0 1 19.268 18.57h1.634a11.713 11.713 0 0 0 1.771-2.446M7.92 17.884a1.691 1.691 0 1 1-1.69-1.691 1.691 1.691 0 0 1 1.69 1.691" /></svg>';
+svgLogo ='<svg width=128px height=128px viewBox="0 0 40 40"><path d="M 19.707,7.707 18.293,6.293 8.586,15.998 h 9.999 L 14.293,20.292 12,18 v 6 h 6 L 15.708,21.708 23.413,14 H 13.414 L 19.707,7.707 z M 15.999,0 C 7.164,0.002 0.002,7.164 0,15.999 0.002,24.837 7.164,31.999 15.999,32 24.837,31.998 31.999,24.837 32,15.999 31.999,7.164 24.837,0.002 15.999,0 z m 10.57,25.153 -4.861,-4.862 -1.417,1.417 4.862,4.861 c -2.454,2.127 -5.647,3.424 -9.154,3.43 C 8.267,29.986 2.015,23.733 2,15.999 2.007,12.494 3.304,9.3 5.432,6.847 l 3.861,3.86 1.413,-1.413 -3.86,-3.861 C 9.3,3.304 12.494,2.007 15.999,2 c 7.734,0.015 13.987,6.267 14,13.999 -0.006,3.506 -1.303,6.7 -3.43,9.154 z" /></svg>';
 const svgMenu = '<path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>';
 const svgLock =  '<svg height="16pt" viewBox="0 0 512 512"><path d="m336 512h-288c-26.453125 0-48-21.523438-48-48v-224c0-26.476562 21.546875-48 48-48h288c26.453125 0 48 21.523438 48 48v224c0 26.476562-21.546875 48-48 48zm-288-288c-8.8125 0-16 7.167969-16 16v224c0 8.832031 7.1875 16 16 16h288c8.8125 0 16-7.167969 16-16v-224c0-8.832031-7.1875-16-16-16zm0 0"/><path d="m304 224c-8.832031 0-16-7.167969-16-16v-80c0-52.929688-43.070312-96-96-96s-96 43.070312-96 96v80c0 8.832031-7.167969 16-16 16s-16-7.167969-16-16v-80c0-70.59375 57.40625-128 128-128s128 57.40625 128 128v80c0 8.832031-7.167969 16-16 16zm0 0"/></svg>';
 const svgUnlock = '<svg height="16pt" viewBox="0 0 512 512"><path d="m336 512h-288c-26.453125 0-48-21.523438-48-48v-224c0-26.476562 21.546875-48 48-48h288c26.453125 0 48 21.523438 48 48v224c0 26.476562-21.546875 48-48 48zm-288-288c-8.8125 0-16 7.167969-16 16v224c0 8.832031 7.1875 16 16 16h288c8.8125 0 16-7.167969 16-16v-224c0-8.832031-7.1875-16-16-16zm0 0"/><path d="m80 224c-8.832031 0-16-7.167969-16-16v-80c0-70.59375 57.40625-128 128-128s128 57.40625 128 128c0 8.832031-7.167969 16-16 16s-16-7.167969-16-16c0-52.929688-43.070312-96-96-96s-96 43.070312-96 96v80c0 8.832031-7.167969 16-16 16zm0 0"/></svg>';
@@ -12,10 +12,14 @@ const svgCloseModal = '<path fill-rule="evenodd" clip-rule="evenodd" d="M13.7071
 
 var options = {};
 var configFile;
+var lastBox;
 
 // Simple JQuery-like selector
 var $ = function(el) {
 	return document.getElementById(el);
+};
+var newEl = function(el) {
+	return document.createElement(el);
 };
 
 // Start a websocket client and set event callbacks
@@ -24,17 +28,14 @@ function ws_connect() {
   ws = new WebSocket('ws://'+document.location.host+'/ws',['arduino']);
   ws.onopen = function() { ws.send('Connected - ' + new Date());};
   ws.onmessage = function(e) {
-    console.log('Server sent: ', e.data);
     $('update-log').innerHTML = e.data;
   };
   ws.onclose = function(e) {
-      console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
       setTimeout(function() {
       ws_connect();
       }, 1000);
   };
   ws.onerror = function(err) {
-      console.error('Socket encountered error: ', err.message, 'Closing socket');
       ws.close();
   };
 }
@@ -88,7 +89,7 @@ function listWifiNetworks(elems) {
 	elems.forEach((elem, idx) => {
 
     // Create a single row with all columns
-    var row = document.createElement('tr');
+    var row = newEl('tr');
     var id = 'wifi-' + idx;
     row.id = id;
     row.addEventListener('click', selectWifi);
@@ -158,35 +159,30 @@ function getParameters() {
   });
 }
 
-async function fromFile(f, m) {
-  return new Promise(resolve => {
-      fetch(f, { method: m })
-      .then(res => res.text())
-      .then((data) => {
-        resolve(data);
-      });
-  });
+async function fetchFromFile(f, m) {
+  const response = await fetch(f, { method: m });
+  const data = await response.text();
+  return data;
 }
 
-
 function createNewBox(cont, lbl) {
-  var el = document.createElement('div');
-  el.setAttribute('id', 'option-box' + cont);
-  el.classList.add('ctn', 'opt-box', 'hide');
+  var box = newEl('div');
+  box.setAttribute('id', 'option-box' + cont);
+  box.classList.add('ctn', 'opt-box', 'hide');
 
-  var h = document.createElement('h2');
+  var h = newEl('h2');
   h.classList.add('heading-2');
   h.innerHTML = lbl;
-  el.appendChild(h);
+  box.appendChild(h);
 
-  var form  = document.createElement('form');
+  var form  = newEl('form');
   form.classList.add('form');
 
-  el.appendChild(form);
-  $('main-box').appendChild(el);
+  box.appendChild(form);
+  $('main-box').appendChild(box);
 
   // Add new voice in menu and relatvie listener
-  var lnk = document.createElement('a');
+  var lnk = newEl('a');
   lnk.setAttribute('id', 'set-opt' + cont);
   lnk.setAttribute('data-box', 'option-box' + cont);
   lnk.classList.add('a-link');
@@ -194,67 +190,70 @@ function createNewBox(cont, lbl) {
   lnk.addEventListener('click', switchPage);
 
   $('nav-link').appendChild(lnk);
-  return form;
+  return box;
 }
 
-function listParameters (params) {
-  var el, pBox;
+async function listParameters (params) {
+  var el;
   if(!Object.keys(params)[0].startsWith('param-box')) {
     params = {'param-box1': 'Options', ...params};
     options = params;
   }
 
-  Object.entries(params).forEach(([key, value], i) => {
+  // Iterate through the object
+  var i = 0;
+  for (const key in params) {
+    i++;
+    let val = params[key];
 
     if(key.startsWith('name-logo')) {
       $('name-logo').innerHTML = value;
       document.title = value.replace( /(<([^>]+)>)/ig, '');
-      return;
+      continue;
     }
 
     else if(key.startsWith('logo-file')) {
-      return;
+      continue;
     }
 
     else if(key.startsWith('param-box')) {
-      pBox = createNewBox(i, value);
-      return;
+      lastBox = createNewBox(i, val);
+      continue;
     }
 
     else if(key.startsWith('raw-css')) {
-      fromFile(value, 'HEAD').then(() => {
-        var css = document.createElement("link");
+      fetchFromFile(val, 'HEAD').then(() => {
+        var css = newEl("link");
         css.setAttribute('rel', 'stylesheet');
-        css.setAttribute('href', value);
+        css.setAttribute('href', val);
         document.head.appendChild(css);
-
       });
-      return;
+      continue;
     }
 
     else if(key.startsWith('raw-javascript')) {
-      fromFile(value, 'HEAD').then(() => {
-        var js = document.createElement("script");
-        js.setAttribute('src', value);
+      fetchFromFile(val, 'HEAD').then(() => {
+        var js = newEl("script");
+        js.setAttribute('src', val);
         document.body.appendChild(js);
       });
-      return;
+      continue;
     }
 
     else if(key.startsWith('raw-html')) {
-      fromFile(value, 'GET').then((res) => {
-        el = document.createElement('div');
+      await fetchFromFile(val, 'GET').then((res) => {
+        el = newEl('div');
         el.setAttribute('id', 'row' + i)
         el.style.width = '100%';
         el.innerHTML = res;
-        pBox.appendChild(el);
+        lastBox.appendChild(el);
       });
-      return;
+      continue;
     }
+    
     else {
-      let val = value;
-      let lbl = document.createElement('label');
-      el = document.createElement('input');
+      let lbl = newEl('label');
+      el = newEl('input');
       el.setAttribute('id', key);
       el.setAttribute('type', 'text');
 
@@ -264,16 +263,16 @@ function listParameters (params) {
         el.classList.add('t-check', 'opt-input');
         el.checked = val;
         lbl.classList.add('input-label', 'toggle');
-        let dv = document.createElement('div');
+        let dv = newEl('div');
         dv.classList.add('toggle-switch');
-        let sp = document.createElement('span');
+        let sp = newEl('span');
         sp.classList.add('toggle-label');
         sp.textContent = key;
         lbl.appendChild(el);
         lbl.appendChild(dv);
         lbl.appendChild(sp);
         addInputListener(el);
-        pBox.appendChild(lbl);
+        lastBox.appendChild(lbl);
       }
       else {
         el.value = val;
@@ -287,16 +286,16 @@ function listParameters (params) {
         if (typeof(val) === "object" ) {
           // This is a select/option
           if (val.values) {
-            el = document.createElement('select');
+            el = newEl('select');
             el.setAttribute('id', key);
             val.values.forEach((a) => {
-              var opt = document.createElement('option');
+              var opt = newEl('option');
               opt.textContent = a;
               opt.value = a;
               el.appendChild(opt);
             })
             el.value = val.selected;
-            pBox.appendChild(el);
+            lastBox.appendChild(el);
           }
 
           // This is a float value
@@ -310,18 +309,18 @@ function listParameters (params) {
           }
         }
         addInputListener(el);
-        var d  = document.createElement('div');
+        var d  = newEl('div');
         d.classList.add('tf-wrapper');
         d.appendChild(lbl);
         d.appendChild(el);
-        pBox.appendChild(d);
+        lastBox.appendChild(d);
       }
     }
 
     if(key.endsWith('-hidden'))  {
       el.classList.add('hide');
     }
-  });
+  }
 }
 
 function addInputListener(item) {
@@ -447,7 +446,7 @@ function showMenu() {
 
 var closeCallback = function(){;} ;
 
-function openModalMessage(title, msg) {
+function openModalMessage(title, msg, fn) {
   $('message-title').innerHTML = title;
   $('message-body').innerHTML = msg;
   $('modal-message').open = true;

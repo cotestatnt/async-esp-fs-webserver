@@ -1,15 +1,32 @@
-#include <Arduino.h>
-
-#include <WebSocketsServer.h>   // https://github.com/Links2004/arduinoWebSockets
-#include <esp-fs-webserver.h>   // https://github.com/cotestatnt/esp-fs-webserver
-
-
+#if defined(ESP8266)
+#include <ESP8266mDNS.h>
+#elif defined(ESP32)
+#include <ESPmDNS.h>
+#endif
 #include <FS.h>
 #include <LittleFS.h>
+#include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
+
 #define FILESYSTEM LittleFS
+AsyncFsWebServer server(80, FILESYSTEM);
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
+#endif
+
+// Set true to use your custom websocket event handler instead default
+#define USE_CUSTOM_WS_HANDLER false
+
+#if USE_CUSTOM_WS_HANDLER
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+    switch (type) {
+        case WS_EVT_CONNECT:
+            client->printf("{\"Websocket connected\": true, \"clients\": %u}", client->id());
+            break;
+        default:
+            break;
+    }
+}
 #endif
 
 
@@ -17,7 +34,6 @@
 // const char* ssid;
 // const char* password;
 
-bool apMode = false;
 char const* hostname = "fsbrowser";
 
 // Test "config" values
@@ -29,89 +45,76 @@ uint8_t ledPin = LED_BUILTIN;
 #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
 struct tm Time;
 
-#ifdef ESP8266
-  ESP8266WebServer server(80);
-#elif defined(ESP32)
-  WebServer server(80);
-#endif
-
-FSWebServer myWebServer(FILESYSTEM, server);
-WebSocketsServer webSocket = WebSocketsServer(81);
-
-////////////////////////////////   WebSocket Handler  /////////////////////////////
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-  switch(type) {
-    case WStype_DISCONNECTED:
-        DebugPrintf("[%u] Disconnected!\n", num);
-        break;
-    case WStype_CONNECTED:
-        {
-          IPAddress ip = webSocket.remoteIP(num);
-          DebugPrintf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-          // send message to client
-          webSocket.sendTXT(num, "{\"Connected\": true}");
-        }
-        break;
-    case WStype_TEXT:
-        DebugPrintf("[%u] get Text: %s\n", num, payload);
-        // send message to client
-        // webSocket.sendTXT(num, "message here");
-
-        // send data to all connected clients
-        // webSocket.broadcastTXT("message here");
-        break;
-    case WStype_BIN:
-        DebugPrintf("[%u] get binary length: %u\n", num, length);
-        break;
-    default:
-        break;
-  }
-
-}
 
 ////////////////////////////////  NTP Time  /////////////////////////////////////
-void getUpdatedtime(const uint32_t timeout)
-{
+void getUpdatedtime(const uint32_t timeout) {
   uint32_t start = millis();
-  DebugPrint("Sync time...");
+  Serial.print("Sync time...");
   while (millis() - start < timeout  && Time.tm_year <= (1970 - 1900)) {
     time_t now = time(nullptr);
     Time = *localtime(&now);
     delay(5);
   }
-  DebugPrintln(" done.");
+  Serial.println(" done.");
 }
 
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void startFilesystem(){
-  // FILESYSTEM INIT
-  if ( FILESYSTEM.begin()){
-    File root = FILESYSTEM.open("/", "r");
-    File file = root.openNextFile();
-    while (file){
-      const char* fileName = file.name();
-      size_t fileSize = file.size();
-      DebugPrintf("FS File: %s, size: %lu\n", fileName, (long unsigned)fileSize);
-      file = root.openNextFile();
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
+  Serial.printf("\nListing directory: %s\n", dirname);
+  File root = fs.open(dirname);
+  if(!root){
+    Serial.println("- failed to open directory");
+    return;
+  }
+  if(!root.isDirectory()){
+    Serial.println(" - not a directory");
+    return;
+  }
+  File file = root.openNextFile();
+  while(file){
+    if(file.isDirectory()){
+      if(levels){
+        listDir(fs, file.path(), levels -1);
+      }
+    } else {
+      Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
     }
-    DebugPrintln();
+    file = root.openNextFile();
+  }
+}
+
+bool startFilesystem() {
+  if (FILESYSTEM.begin()){
+    listDir(LittleFS, "/", 1);
+    return true;
   }
   else {
-    DebugPrintln("ERROR on mounting filesystem. It will be formmatted!");
+    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
     FILESYSTEM.format();
     ESP.restart();
   }
+  return false;
 }
+
+/*
+* Getting FS info (total and free bytes) is strictly related to
+* filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
+*/
+#ifdef ESP32
+void getFsInfo(fsInfo_t* fsInfo) {
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
+}
+#endif
 
 
 ////////////////////  Load and save application configuration from filesystem  ////////////////////
 void saveApplicationConfig(){
-  StaticJsonDocument<1024> doc;
-  File file = FILESYSTEM.open("/config.json", "w");
+  File file = server.getConfigFile("r");
+  DynamicJsonDocument doc(file.size() * 1.33);
   doc["Option 1"] = option1;
   doc["Option 2"] = option2;
-  doc["AP mode"] = apMode;
   doc["LED Pin"] = ledPin;
   serializeJsonPretty(doc, file);
   file.close();
@@ -119,83 +122,85 @@ void saveApplicationConfig(){
   ESP.restart();
 }
 
-void loadApplicationConfig() {
-  StaticJsonDocument<1024> doc;
-  File file = FILESYSTEM.open("/config.json", "r");
-  if (file) {
+bool loadApplicationConfig() {
+  if (FILESYSTEM.exists(server.getConfiFileName())) {
+    File file = server.getConfigFile("r");
+    DynamicJsonDocument doc(file.size() * 1.33);
     DeserializationError error = deserializeJson(doc, file);
     file.close();
     if (!error) {
-      DebugPrintln(F("Deserializing JSON.."));
-      apMode = doc["AP mode"];
       option1 = doc["Option 1"].as<String>();
       option2 = doc["Option 2"];
       ledPin = doc["LED Pin"];
+      return true;
     }
     else {
-      DebugPrintln(F("Failed to deserialize JSON. File could be corrupted"));
-      DebugPrintln(error.c_str());
-      saveApplicationConfig();
+      Serial.print(F("Failed to deserialize JSON. Error: "));
+      Serial.println(error.c_str());
     }
   }
-  else {
-    saveApplicationConfig();
-    DebugPrintln(F("New file created with default values"));
-  }
+  return false;
 }
 
 ////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
-void handleLed() {
-  WebServerClass* webRequest = myWebServer.getRequest();
-
+void handleLed(AsyncWebServerRequest *request) {
   // http://xxx.xxx.xxx.xxx/led?val=1
-  if(webRequest->hasArg("val")) {
-    int value = webRequest->arg("val").toInt();
+  if(request->hasArg("val")) {
+    int value = request->arg("val").toInt();
     digitalWrite(ledPin, value);
   }
-
-  String reply = "LED is now ";
-  reply += digitalRead(ledPin) ? "OFF" : "ON";
-  webRequest->send(200, "text/plain", reply);
+  const char* reply = digitalRead(ledPin) ? "LED is now  OFF" : "LED is now ON";
+  request->send(200, "text/plain", reply);
 }
 
 
 
 void setup(){
+  Serial.begin(115200);
+  delay(1000);
 
-#if DEBUG_MODE_WS
-  DBG_OUTPUT_PORT.begin(115200);
-  DBG_OUTPUT_PORT.setDebugOutput(true);
-#endif
+  // Try to connect to stored SSID, start AP if fails after timeout
+  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789" );
+  // startFilesystem();
 
   // FILESYSTEM INIT
-  startFilesystem();
-
-  // Load configuration (if not present, default will be created)
-  loadApplicationConfig();
-
-  /// Try to connect to flash stored SSID, start AP if fails after timeout
-  IPAddress myIP = myWebServer.startWiFi(15000, "ESP8266_AP", "123456789" );
-
-  // Start WebSocket server on port 81
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-
-  // Configure /setup page and start Web Server
-  myWebServer.addOption(FILESYSTEM, "AP mode", apMode);
-  myWebServer.addOption(FILESYSTEM, "LED Pin", ledPin);
-  myWebServer.addOption(FILESYSTEM, "Option 1", option1.c_str());
-  myWebServer.addOption(FILESYSTEM, "Option 2", option2);
-  // Add custom page handlers
-  myWebServer.webserver->on("/led", HTTP_GET, handleLed);
-
-  if (myWebServer.begin()) {
-    DebugPrint(F("ESP Web Server started on IP Address: "));
-    DebugPrintln(myIP);
-    DebugPrintln(F("Open /setup page to configure optional parameters"));
-    DebugPrintln(F("Open /edit page to view and edit files"));
-    DebugPrintln(F("Open /update page to upload firmware and filesystem updates"));
+  if (startFilesystem()){
+    // Load configuration (if not present, default will be created when webserver will start)
+    if (loadApplicationConfig())
+      Serial.println(F("Application option loaded"));
+    else
+      Serial.println(F("Application options NOT loaded!"));
   }
+
+  // Configure /setup page
+  server.addOptionBox("My Options");
+  server.addOption("LED Pin", ledPin);
+  server.addOption("Option 1", option1.c_str());
+  server.addOption("Option 2", option2);
+
+  // Add custom page handlers
+  server.on("/led", HTTP_GET, handleLed);
+
+  // Enable ACE FS file web editor and add FS info callback fucntion
+  server.enableFsCodeEditor();
+  #ifdef ESP32
+  server.setFsInfoCallback(getFsInfo);
+  #endif
+
+  // Init with default WebSocket event handler and start server
+  #if USE_CUSTOM_WS_HANDLER
+  server.init(onWsEvent);
+  #else
+  server.init();
+  #endif
+
+  Serial.print(F("ESP Web Server started on IP Address: "));
+  Serial.println(myIP);
+  Serial.println(F(
+    "This is \"withWebSocket.ino\" example.\n"
+    "Open /setup page to configure optional parameters.\n"
+    "Open /edit page to view, edit or upload example or your custom webserver source files."
+  ));
 
   // Start MDSN responder
   if (WiFi.status() == WL_CONNECTED) {
@@ -208,20 +213,18 @@ void setup(){
     configTzTime(MYTZ, "time.google.com", "time.windows.com", "pool.ntp.org");
 #endif
     if (MDNS.begin(hostname)) {
-      DebugPrintln(F("MDNS responder started."));
-      DebugPrintf("You should be able to connect with address\t http://%s.local/\n", hostname);
+      Serial.println(F("MDNS responder started."));
+      Serial.printf("You should be able to connect with address  http://%s.local/\n", hostname);
       // Add service to MDNS-SD
       MDNS.addService("http", "tcp", 80);
     }
   }
 
-  pinMode(LED_BUILTIN, OUTPUT); 
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 
 void loop() {
-  myWebServer.run();
-  webSocket.loop();
 
   if(WiFi.status() == WL_CONNECTED) {
     #ifdef ESP8266
@@ -236,6 +239,6 @@ void loop() {
     time_t now = time(nullptr);
     char buffer[50];
     snprintf (buffer, sizeof(buffer), "{\"esptime\": %d}", (int)now);
-    webSocket.broadcastTXT(buffer);
+    server.wsBroadcast(buffer);
   }
 }

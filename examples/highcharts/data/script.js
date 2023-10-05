@@ -72,20 +72,21 @@ function addPoint(timestamp, total, max) {
 
 
 // WebSocket handling
-var connection = new WebSocket('ws://' + location.hostname + ':81/');
-connection.onopen = function () {
-	connection.send('Connected - ' + new Date());
-};
-connection.onerror = function (error) {
-	console.log('WebSocket Error ', error);
-};
-connection.onmessage = function (e) {
-	console.log('Server: ', e.data);
-	parseMessage(e.data);
-};
-connection.onclose = function () {
-	console.log('WebSocket connection closed');
-};
+function ws_connect() {
+  var ws = new WebSocket('ws://'+document.location.host+'/ws',['arduino']);
+  ws.onopen = function() { ws.send('Connected - ' + new Date());};
+  ws.onmessage = function(e) {
+    parseMessage(e.data);
+  };
+  ws.onclose = function(e) {
+      setTimeout(function() {
+      ws_connect();
+      }, 1000);
+  };
+  ws.onerror = function(err) {
+      ws.close();
+  };
+}
 
 function parseMessage(msg) {
 	try {
@@ -106,3 +107,5 @@ function parseMessage(msg) {
 		console.log('Error on parse message ' + msg);
 	}
 }
+
+ws_connect();

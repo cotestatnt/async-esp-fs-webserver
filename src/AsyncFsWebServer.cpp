@@ -22,8 +22,9 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
+
     onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
-    on("/", HTTP_GET, std::bind(&AsyncFsWebServer::handleIndex, this, _1));
+    serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
     on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
@@ -42,7 +43,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     );
 
     on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
-
         request->send(200, "text/plain", "RESET");
         delay(500);
         ESP.restart();
@@ -71,14 +71,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     return true;
 }
 
-void AsyncFsWebServer::handleIndex(AsyncWebServerRequest *request) {
-    if (m_filesystem->exists("/index.htm"))
-        handleFileRead("/index.htm",request);
-    else if (m_filesystem->exists("/index.html"))
-        handleFileRead("/index.html",request);
-    else
-        handleSetup(request);
-}
 
   void AsyncFsWebServer::enableFsCodeEditor() {
 #ifdef INCLUDE_EDIT_HTM
@@ -92,7 +84,7 @@ void AsyncFsWebServer::handleIndex(AsyncWebServerRequest *request) {
         std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
     );
     on("/edit", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)edit_htm_gz, EDIT_HTML_SIZE);
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acedit_htm, sizeof(_acedit_htm));
         response->addHeader("Content-Encoding", "gzip");
         request->send(response);
     });
@@ -166,10 +158,8 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
-    if (!handleFileRead(request->url(), request)) {
-        request->send(404);
-        Serial.printf("Resource %s not found\n", request->url().c_str());
-    }
+    request->send(404);
+    Serial.printf("Resource %s not found\n", request->url().c_str());
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
@@ -233,24 +223,33 @@ bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool 
     return false;
 }
 
+void AsyncFsWebServer::addSource(const char* source, const char* tag, bool overWrite) {
+    String path = CONFIG_FOLDER;
+    path += "/";
+    path += tag;
+    if (String(tag).indexOf("html")> -1)
+        path += ".htm";
+    else if (String(tag).indexOf("css") > -1)
+        path += ".css";
+    else if (String(tag).indexOf("javascript") > -1)
+        path += ".js";
+    optionToFile(path.c_str(), source, overWrite);
+    addOption(tag, path.c_str(), false);
+}
+
 void AsyncFsWebServer::addHTML(const char* html, const char* id, bool overWrite) {
-    String elementId = "raw-html-";
-    elementId += id;
-    String path = "/";
-    path += elementId;
-    path += ".htm";
-    optionToFile(path.c_str(), html, overWrite);
-    addOption(elementId.c_str(), path.c_str(), false);
+    String jsonId = "raw-html-" + String(id);
+    addSource(html, jsonId.c_str(), overWrite);
 }
 
-void AsyncFsWebServer::addCSS(const char* css, bool overWrite) {
-    optionToFile("/raw-css.css", css, overWrite);
-    addOption("raw-css", "/raw-css.css", true);
+void AsyncFsWebServer::addCSS(const char* css,  const char* id, bool overWrite) {
+    String jsonId = "raw-css-" + String(id);
+    addSource(css, jsonId.c_str(), overWrite);
 }
 
-void AsyncFsWebServer::addJavascript(const char* script, bool overWrite) {
-    optionToFile("/raw-javascript.js", script, overWrite);
-    addOption("raw-javascript", "/raw-javascript.js", true);
+void AsyncFsWebServer::addJavascript(const char* script,  const char* id, bool overWrite) {
+    String jsonId = "raw-javascript-" + String(id);
+    addSource(script, jsonId.c_str(), overWrite);
 }
 
 
@@ -293,28 +292,18 @@ void AsyncFsWebServer::addDropdownList(const char *label, const char** array, si
     file.close();
 }
 
-bool AsyncFsWebServer::handleFileRead(const String &uri, AsyncWebServerRequest *request ){
-    String path = uri;
-    bool gzip = false;
-
-    if (m_filesystem->exists(path + ".gz")){
-        if (m_filesystem->exists(path + ".gz")){
-            path += ".gz";
-            gzip = true;
-        }
-    }
-    if (m_filesystem->exists(path)) {
-        DebugPrintf("Sending file %s", path.c_str());
-        AsyncWebServerResponse *response = request->beginResponse(*m_filesystem, path, "");
-        if (gzip)
-            response->addHeader("Content-Encoding", "gzip");
-        request->send(response);
-        DebugPrintf(" %s\n", "done.");
-        return true;
-    }
-    DebugPrintf(" %s\n", "error!");
-    return false;
-}
+// bool AsyncFsWebServer::handleFileRead(const String &uri, AsyncWebServerRequest *request ){
+//     if (m_filesystem->exists(uri)) {
+//         DebugPrintf("Sending file %s", uri);
+//         AsyncWebServerResponse *response = request->beginResponse(*m_filesystem, uri, "", false);
+//         // response->setContentType(uri);
+//         request->send(response);
+//         DebugPrintf(" %s\n", "done.");
+//         return true;
+//     }
+//     DebugPrintf(" %s\n", "error!");
+//     return false;
+// }
 
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     DebugPrint("Start scan WiFi networks");
@@ -375,8 +364,6 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 
 void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     String ssid, pass;
-    WiFi.mode(WIFI_AP_STA);
-    bool persistent = true;
 
     if (request->hasArg("ssid"))
         ssid = request->arg("ssid");
@@ -386,52 +373,24 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
 
     if (request->hasArg("persistent")) {
         if (request->arg("persistent").equals("false")) {
-            persistent = false;
+            WiFi.persistent(false);
+            #if defined(ESP8266)
+                struct station_config stationConf;
+                wifi_station_get_config_default(&stationConf);
+                // Clear previuos configuration
+                memset(&stationConf, 0, sizeof(stationConf));
+                wifi_station_set_config(&stationConf);
+            #elif defined(ESP32)
+                wifi_config_t stationConf;
+                esp_wifi_get_config(WIFI_IF_STA, &stationConf);
+                // Clear previuos configuration
+                memset(&stationConf, 0, sizeof(stationConf));
+                esp_wifi_set_config(WIFI_IF_STA, &stationConf);
+            #endif
         }
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        // IPAddress ip = WiFi.localIP();
-        String resp = "ESP is currently connected to a WiFi network.<br><br>"
-        "Actual connection will be closed and a new attempt will be done with <b>";
-        resp += ssid;
-        resp += "</b> WiFi network.";
-        request->send(200, "text/plain", resp);
-        delay(500);
-        Serial.println("Disconnect from current WiFi network");
-        WiFi.disconnect();
-    }
-
-    // Connect to the provided SSID
-    if (ssid.length() && pass.length()) {
-        Serial.printf("\nConnecting to %s\n", ssid.c_str());
-        WiFi.begin(ssid.c_str(), pass.c_str());
-
-        uint32_t beginTime = millis();
-        while (WiFi.status() != WL_CONNECTED) {
-            delay(500);
-            Serial.print("*.*");
-            if (millis() - beginTime > 10000)
-                break;
-        }
-        // reply to client
-        if (WiFi.status() == WL_CONNECTED) {
-            // WiFi.softAPdisconnect();
-            IPAddress ip = WiFi.localIP();
-            Serial.printf("\nConnected to Wifi! IP address: %s\n", ip.toString().c_str());
-            String serverLoc = F("http://");
-            for (int i = 0; i < 4; i++)
-                serverLoc += i ? "." + String(ip[i]) : String(ip[i]);
-
-            String resp = "Restart ESP and then reload this page from <a href='";
-            resp += serverLoc;
-            resp += "/setup'>the new LAN address</a>";
-            request->send(200, "text/plain", resp);
-
+        else {
             // Store current WiFi configuration in flash
-            // Store current WiFi configuration in flash
-            if (persistent)
-            {
+            WiFi.persistent(true);
             #if defined(ESP8266)
                 struct station_config stationConf;
                 wifi_station_get_config_default(&stationConf);
@@ -450,28 +409,59 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
                 memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
                 esp_wifi_set_config(WIFI_IF_STA, &stationConf);
             #endif
-            }
-            else {
-            #if defined(ESP8266)
-                struct station_config stationConf;
-                wifi_station_get_config_default(&stationConf);
-                // Clear previuos configuration
-                memset(&stationConf, 0, sizeof(stationConf));
-                wifi_station_set_config(&stationConf);
-            #elif defined(ESP32)
-                wifi_config_t stationConf;
-                esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-                // Clear previuos configuration
-                memset(&stationConf, 0, sizeof(stationConf));
-                esp_wifi_set_config(WIFI_IF_STA, &stationConf);
-            #endif
-            }
 
         }
-        else
-            request->send(500, "text/plain", "Connection error, maybe the password is wrong?");
     }
-    request->send(500, "text/plain", "Wrong credentials provided");
+
+    if (WiFi.status() == WL_CONNECTED) {
+        // IPAddress ip = WiFi.localIP();
+        String resp = F("ESP is currently connected to a WiFi network.<br><br>"
+        "Actual connection will be closed and a new attempt will be done with <b>");
+        resp += ssid;
+        resp += "</b> WiFi network.";
+        request->send(200, "text/plain", resp);
+        delay(250);
+        Serial.println("\nDisconnect from current WiFi network");
+        WiFi.disconnect();
+    }
+
+    // Connect to the provided SSID
+    if (ssid.length() && pass.length()) {
+        WiFi.mode(WIFI_AP_STA);
+        Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
+        WiFi.begin(ssid.c_str(), pass.c_str());
+
+        uint32_t beginTime = millis();
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+            Serial.print("*.*");
+            #if defined(ESP8266)
+            ESP.wdtFeed();
+            #endif
+            if (millis() - beginTime > 10000) {
+                request->send(408, "text/plain", "<br><br>Connection timeout!<br>Check password or try to restart ESP.");
+                delay(100);
+                Serial.println("\nWiFi connect timeout!");
+                return;
+            }
+        }
+        // reply to client
+        if (WiFi.status() == WL_CONNECTED) {
+            // WiFi.softAPdisconnect();
+            IPAddress ip = WiFi.localIP();
+            Serial.print(F("\nConnected to Wifi! IP address: "));
+            Serial.println(ip);
+            String serverLoc = F("http://");
+            for (int i = 0; i < 4; i++)
+                serverLoc += i ? "." + String(ip[i]) : String(ip[i]);
+
+            String resp = F("Restart ESP and then reload this page from <a href='");
+            resp += serverLoc;
+            resp += F("/setup'>the new LAN address</a>");
+            request->send(200, "text/plain", resp);
+        }
+    }
+    request->send(401, "text/plain", "Wrong credentials provided");
 }
 
 void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
@@ -751,7 +741,6 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     IPAddress ip;
     m_timeout = timeout;
     WiFi.mode(WIFI_STA);
-
     const char *_ssid;
     const char *_pass;
 #if defined(ESP8266)
@@ -759,6 +748,11 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     wifi_station_get_config_default(&conf);
     _ssid = reinterpret_cast<const char *>(conf.ssid);
     _pass = reinterpret_cast<const char *>(conf.password);
+
+    // Serial.print(F("SSID: "));
+    // Serial.println(_ssid);
+    // Serial.print(F("Password: "));
+    // Serial.println(_pass);
 
 #elif defined(ESP32)
     wifi_config_t conf;

@@ -11,22 +11,25 @@ var $ = function(el) {
 /**
 * Start a websocket client and set event callback functions
 */
- 
-var connection = new WebSocket('ws://' + location.hostname + ':81/');
-connection.onopen = function () {
-  connection.send('Connected - ' + new Date());
-};
-connection.onerror = function (error) {
-  console.log('WebSocket Error ', error);
-};
-connection.onmessage = function (e) {
-  console.log('Server sent:\n', e.data);
-  parseMessage(e.data);
-};
-connection.onclose = function () {
-  console.log('WebSocket connection closed');
-};
-
+function ws_connect() {
+  var ws = new WebSocket('ws://'+document.location.host+'/ws',['arduino']);
+  ws.onopen = function() {
+    ws.send('Connected - ' + new Date());
+    getGpioList();
+  };
+  ws.onmessage = function(e) {
+    parseMessage(e.data);
+  };
+  ws.onclose = function(e) {
+    setTimeout(function() {
+    ws_connect();
+    }, 1000);
+  };
+  ws.onerror = function(err) {
+    ws.close();
+  };
+  return ws;
+}
 
 /**
 * Send data "cmds" to ESP
@@ -61,7 +64,7 @@ function parseMessage(msg) {
 */
 function getGpioList() {
   fetch('/getGpioList')                 // Do the request
-  .then(response => response.json())    // Parse the response 
+  .then(response => response.json())    // Parse the response
   .then(obj => {                        // DO something with response
     updateGpiosList(obj);
   });
@@ -76,45 +79,39 @@ function updateGpiosList(elems) {
   // Get reference to gpio-list element and clear content
   const list = document.querySelector('#gpio-list');
   list.innerHTML = "";
-  
+
   // Draw all input rows
-  let inputs = elems.filter( function(key, val) {
-    return key.type === 'input';
-  });
-  
+  const inputs = Object.entries(elems).filter((item) => item[1].type === 'input');
+
   inputs.forEach(el => {
+    const obj = el[1];
+    var lbl = obj.level ? `${svgLightOn} HIGH` : `${svgLightOff}  LOW`;
     // Create a single row with all columns
     var row = document.createElement('tr');
-	  row.innerHTML  = '<td>' + el.label + '</td>';
-    row.innerHTML += '<td>' + el.pin + '</td>';
-    row.innerHTML += '<td style="text-align:center;">' + el.type + '</td>';
-    if (el.level)
-      row.innerHTML += `<td style="text-align:center;"><label id="pin-${el.pin}" for="">${svgLightOn} HIGH</label></td>` ;
-    else
-      row.innerHTML += `<td style="text-align:center;"><label id="pin-${el.pin}" for="">${svgLightOff}  LOW</label></td>`;
+	  row.innerHTML  = '<td>' + obj.label + '</td>';
+    row.innerHTML += '<td>' + obj.pin + '</td>';
+    row.innerHTML += '<td style="text-align:center;">' + obj.type + '</td>';
+    row.innerHTML += `<td style="text-align:center;"><label id="pin-${obj}" for="">${lbl}</label></td>` ;
     // Append this row to list
     list.appendChild(row);
   });
-  
+
   // Draw all output rows
-  let outputs = elems.filter( function(key, val) {
-    return key.type === 'output';
-  });
-  
+  const outputs = Object.entries(elems).filter((item) => item[1].type === 'output');
+
   outputs.forEach(el => {
+    const obj = el[1];
+    var lbl = obj.level ? ` checked>Turn OFF` : `>Turn ON`;
     // Create a single row with all columns
     var row = document.createElement('tr');
-	  row.innerHTML  = '<td>' + el.label + '</td>';
-    row.innerHTML += '<td>' + el.pin + '</td>';
-    row.innerHTML += '<td style="text-align:center;">' + el.type + '</td>';
-    if (el.level)
-      row.innerHTML += `<td><label for=""><input type="checkbox" id="pin-${el.pin}" role="switch" data-pin=${el.pin} checked>Turn OFF</label></td>`;
-    else
-      row.innerHTML += `<td><label for=""><input type="checkbox" id="pin-${el.pin}" role="switch" data-pin=${el.pin}>Turn ON</label></td>`;
+	  row.innerHTML  = '<td>' + obj.label + '</td>';
+    row.innerHTML += '<td>' + obj.pin + '</td>';
+    row.innerHTML += '<td style="text-align:center;">' + obj.type + '</td>';
+    row.innerHTML += `<td><label id="lbl-${obj.pin}" for=""><input type="checkbox" id="pin-${obj.pin}" role="switch" data-pin=${obj.pin}${lbl}</label></td>`;
     // Append this row to list
     list.appendChild(row);
   });
-  
+
   // Add event listener to each out switch
   const outSwitches = document.querySelectorAll('input[type="checkbox"]');
   outSwitches.forEach( (outSw) => {
@@ -124,5 +121,5 @@ function updateGpiosList(elems) {
   });
 }
 
-
+var connection = ws_connect();
 window.addEventListener('load', getGpioList);

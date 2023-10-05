@@ -1,104 +1,127 @@
-#include <esp-fs-webserver.h>   // https://github.com/cotestatnt/esp-fs-webserver
-
 #include <FS.h>
 #include <LittleFS.h>
+#include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
+
 #define FILESYSTEM LittleFS
-
-#ifdef ESP8266
-  ESP8266WebServer server(80);
-#elif defined(ESP32)
-  WebServer server(80);
-#endif
-
-FSWebServer myWebServer(FILESYSTEM, server);
+AsyncFsWebServer server(80, LittleFS);
 
 ////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
-void getDefaultValue() {
-  WebServerClass* webRequest = myWebServer.getRequest();
+void getDefaultValue (AsyncWebServerRequest *request) {
   // Send to client default values as JSON string because it's very easy to parse JSON in Javascript
   String defaultVal = "{\"car\":\"Ferrari\", \"firstname\":\"Enzo\", \"lastname\":\"Ferrari\",\"age\":90}";
-  webRequest->send(200, "text/json", defaultVal);
+  request->send(200, "text/json", defaultVal);
 }
 
-void handleForm1() {
-  WebServerClass* webRequest = myWebServer.getRequest();
+void handleForm1(AsyncWebServerRequest *request) {
   String reply;
-  if(webRequest->hasArg("cars")) {
+  if(request->hasArg("cars")) {
     reply += "You have submitted with Form1: ";
-    reply += webRequest->arg("cars");
+    reply += request->arg("cars");
   }
   Serial.println(reply);
-  webRequest->send(200, "text/plain", reply);
+  request->send(200, "text/plain", reply);
 }
 
-void handleForm2() {
-  WebServerClass* webRequest = myWebServer.getRequest();
+void handleForm2(AsyncWebServerRequest *request) {
   String reply;
-  if(webRequest->hasArg("firstname")) {
+  if(request->hasArg("firstname")) {
     reply += "You have submitted with Form2: ";
-    reply += webRequest->arg("firstname");
+    reply += request->arg("firstname");
   }
-  if(webRequest->hasArg("lastname")) {
+  if(request->hasArg("lastname")) {
     reply += " ";
-    reply += webRequest->arg("lastname");
+    reply += request->arg("lastname");
   }
-  if(webRequest->hasArg("age")) {
+  if(request->hasArg("age")) {
     reply += ", age: ";
-    reply += webRequest->arg("age");
+    reply += request->arg("age");
   }
   Serial.println(reply);
-  webRequest->send(200, "text/plain", reply);
+  request->send(200, "text/plain", reply);
 }
-
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void startFilesystem(){
-  // FILESYSTEM INIT
-  if ( FILESYSTEM.begin()){
-    File root = FILESYSTEM.open("/", "r");
-    File file = root.openNextFile();
-    while (file){
-      const char* fileName = file.name();
-      size_t fileSize = file.size();
-      Serial.printf("FS File: %s, size: %lu\n", fileName, (long unsigned)fileSize);
-      file = root.openNextFile();
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
+    Serial.printf("\nListing directory: %s\n", dirname);
+    File root = fs.open(dirname);
+    if(!root){
+        Serial.println("- failed to open directory");
+        return;
     }
-    Serial.println();
+    if(!root.isDirectory()){
+        Serial.println(" - not a directory");
+        return;
+    }
+    File file = root.openNextFile();
+    while(file){
+        if(file.isDirectory()){
+            if(levels){
+              listDir(fs, file.path(), levels -1);
+            }
+        } else {
+            Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
+        }
+        file = root.openNextFile();
+    }
+}
+
+bool startFilesystem() {
+  if (FILESYSTEM.begin()){
+    listDir(FILESYSTEM, "/", 1);
+    return true;
   }
   else {
-    Serial.println("ERROR on mounting filesystem. It will be formatted!");
-    FILESYSTEM.format();
-    ESP.restart();
+      Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+      FILESYSTEM.format();
+      ESP.restart();
   }
+  return false;
 }
+
+/*
+* Getting FS info (total and free bytes) is strictly related to
+* filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
+*/
+#ifdef ESP32
+void getFsInfo(fsInfo_t* fsInfo) {
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
+}
+#endif
 
 
 void setup(){
   Serial.begin(115200);
 
+  // Try to connect to stored SSID, start AP if fails after timeout
+  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
+
   // FILESYSTEM INIT
   startFilesystem();
 
-  // Try to connect to flash stored SSID, start AP if fails after timeout
-  IPAddress myIP = myWebServer.startWiFi(15000, "ESP8266_AP", "123456789" );
-
   // Add custom page handlers to webserver
-  myWebServer.addHandler("/getDefault", HTTP_GET, getDefaultValue);
-  
-  myWebServer.addHandler("/setForm1", HTTP_POST, handleForm1);
-  myWebServer.addHandler("/setForm2", HTTP_POST, handleForm2);
+  server.on("/getDefault", HTTP_GET, getDefaultValue);
+  server.on("/setForm1", HTTP_POST, handleForm1);
+  server.on("/setForm2", HTTP_POST, handleForm2);
 
-  
-  if (myWebServer.begin()) {
-    Serial.print(F("ESP Web Server started on IP Address: "));
-    Serial.println(myIP);
-    Serial.println(F("Open /setup page to configure optional parameters"));
-    Serial.println(F("Open /edit page to view and edit files"));
-    Serial.println(F("Open /update page to upload firmware and filesystem updates"));
-  }  
+  // Enable ACE FS file web editor and add FS info callback fucntion
+  server.enableFsCodeEditor();
+  #ifdef ESP32
+  server.setFsInfoCallback(getFsInfo);
+  #endif
+
+  // Start server
+  server.init();
+  Serial.print(F("ESP Web Server started on IP Address: "));
+  Serial.println(myIP);
+  Serial.println(F(
+      "This is \"handleFormData.ino\" example.\n"
+      "Open /setup page to configure optional parameters.\n"
+      "Open /edit page to view, edit or upload example or your custom webserver source files."
+  ));
 }
 
 
 void loop() {
-  myWebServer.run();
+
 }

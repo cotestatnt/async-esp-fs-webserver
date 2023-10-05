@@ -4,17 +4,18 @@
 #include <FS.h>
 #include <ESPAsyncWebServer.h>
 
+#define DIR_FROM_PATH(x) {}
+
 #ifdef ESP32
   #include <Update.h>
   #include <esp_wifi.h>
   #include <esp_int_wdt.h>
   #include <esp_task_wdt.h>
 #elif defined(ESP8266)
-#else
   #include <Updater.h>
-    #error Platform not supported
+#else
+  #error Platform not supported
 #endif
-
 
 
 #define INCLUDE_EDIT_HTM
@@ -32,9 +33,9 @@
 #endif
 
 #define DBG_OUTPUT_PORT Serial
-#define DEBUG_MODE_WS 1
+#define DEBUG_MODE 0
 
-#if DEBUG_MODE_WS
+#if DEBUG_MODE
 #define DebugPrint(x) DBG_OUTPUT_PORT.print(x)
 #define DebugPrintln(x) DBG_OUTPUT_PORT.println(x)
 #define DebugPrintf(fmt, ...) DBG_OUTPUT_PORT.printf(fmt, ##__VA_ARGS__)
@@ -62,16 +63,15 @@ using CallbackF = std::function<void(void)>;
 class AsyncFsWebServer : public AsyncWebServer
 {
   protected:
-    // AsyncWebServer* m_server = nullptr;
     AsyncWebSocket* m_ws = nullptr;
-    void handleIndex(AsyncWebServerRequest *request);
+
     void handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len);
     void handleScanNetworks(AsyncWebServerRequest *request);
     void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
     void doWifiConnection(AsyncWebServerRequest *request);
-    bool handleFileRead(const String &uri, AsyncWebServerRequest *request);
-    void handleSetup(AsyncWebServerRequest *request) ;
+
     void notFound(AsyncWebServerRequest *request);
+    void handleSetup(AsyncWebServerRequest *request);
     void getStatus(AsyncWebServerRequest *request);
     void clearConfig(AsyncWebServerRequest *request);
 
@@ -91,6 +91,12 @@ class AsyncFsWebServer : public AsyncWebServer
    * Redirect to captive portal if we got a request for another domain.
   */
   bool captivePortal(AsyncWebServerRequest *request);
+
+  /*
+    Add an option which contain "raw" HTML code to be injected in /setup page
+    Th HTML code will be written in a file with named as option id
+  */
+  void addSource(const char* source, const char* tag, bool overWrite = false) ;
 
   private:
     fs::FS* m_filesystem = nullptr;
@@ -118,11 +124,12 @@ class AsyncFsWebServer : public AsyncWebServer
     // AsyncWebServer* getServer() { return m_server;}
     AsyncWebSocket* getWebSocket() { return m_ws;}
 
+    // Broadcast a websocket message to all clients connected
     void wsBroadcast(const char * buffer) {
       m_ws->textAll(buffer);
     }
 
-
+    // TO-DO! //
     void setCaptiveWebage(const char *url){
       strncpy(m_apWebpage, url, MAX_APNAME_LEN);
     }
@@ -145,6 +152,9 @@ class AsyncFsWebServer : public AsyncWebServer
       return file;
     }
 
+    /*
+    * Get complete path of config.json file
+    */
     const char* getConfiFileName() {
       return CONFIG_FOLDER CONFIG_FILE;
     }
@@ -196,6 +206,9 @@ class AsyncFsWebServer : public AsyncWebServer
       will be saved as file. The related option will contain the path to this file
     */
     bool optionToFile(const char* filename, const char* str, bool overWrite);
+
+
+
     /*
       Add an option which contain "raw" HTML code to be injected in /setup page
       Th HTML code will be written in a file with named as option id
@@ -205,12 +218,12 @@ class AsyncFsWebServer : public AsyncWebServer
       Add an option which contain "raw" CSS style to be injected in /setup page
       Th CSS code will be written in a file with named as option raw-css.css
     */
-    void addCSS(const char* css, bool overWrite = false);
+    void addCSS(const char* css, const char* id, bool overWrite = false);
     /*
       Add an option which contain "raw" JS script to be injected in /setup page
       Th JS code will be written in a file with named as option raw-javascript.js
     */
-    void addJavascript(const char* script, bool overWrite = false) ;
+    void addJavascript(const char* script, const char* id, bool overWrite = false) ;
     /*
       Add a new option box with custom label
     */

@@ -1,17 +1,15 @@
-#include <esp-fs-webserver.h>   // https://github.com/cotestatnt/esp-fs-webserver
-
 #include <FS.h>
 #include <LittleFS.h>
+#include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
+
 #define FILESYSTEM LittleFS
+AsyncFsWebServer server(80, FILESYSTEM);
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
-// Set this to 1 if you want clear the /config.json file at startup
-#define CLEAR_OTIONS 0
-
-struct tm sysTime;
+#define CLEAR_OPTIONS false
 
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
@@ -21,11 +19,14 @@ float floatVar = 15.5F;
 String stringVar = "Test option String";
 
 // ThingsBoard varaibles
+String tb_deviceName = "ESP Sensor";
+double tb_deviceLatitude = 41.88505;
+double tb_deviceLongitude = 12.50050;
 String tb_deviceToken = "xxxxxxxxxxxxxxxxxxx";
 String tb_device_key = "xxxxxxxxxxxxxxxxxxx";
 String tb_secret_key = "xxxxxxxxxxxxxxxxxxx";
-String tb_serverIP = "192.168.1.1";
-uint16_t tb_port = 8181;
+String tb_serverIP = "thingsboard.cloud";
+uint16_t tb_port = 80;
 
 // Var labels (in /setup webpage)
 #define LED_LABEL "The LED pin number"
@@ -34,6 +35,9 @@ uint16_t tb_port = 8181;
 #define FLOAT_LABEL "A float variable"
 #define STRING_LABEL "A String variable"
 
+#define TB_DEVICE_NAME "Device Name"
+#define TB_DEVICE_LAT "Device Latitude"
+#define TB_DEVICE_LON "Device Longitude"
 #define TB_SERVER "ThingsBoard server address"
 #define TB_PORT "ThingsBoard server port"
 #define TB_DEVICE_TOKEN "ThingsBoard device token"
@@ -44,14 +48,6 @@ uint16_t tb_port = 8181;
 #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
 struct tm Time;
 
-#ifdef ESP8266
-ESP8266WebServer server(80);
-#elif defined(ESP32)
-WebServer server(80);
-#endif
-
-FSWebServer myWebServer(FILESYSTEM, server);
-
 
 /*
 * Include the custom HTML, CSS and Javascript to be injected in /setup webpage.
@@ -61,27 +57,56 @@ FSWebServer myWebServer(FILESYSTEM, server);
 * like for example background color, margins, paddings etc etc
 */
 #include "customElements.h"
+#include "thingsboard.h"
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void startFilesystem() {
-  // FILESYSTEM INIT
-  if ( FILESYSTEM.begin()) {
-    File root = FILESYSTEM.open("/", "r");
-    File file = root.openNextFile();
-    while (file) {
-      const char* fileName = file.name();
-      size_t fileSize = file.size();
-      Serial.printf("FS File: %s, size: %lu\n", fileName, (long unsigned)fileSize);
-      file = root.openNextFile();
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
+  Serial.printf("\nListing directory: %s\n", dirname);
+  File root = fs.open(dirname);
+  if (!root) {
+    Serial.println("- failed to open directory");
+    return;
+  }
+  if (!root.isDirectory()) {
+    Serial.println(" - not a directory");
+    return;
+  }
+  File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      if (levels) {
+        listDir(fs, file.path(), levels -1);
+      }
+    } else {
+      Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
     }
-    Serial.println();
+    file = root.openNextFile();
+  }
+}
+
+bool startFilesystem() {
+  if (FILESYSTEM.begin()){
+    listDir(FILESYSTEM, "/", 1);
+    return true;
   }
   else {
-    Serial.println(F("ERROR on mounting filesystem. It will be formmatted!"));
+    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
     FILESYSTEM.format();
     ESP.restart();
   }
+  return false;
 }
+
+/*
+* Getting FS info (total and free bytes) is strictly related to
+* filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
+*/
+#ifdef ESP32
+void getFsInfo(fsInfo_t* fsInfo) {
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
+}
+#endif
 
 
 ////////////////////  Load application options from filesystem  ////////////////////
@@ -90,8 +115,8 @@ void startFilesystem() {
 * the variables are read (and written) all at once using the ArduinoJon library
 */
 bool loadOptions() {
-  if (FILESYSTEM.exists(myWebServer.configFile())) {
-    File file = FILESYSTEM.open(myWebServer.configFile(), "r");
+  if (FILESYSTEM.exists(server.getConfiFileName())) {
+    File file = server.getConfigFile("r");
     DynamicJsonDocument doc(file.size() * 1.33);
     if (!file)
       return false;
@@ -106,6 +131,9 @@ bool loadOptions() {
     floatVar = doc[FLOAT_LABEL]["value"];
     stringVar = doc[STRING_LABEL].as<String>();
 
+    tb_deviceName = doc[TB_DEVICE_NAME].as<String>();
+    tb_deviceLatitude = doc[TB_DEVICE_LAT];
+    tb_deviceLongitude = doc[TB_DEVICE_LON];
     tb_deviceToken = doc[TB_DEVICE_TOKEN].as<String>();
     tb_device_key = doc[TB_DEVICE_KEY].as<String>();
     tb_secret_key = doc[TB_SECRET_KEY].as<String>();
@@ -129,8 +157,9 @@ bool loadOptions() {
 
 //   Call this if you need to save parameters from the sketch side
 // bool saveOptions() {
-//   if (FILESYSTEM.exists(myWebServer.configFile())) {
-//     File file = FILESYSTEM.open(myWebServer.configFile(), "w");
+// if (FILESYSTEM.exists(server.getConfiFileName())) {
+//     File file = server.getConfigFile("w");
+
 //     if (!file)
 //       return false;
 
@@ -155,63 +184,86 @@ bool loadOptions() {
 // }
 
 
+////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
+void handleLoadOptions(AsyncWebServerRequest *request) {
+  request->send(200, "text/plain", "Options loaded");
+  loadOptions();
+  Serial.println("Application option loaded after web request");
+}
+
 void setup() {
   Serial.begin(115200);
 
-  // FILESYSTEM INIT
-  startFilesystem();
-
   // Load configuration (if not present, default will be created when webserver will start)
 #if CLEAR_OPTIONS
-  if (myWebServer.clearOptions())
+  if (server.clearOptions())
     ESP.restart();
 #endif
-  if (loadOptions())
-    Serial.println(F("Application option loaded\n\n"));
-  else
-    Serial.println(F("Application options NOT loaded!\n\n"));
+  // Try to connect to stored SSID, start AP if fails after timeout
+  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
 
-  // Configure /setup page and start Web Server
+  // FILESYSTEM INIT
+  if (startFilesystem()){
+    // Load configuration (if not present, default will be created when webserver will start)
+    if (loadOptions())
+      Serial.println(F("Application option loaded"));
+    else
+      Serial.println(F("Application options NOT loaded!"));
+  }
+  // Add custom page handlers to webserver
+  server.on("/reload", HTTP_GET, handleLoadOptions);
 
   // Add a new options box
-  myWebServer.addOptionBox("My Options");
-  myWebServer.addOption(LED_LABEL, ledPin);
-  myWebServer.addOption(LONG_LABEL, longVar);
+  server.addOptionBox("My Options");
+  server.addOption(LED_LABEL, ledPin);
+  server.addOption(LONG_LABEL, longVar);
   // Float fields can be configured with min, max and step properties
-  myWebServer.addOption(FLOAT_LABEL, floatVar, 0.0, 100.0, 0.01);
-  myWebServer.addOption(STRING_LABEL, stringVar);
-  myWebServer.addOption(BOOL_LABEL, boolVar);
-
-  // Add a new options box
-  myWebServer.addOptionBox("ThingsBoard");
-  myWebServer.addOption(TB_SERVER, tb_serverIP);
-  myWebServer.addOption(TB_PORT, tb_port);
-  myWebServer.addOption(TB_DEVICE_KEY, tb_device_key);
-  myWebServer.addOption(TB_SECRET_KEY, tb_secret_key);
-  myWebServer.addOption(TB_DEVICE_TOKEN, tb_deviceToken);
+  server.addOption(FLOAT_LABEL, floatVar, 0.0, 100.0, 0.01);
+  server.addOption(STRING_LABEL, stringVar);
+  server.addOption(BOOL_LABEL, boolVar);
 
   // Add a new options box with custom code injected
-  myWebServer.addOptionBox("Custom HTML");
+  server.addOptionBox("Custom HTML");
   // How many times you need (for example one in different option box)
-  myWebServer.addHTML(custom_html, "fetch-test", /*overwite*/ true);
-  // Only once (CSS and Javascript will be appended to head and body)
-  myWebServer.addCSS(custom_css, /*overwite*/ false);
-  myWebServer.addJavascript(custom_script, /*overwite*/ false);
+  server.addHTML(custom_html, "fetch-test", /*overwite*/ true);
 
-  // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = myWebServer.startWiFi(15000, "ESP_AP", "123456789" );
+  // Add a new options box
+  server.addOptionBox("ThingsBoard");
+  server.addOption(TB_DEVICE_NAME, tb_deviceName);
+  server.addOption(TB_DEVICE_LAT, tb_deviceLatitude, -180.0, 180.0, 0.00001);
+  server.addOption(TB_DEVICE_LON, tb_deviceLongitude, -180.0, 180.0, 0.00001);
+  server.addOption(TB_SERVER, tb_serverIP);
+  server.addOption(TB_PORT, tb_port);
+  server.addOption(TB_DEVICE_KEY, tb_device_key);
+  server.addOption(TB_SECRET_KEY, tb_secret_key);
+  server.addOption(TB_DEVICE_TOKEN, tb_deviceToken);
+  server.addHTML(info_html, "info");
+  server.addHTML(thingsboard_htm, "ts", /*overwite*/ true);
 
-  // Start webserver
-  if (myWebServer.begin()) {
-    Serial.print(F("\nESP Web Server started on IP Address: "));
-    Serial.println(myIP);
-    Serial.println(F("Open /setup page to configure optional parameters"));
-    Serial.println(F("Open /edit page to view and edit files"));
-    Serial.println(F("Open /update page to upload firmware and filesystem updates\n\n"));
-  }
+  // CSS will be appended to HTML head
+  server.addCSS(custom_css, "fetch", /*overwite*/ false);
+  // Javascript will be appended to HTML body
+  server.addJavascript(custom_script, "fetch", /*overwite*/ false);
+  server.addJavascript(thingsboard_script, "ts", /*overwite*/ false);
+
+  // Enable ACE FS file web editor and add FS info callback fucntion
+  server.enableFsCodeEditor();
+  #ifdef ESP32
+  server.setFsInfoCallback(getFsInfo);
+  #endif
+
+  // Start server
+  server.init();
+  Serial.print(F("ESP Web Server started on IP Address: "));
+  Serial.println(myIP);
+  Serial.println(F(
+    "This is \"customHTML.ino\" example.\n"
+    "Open /setup page to configure optional parameters.\n"
+    "Open /edit page to view, edit or upload example or your custom webserver source files."
+  ));
 }
 
 
 void loop() {
-  myWebServer.run();
+
 }

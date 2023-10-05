@@ -1,6 +1,6 @@
 const imgFolder = '/img/';
 var fileList = document.getElementById('file-list');
-var intervalID;       
+var intervalID;
 
 // Load list of files every x milliseconds (used in order to get fresh list)
 var myInterval = function(val){
@@ -13,7 +13,7 @@ var myInterval = function(val){
 // Fetch the list of files and fill the filelist
 function listFiles() {
   fetch('/list?dir=/img')      // Do the request
-  .then(response => response.json())    // Parse the response 
+  .then(response => response.json())    // Parse the response
   .then(obj => {                        // DO something with response
     fileList.innerHTML = '';
     obj.forEach(function(entry, i) {
@@ -27,14 +27,14 @@ function loadFile(filename) {
   clearInterval(intervalID);
   var name = document.getElementById("image-name");
   var content = document.getElementById("image-content");
-  
+
   name.innerHTML = 'Image path: ' + filename;
   content.src = filename;
   content.alt = 'SD: ' + filename;
-  
+
   // Get the modal
   var modal = document.getElementById("modal-container");
-  
+
   // Get the image and insert it inside the modal - use its "alt" text as a caption
   var img = document.getElementById("image-content");
   var modalImg = document.getElementById("modal-image");
@@ -44,12 +44,12 @@ function loadFile(filename) {
     modalImg.src = this.src;
     captionText.innerHTML = this.alt;
   };
-  
+
   // Get the <span> element that closes the modal
   var span = document.getElementsByClassName("close")[0];
-  
+
   // When the user clicks on <span> (x), close the modal
-  span.onclick = function() { 
+  span.onclick = function() {
     modal.style.display = "none";
   };
 }
@@ -57,11 +57,13 @@ function loadFile(filename) {
 // Delete selected file in SD
 async function deleteFile(filename) {
   console.log(filename);
+  const data = new URLSearchParams();
+  data.append('path', filename);
   fetch('/edit', {
       method: 'DELETE',
-      body: filename
+      body: data
   });
-  
+
   // Update the file browser.
   listFiles();
 }
@@ -71,7 +73,7 @@ async function deleteAll() {
   if(isExecuted){
     var ul = document.getElementById("file-list");
     var items = ul.getElementsByClassName("edit-file");
-    
+
     for (var i=0; i<items.length; i++) {
       console.log("Delete " + items[i].innerHTML);
       await deleteFile(imgFolder + items[i].innerHTML);
@@ -105,7 +107,7 @@ function addEntry(entryName) {
     e.preventDefault();
     deleteFile(imgFolder + entryName);
   });
-  
+
 }
 
 // Add the buttons event listeners
@@ -115,7 +117,7 @@ var getInterval = document.getElementById('set-interval');
 getNew.addEventListener('click', function(e) {
   e.preventDefault();
   fetch('/getPicture')                  // Do the request
-  .then(response => response.text())    // Parse the response 
+  .then(response => response.text())    // Parse the response
   .then(txt => {                        // DO something with response
     console.log(txt);
     addEntry(txt);
@@ -126,15 +128,15 @@ getNew.addEventListener('click', function(e) {
 getInterval.addEventListener('click', function(e) {
   e.preventDefault();
   let val = document.getElementById('interval').value;
-  
+
   fetch('/setInterval?val='+ val)       // Do the request
-  .then(response => response.text())    // Parse the response 
+  .then(response => response.text())    // Parse the response
   .then(txt => {                        // DO something with response
     console.log('Set interval ' + txt);
     myInterval(val);
   });
 });
-    
+
 // Start the web page
 clearInterval(intervalID);
 listFiles();
