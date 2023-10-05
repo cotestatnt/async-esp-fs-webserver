@@ -10,7 +10,8 @@ From some tests I have done, I have been able to observe that a webserver create
 Starting from version 2.0.0 ESP32 core for Aruino introduced the LittlsFS library like ESP8266. The examples in this library is written to work with this for both platform by default. Change according to your needs if you prefer other filesystems.
 
 ## WiFi, OTA firmware update and Options manager
-Thanks to the built-in page **/setup** (about 6.9Kb of program space) is possible scan and set the WiFi credentials and other freely configurable parameters.
+
+Thanks to the built-in page **/setup** (about 9Kb of program space) is possible scan and set the WiFi credentials and other freely configurable parameters.
 
 With **/setup** webpage is also possible perform remote firmware update. 
 
