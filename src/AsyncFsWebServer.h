@@ -11,7 +11,9 @@
   #include <esp_wifi.h>
   #include <esp_int_wdt.h>
   #include <esp_task_wdt.h>
+  #include <ESPmDNS.h>
 #elif defined(ESP8266)
+  #include <ESP8266mDNS.h>
   #include <Updater.h>
 #else
   #error Platform not supported
@@ -33,7 +35,7 @@
 #endif
 
 #define DBG_OUTPUT_PORT Serial
-#define DEBUG_MODE 0
+#define DEBUG_MODE 1
 
 #if DEBUG_MODE
 #define DebugPrint(x) DBG_OUTPUT_PORT.print(x)
@@ -54,6 +56,7 @@
 typedef struct {
   size_t totalBytes;
   size_t usedBytes;
+  char fsName[MAX_APNAME_LEN];
 } fsInfo_t;
 
 using FsInfoCallbackF = std::function<void(fsInfo_t*)>;
@@ -64,7 +67,6 @@ class AsyncFsWebServer : public AsyncWebServer
 {
   protected:
     AsyncWebSocket* m_ws = nullptr;
-
     void handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len);
     void handleScanNetworks(AsyncWebServerRequest *request);
     void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
@@ -74,6 +76,7 @@ class AsyncFsWebServer : public AsyncWebServer
     void handleSetup(AsyncWebServerRequest *request);
     void getStatus(AsyncWebServerRequest *request);
     void clearConfig(AsyncWebServerRequest *request);
+    void handleFileName(AsyncWebServerRequest *request);
 
     // Get data and then do update
     void update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
@@ -99,6 +102,7 @@ class AsyncFsWebServer : public AsyncWebServer
   void addSource(const char* source, const char* tag, bool overWrite = false) ;
 
   private:
+    char m_host[16] = {"espserver"};
     fs::FS* m_filesystem = nullptr;
     bool m_apmode = false;
     uint32_t m_timeout = 10000;
@@ -107,12 +111,15 @@ class AsyncFsWebServer : public AsyncWebServer
     bool m_filesystem_ok = false;
     char m_apWebpage[MAX_APNAME_LEN] = "/setup";
     size_t m_contentLen = 0;
+    uint16_t m_port = 80;
     FsInfoCallbackF getFsInfo = nullptr;
 
   public:
-    AsyncFsWebServer(uint16_t port, fs::FS &fs) : AsyncWebServer(port) {
+    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = nullptr) : AsyncWebServer(port) {
       m_ws = new AsyncWebSocket("/ws");
       m_filesystem = &fs;
+      strncpy(m_host, hostname, sizeof(m_host));
+      m_port = port;
     }
 
     ~AsyncFsWebServer() {
@@ -172,6 +179,12 @@ class AsyncFsWebServer : public AsyncWebServer
     void setSetupPageTitle(const char* title) {
       addOption("name-logo", title);
     }
+
+    /*
+    * Set /setup webpage title
+    */
+    void setLogoBase64(const char* logo, const char* width = "128", const char* height = "128", bool overwrite = false) ;
+
 
     /*
     * Set callback function to provide updated FS info to library

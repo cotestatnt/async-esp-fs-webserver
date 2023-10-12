@@ -87,7 +87,6 @@ function listWifiNetworks(elems) {
   const list = document.querySelector('#wifi-list');
   list.innerHTML = "";
 	elems.forEach((elem, idx) => {
-
     // Create a single row with all columns
     var row = newEl('tr');
     var id = 'wifi-' + idx;
@@ -119,6 +118,11 @@ function getEspStatus() {
   });
 }
 
+async function fetchFromFile(f, m) {
+  const response = await fetch(f, { method: m });
+  const data = await response.text();
+  return data;
+}
 
 function getParameters() {
   $('loader').classList.remove('hide');
@@ -131,27 +135,35 @@ function getParameters() {
     fetch(url)
     .then(response => response.json())
     .then(data => {
-      Object.keys(data).forEach(function(key){
-        if (key.startsWith('logo-name')) {
-          $('name-logo').innerHTML = data[key];
-          delete data[key];
+      for (const key in data){
+        if(data.hasOwnProperty(key)){
+          if (key === 'name-logo') {
+            $('name-logo').innerHTML = data[key].replace( /(<([^>]+)>)/ig, '');
+            delete data[key];
+            continue;
+          }
+          if (key == 'img-logo') {
+            fetch(data[key])
+              .then((response) => response.text())
+              .then((base64) => {
+                var size = data[key].replace(/[^\d_]/g, '').split('_');
+                var img = newEl('img');
+                img.classList.add('logo');
+                img.setAttribute('src', 'data:image/png;base64, ' + base64);
+                img.setAttribute('style', `width:${size[0]}px;heigth:${size[1]}px`);
+                $('img-logo').innerHTML = "";
+                $('img-logo').append(img);
+                $('img-logo').setAttribute('type', 'number');
+                $('img-logo').setAttribute('title', '');
+                delete data[key];
+              })
+            continue;
+          }
         }
-        if (key.startsWith('logo-svg')) {
-          $('svg-logo').innerHTML = data[key];
-          delete data[key];
-        }
-        $('loader').classList.add('hide');
-      });
-
+      }
       options = data;
       listParameters(options);
-      // Read logo from file if present, otherwise use inline svg;
-      if (options['logo-file-hidden']) {
-        svgLogo = '';
-        $('svg-logo').innerHTML = '<img class=logo src="' + options['logo-file-hidden'] + '"/>';
-        $('svg-logo').setAttribute('title', '');
-        $('logo-file').setAttribute('type', 'number');
-      }
+      $('loader').classList.add('hide');
     })
     .then( () => {
       getEspStatus();
@@ -159,11 +171,7 @@ function getParameters() {
   });
 }
 
-async function fetchFromFile(f, m) {
-  const response = await fetch(f, { method: m });
-  const data = await response.text();
-  return data;
-}
+
 
 function createNewBox(cont, lbl) {
   var box = newEl('div');
@@ -204,44 +212,35 @@ async function listParameters (params) {
   var i = 0;
   for (const key in params) {
     i++;
-    let val = params[key];
-
-    if(key.startsWith('name-logo')) {
-      $('name-logo').innerHTML = value;
-      document.title = value.replace( /(<([^>]+)>)/ig, '');
+    // Create a new box
+    if(key.startsWith('param-box')) {
+      lastBox = createNewBox(i, params[key]);
       continue;
     }
-
-    else if(key.startsWith('logo-file')) {
-      continue;
-    }
-
-    else if(key.startsWith('param-box')) {
-      lastBox = createNewBox(i, val);
-      continue;
-    }
-
-    else if(key.startsWith('raw-css')) {
-      fetchFromFile(val, 'HEAD').then(() => {
+    // Inject runtime CSS source file          
+    else  if(key.startsWith('raw-css')) {
+        fetchFromFile(params[key], 'HEAD').then(() => {
         var css = newEl("link");
         css.setAttribute('rel', 'stylesheet');
-        css.setAttribute('href', val);
+        css.setAttribute('href', params[key]);
         document.head.appendChild(css);
+        delete params[key];
       });
       continue;
     }
-
+    // Inject runtime JS source file
     else if(key.startsWith('raw-javascript')) {
-      fetchFromFile(val, 'HEAD').then(() => {
+        fetchFromFile(params[key], 'HEAD').then(() => {
         var js = newEl("script");
-        js.setAttribute('src', val);
+        js.setAttribute('src', params[key]);
         document.body.appendChild(js);
+        delete params[key];
       });
       continue;
     }
-
+    // Inject runtime HTML source file
     else if(key.startsWith('raw-html')) {
-      await fetchFromFile(val, 'GET').then((res) => {
+      await fetchFromFile(params[key], 'GET').then((res) => {
         el = newEl('div');
         el.setAttribute('id', 'row' + i)
         el.style.width = '100%';
@@ -250,7 +249,7 @@ async function listParameters (params) {
       });
       continue;
     }
-    
+    // Option variables
     else {
       let lbl = newEl('label');
       el = newEl('input');
@@ -258,10 +257,10 @@ async function listParameters (params) {
       el.setAttribute('type', 'text');
 
       // Set input property (id, type and value). Check first if is boolean
-      if (typeof(val) === "boolean"){
+      if (typeof(params[key]) === "boolean"){
         el.setAttribute('type', 'checkbox');
         el.classList.add('t-check', 'opt-input');
-        el.checked = val;
+        el.checked = params[key];
         lbl.classList.add('input-label', 'toggle');
         let dv = newEl('div');
         dv.classList.add('toggle-switch');
@@ -275,36 +274,36 @@ async function listParameters (params) {
         lastBox.appendChild(lbl);
       }
       else {
-        el.value = val;
+        el.value = params[key];
         el.classList.add('opt-input');
         lbl.setAttribute('label-for', key);
         lbl.classList.add('input-label');
         lbl.textContent = key;
-        if (typeof(val) === "number")
+        if (typeof(params[key]) === "number")
           el.setAttribute('type', 'number');
 
-        if (typeof(val) === "object" ) {
+        if (typeof(params[key]) === "object" ) {
           // This is a select/option
-          if (val.values) {
+          if (params[key].values) {
             el = newEl('select');
             el.setAttribute('id', key);
-            val.values.forEach((a) => {
+            params[key].values.forEach((a) => {
               var opt = newEl('option');
               opt.textContent = a;
               opt.value = a;
               el.appendChild(opt);
             })
-            el.value = val.selected;
+            el.value = params[key].selected;
             lastBox.appendChild(el);
           }
 
           // This is a float value
           else {
-            var num = Math.round(val.value  * (1/val.step)) / (1/val.step);
+            var num = Math.round(params[key].value  * (1/params[key].step)) / (1/params[key].step);
             el.setAttribute('type', 'number');
-            el.setAttribute('step', val.step);
-            el.setAttribute('min', val.min);
-            el.setAttribute('max', val.max);
+            el.setAttribute('step', params[key].step);
+            el.setAttribute('min', params[key].min);
+            el.setAttribute('max', params[key].max);
             el.value = Number(num).toFixed(3);
           }
         }
@@ -516,8 +515,8 @@ $('svg-connect').innerHTML = svgConnect;
 $('svg-save').innerHTML = svgSave;
 $('svg-restart').innerHTML = svgRestart;
 $('svg-close-modal').innerHTML = svgCloseModal;
-$('svg-logo').innerHTML = svgLogo
-$('svg-logo').setAttribute('title', 'Click to upload your logo file')
+$('img-logo').innerHTML = svgLogo
+$('img-logo').setAttribute('title', 'Click to upload your logo file')
 
 $('hum-btn').addEventListener('click', showMenu);
 $('scan-wifi').addEventListener('click', getWiFiList);

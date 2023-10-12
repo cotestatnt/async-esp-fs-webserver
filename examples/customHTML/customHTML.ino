@@ -2,8 +2,10 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
 
+
+const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM);
+AsyncFsWebServer server(80, FILESYSTEM, hostname);
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -105,6 +107,7 @@ bool startFilesystem() {
 void getFsInfo(fsInfo_t* fsInfo) {
     fsInfo->totalBytes = LittleFS.totalBytes();
     fsInfo->usedBytes = LittleFS.usedBytes();
+    strcpy(fsInfo->fsName, "LittleFS");
 }
 #endif
 
@@ -155,34 +158,6 @@ bool loadOptions() {
   return false;
 }
 
-//   Call this if you need to save parameters from the sketch side
-// bool saveOptions() {
-// if (FILESYSTEM.exists(server.getConfiFileName())) {
-//     File file = server.getConfigFile("w");
-
-//     if (!file)
-//       return false;
-
-//     DynamicJsonDocument doc(file.size() * 1.33);
-//     // Deserialize first, otherwise unhandled or hidden options will be lost
-//     DeserializationError error = deserializeJson(doc, file);
-//     if (error)
-//       return false;
-
-//     doc[LED_LABEL] = ledPin;
-//     doc[BOOL_LABEL] = boolVar;
-//     doc[LONG_LABEL] = longVar;
-//     doc[FLOAT_LABEL]["value"] = floatVar;
-//     doc[STRING_LABEL] = stringVar;
-//     serializeJsonPretty(doc, file);
-//     file.close();
-//     return true;
-//   }
-//   else
-//     Serial.println(F("Configuration file not exist"));
-//   return false;
-// }
-
 
 ////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
 void handleLoadOptions(AsyncWebServerRequest *request) {
@@ -200,7 +175,7 @@ void setup() {
     ESP.restart();
 #endif
   // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
+  server.startWiFi(15000, "ESP8266_AP", "123456789" );
 
   // FILESYSTEM INIT
   if (startFilesystem()){
@@ -238,13 +213,18 @@ void setup() {
   server.addOption(TB_SECRET_KEY, tb_secret_key);
   server.addOption(TB_DEVICE_TOKEN, tb_deviceToken);
   server.addHTML(info_html, "info");
-  server.addHTML(thingsboard_htm, "ts", /*overwite*/ true);
+  server.addHTML(thingsboard_htm, "ts", /*overwite file*/ true);
 
   // CSS will be appended to HTML head
-  server.addCSS(custom_css, "fetch", /*overwite*/ false);
+  server.addCSS(custom_css, "fetch", /*overwite file*/ false);
   // Javascript will be appended to HTML body
-  server.addJavascript(custom_script, "fetch", /*overwite*/ false);
-  server.addJavascript(thingsboard_script, "ts", /*overwite*/ false);
+  server.addJavascript(custom_script, "fetch", /*overwite file*/ false);
+  server.addJavascript(thingsboard_script, "ts", /*overwite file*/ false);
+
+  // Add custom page title to /setup
+  server.setSetupPageTitle("Test setup page");
+  // Add custom logo to /setup page with custom size
+  server.setLogoBase64(base64_logo, "128", "128", /*overwite file*/ true);
 
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
@@ -253,14 +233,17 @@ void setup() {
   #endif
 
   // Start server
-  server.init();
-  Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(myIP);
-  Serial.println(F(
-    "This is \"customHTML.ino\" example.\n"
-    "Open /setup page to configure optional parameters.\n"
-    "Open /edit page to view, edit or upload example or your custom webserver source files."
-  ));
+  if (server.init()) {
+    Serial.print(F("Web Server started on IP Address: "));
+    Serial.println(WiFi.localIP());
+    Serial.println(F(
+      "This is \"customHTML.ino\" example.\n"
+      "Open /setup page to configure optional parameters.\n"
+      "Open /edit page to view, edit or upload example or your custom webserver source files."
+    ));
+    Serial.printf("Ready! Open http://%s.local in your browser\n", hostname);
+  }
+
 }
 
 

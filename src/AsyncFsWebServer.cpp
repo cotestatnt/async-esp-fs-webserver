@@ -20,6 +20,12 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     } else
         file.close();
 
+    if (m_host != nullptr) {
+        if(!MDNS.begin(m_host))
+            DebugPrintln("Error setting up MDNS responder!");
+        else
+            MDNS.addService("http","tcp", m_port);
+    }
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
 
@@ -31,6 +37,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     on("/wifistatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
     on("/clear_config", HTTP_GET, std::bind(&AsyncFsWebServer::clearConfig, this, _1));
     on("/setup", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
+    on("*", HTTP_HEAD, std::bind(&AsyncFsWebServer::handleFileName, this, _1));
 
     on("/upload", HTTP_POST,
         std::bind(&AsyncFsWebServer::sendOK, this, _1),
@@ -152,6 +159,12 @@ void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
     request->send(response);
 }
 
+void AsyncFsWebServer::handleFileName(AsyncWebServerRequest *request) {
+    if (m_filesystem->exists(request->url()))
+        request->send(302, "text/plain", "OK");
+    request->send(404, "text/plain", "File not found");
+}
+
 
 void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", "OK");
@@ -201,6 +214,18 @@ IPAddress AsyncFsWebServer::setAPmode(const char *ssid, const char *psk)  {
     return WiFi.softAPIP();
 }
 
+
+  void AsyncFsWebServer::setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
+      char filename[32] = {CONFIG_FOLDER};
+      strcat(filename, "/img-logo-");
+      strcat(filename, width);
+      strcat(filename, "_");
+      strcat(filename, height);
+      strcat(filename, ".txt");
+      optionToFile(filename, logo, overwrite);
+      addOption("img-logo", filename);
+    }
+
 bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool overWrite) {
     // Check if file is already saved
     File file = m_filesystem->open(filename, "r");
@@ -214,6 +239,7 @@ bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool 
         if (file) {
             file.print(str);
             file.close();
+            DebugPrintf("File %s saved\n", filename);
             return true;
         }
         else {
@@ -291,19 +317,6 @@ void AsyncFsWebServer::addDropdownList(const char *label, const char** array, si
     }
     file.close();
 }
-
-// bool AsyncFsWebServer::handleFileRead(const String &uri, AsyncWebServerRequest *request ){
-//     if (m_filesystem->exists(uri)) {
-//         DebugPrintf("Sending file %s", uri);
-//         AsyncWebServerResponse *response = request->beginResponse(*m_filesystem, uri, "", false);
-//         // response->setContentType(uri);
-//         request->send(response);
-//         DebugPrintf(" %s\n", "done.");
-//         return true;
-//     }
-//     DebugPrintf(" %s\n", "error!");
-//     return false;
-// }
 
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     DebugPrint("Start scan WiFi networks");
@@ -703,7 +716,7 @@ void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
 void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
 {
     DebugPrintln(PSTR("handleStatus"));
-    fsInfo_t info;
+    fsInfo_t info = {1024, 1024, "Unset"};
 #ifdef ESP8266
     FSInfo fs_info;
     m_filesystem->info(fs_info);
@@ -715,7 +728,9 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     }
     String json;
     json.reserve(128);
-    json = "{\"type\":\"Filesystem\", \"isOk\":";
+    json = "{\"type\":\"";
+    json += info.fsName;
+    json += "\", \"isOk\":";
     if (m_filesystem_ok)  {
         uint32_t ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
         json += PSTR("\"true\", \"totalBytes\":\"");
