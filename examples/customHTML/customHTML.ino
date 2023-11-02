@@ -248,5 +248,9 @@ void setup() {
 
 
 void loop() {
-
+    static uint32_t infoTime;
+    if (millis() - infoTime > 10000) {
+        infoTime = millis();
+        Serial.printf( "task stack high watermark Task1: %d\n", uxTaskGetStackHighWaterMark(server.getTaskHandler()));
+    }
 }

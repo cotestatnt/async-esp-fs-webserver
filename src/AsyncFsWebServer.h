@@ -8,10 +8,12 @@
 
 #ifdef ESP32
   #include <Update.h>
-  #include <esp_wifi.h>
-  #include <esp_int_wdt.h>
-  #include <esp_task_wdt.h>
   #include <ESPmDNS.h>
+  #include "esp_wifi.h"
+  // #include "esp_int_wdt.h"
+
+  #include "esp_task_wdt.h"
+  #include "sys/stat.h"
 #elif defined(ESP8266)
   #include <ESP8266mDNS.h>
   #include <Updater.h>
@@ -90,6 +92,8 @@ class AsyncFsWebServer : public AsyncWebServer
     void handleFileList(AsyncWebServerRequest *request);
 #endif
 
+    void setTaskWdt(uint32_t timeout);
+
   /**
    * Redirect to captive portal if we got a request for another domain.
   */
@@ -104,7 +108,7 @@ class AsyncFsWebServer : public AsyncWebServer
   private:
     char m_host[16] = {"espserver"};
     fs::FS* m_filesystem = nullptr;
-    bool m_apmode = false;
+
     uint32_t m_timeout = 10000;
     uint8_t numOptions = 0;
     char m_version[16] = {__TIME__};
@@ -118,7 +122,8 @@ class AsyncFsWebServer : public AsyncWebServer
     AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = nullptr) : AsyncWebServer(port) {
       m_ws = new AsyncWebSocket("/ws");
       m_filesystem = &fs;
-      strncpy(m_host, hostname, sizeof(m_host));
+      if (hostname != nullptr)
+        strncpy(m_host, hostname, sizeof(m_host));
       m_port = port;
     }
 
@@ -126,6 +131,10 @@ class AsyncFsWebServer : public AsyncWebServer
       reset();
       end();
       if(_catchAllHandler) delete _catchAllHandler;
+    }
+
+    TaskHandle_t getTaskHandler() {
+      return xTaskGetCurrentTaskHandle();
     }
 
     // AsyncWebServer* getServer() { return m_server;}

@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>
 
-AsyncFsWebServer server(80, LittleFS);
+AsyncFsWebServer server(80, LittleFS, "myServer");
 int testInt = 150;
 float testFloat = 123.456;
 
@@ -11,13 +11,14 @@ float testFloat = 123.456;
 #endif
 uint8_t ledPin = LED_BUILTIN;
 
+
 // FILESYSTEM INIT
 bool startFilesystem(){
   if (LittleFS.begin()){
       File root = LittleFS.open("/", "r");
       File file = root.openNextFile();
       while (file){
-          Serial.printf("FS File: %s, size: %lu\n", file.name(), file.size());
+          Serial.printf("FS File: %s, size: %d\n", file.name(), file.size());
           file = root.openNextFile();
       }
       return true;
@@ -30,19 +31,6 @@ bool startFilesystem(){
   return false;
 }
 
-////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
-void handleLed(AsyncWebServerRequest *request) {
-  // http://xxx.xxx.xxx.xxx/led?val=1
-  if(request->hasArg("val")) {
-    int value = request->arg("val").toInt();
-    digitalWrite(ledPin, value);
-  }
-
-  String reply = "LED is now ";
-  reply += digitalRead(ledPin) ? "OFF" : "ON";
-  request->send(200, "text/plain", reply);
-}
-
 
 /*
 * Getting FS info (total and free bytes) is strictly related to
@@ -52,8 +40,25 @@ void handleLed(AsyncWebServerRequest *request) {
 void getFsInfo(fsInfo_t* fsInfo) {
     fsInfo->totalBytes = LittleFS.totalBytes();
     fsInfo->usedBytes = LittleFS.usedBytes();
+    strcpy(fsInfo->fsName, "LittleFS");
 }
 #endif
+
+
+//---------------------------------------
+void handleLed(AsyncWebServerRequest *request) {
+  bool led = false;
+  // http://xxx.xxx.xxx.xxx/led?val=1
+  if(request->hasParam("val")) {
+    int value = request->arg("val").toInt();
+    digitalWrite(ledPin, value);
+  }
+
+  String reply = "LED is now ";
+  reply += digitalRead(ledPin) ? "OFF" : "ON";
+  request->send(200, "text/plain", reply);
+}
+
 
 void setup() {
     pinMode(ledPin, OUTPUT);
@@ -74,7 +79,8 @@ void setup() {
     else
         Serial.println("LittleFS error!");
 
-    IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789");
+    IPAddress myIP = server.startWiFi(15000, "ESP32_AP1234", "123456789");
+    WiFi.setSleep(WIFI_PS_NONE);
     server.addOptionBox("Custom options");
     server.addOption("Test int variable", testInt);
     server.addOption("Test float variable", testFloat);
@@ -86,7 +92,6 @@ void setup() {
     server.setFsInfoCallback(getFsInfo);
     #endif
 
-    // Add led request handler
     server.on("/led", HTTP_GET, handleLed);
 
     // Start server
@@ -102,5 +107,5 @@ void setup() {
 }
 
 void loop() {
-    yield();
+
 }

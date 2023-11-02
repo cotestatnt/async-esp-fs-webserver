@@ -21,16 +21,13 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         file.close();
 
     if (m_host != nullptr) {
-        if(!MDNS.begin(m_host))
-            DebugPrintln("Error setting up MDNS responder!");
-        else
-            MDNS.addService("http","tcp", m_port);
+        if (MDNS.begin(m_host)){
+            DebugPrintln("MDNS responder started");
+        }
     }
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
 
-    onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
-    serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
     on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
@@ -68,13 +65,17 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         request->send(200, "text/plain", CONFIG_FOLDER CONFIG_FILE);
     });
 
+    onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
+    serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
+
     if (wsHandle != nullptr)
         m_ws->onEvent(wsHandle);
     else
         m_ws->onEvent(std::bind(&AsyncFsWebServer::handleWebSocket,this, _1, _2, _3, _4, _5, _6));
-
     addHandler(m_ws);
     begin();
+    MDNS.addService("http","tcp", m_port);
+    MDNS.setInstanceName("async-fs-webserver");
     return true;
 }
 
@@ -151,6 +152,21 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
     }
 }
 
+void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
+    #if defined(ESP32)
+    #if ESP_ARDUINO_VERSION_MAJOR > 2
+    // esp_task_wdt_config_t twdt_config = {
+    //     .timeout_ms = timeout,
+    //     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,    // Bitmask of all cores
+    //     .trigger_panic = false,
+    // };
+    // ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
+    #else
+    ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
+    #endif
+    #endif
+}
+
 
 void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)SETUP_HTML, SETUP_HTML_SIZE);
@@ -196,10 +212,9 @@ void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
 
 IPAddress AsyncFsWebServer::setAPmode(const char *ssid, const char *psk)  {
     using namespace std::placeholders;
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_AP);
     WiFi.persistent(false);
     WiFi.softAP(ssid, psk);
-    m_apmode = true;
 
     // Captive Portal redirect
     on("/redirect", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
@@ -319,6 +334,9 @@ void AsyncFsWebServer::addDropdownList(const char *label, const char** array, si
 }
 
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
+    // Increase task WDT timeout
+    setTaskWdt(15000);
+
     DebugPrint("Start scan WiFi networks");
     int res = WiFi.scanNetworks();
     DebugPrintf(" done!\nNumber of networks: %d\n", res);
@@ -347,10 +365,11 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-    #ifdef ESP32
-    esp_task_wdt_init(15, 1);
-    #endif
+
+    Serial.println("Handle upload POST");
     if (!index) {
+        // Increase task WDT timeout
+        setTaskWdt(15000);
         // open the file on first call and store the file handle in the request object
         Serial.printf("Client: %s %s\n", request->client()->remoteIP().toString().c_str(), request->url().c_str());
         request->_tempFile = m_filesystem->open(filename, "w");
@@ -366,12 +385,11 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
     }
 
     if (final) {
+        // Restore task WDT timeout
+        setTaskWdt(8000);
         // close the file handle as the upload is now done
         request->_tempFile.close();
         Serial.printf("\nUpload complete: %s, size: %d \n", filename.c_str(), index + len);
-        #ifdef ESP32
-        esp_task_wdt_init(5, 1);
-        #endif
     }
 }
 
@@ -499,9 +517,7 @@ void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
 }
 
 void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-    #ifdef ESP32
-    esp_task_wdt_init(15, 1);
-    #endif
+
     if (!m_contentLen) {
         int headers = request->headers();
         for(int i=0;i<headers;i++){
@@ -514,6 +530,9 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     }
 
     if (!index) {
+        // Increase task WDT timeout
+        setTaskWdt(15000);
+
         if(!request->hasParam("MD5", true)) {
             return request->send(400, "text/plain", "MD5 parameter missing");
         }
@@ -549,19 +568,69 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     }
 
     if (final) { // if the final flag is set then this is the last frame of data
-        #ifdef ESP32
-        esp_task_wdt_init(5, 1);
-        #endif
         if (!Update.end(true)) { //true to set the size to the current progress
             Update.printError(Serial);
             return request->send(400, "text/plain", "Could not end OTA");
         }
         m_ws->textAll("Update done! ESP will be restarted");
-        DebugPrintln("Aggiornamento concluso con successo");
+        DebugPrintln("Update done! ESP will be restarted");
         delay(100);
+        // restore task WDT timeout
+        setTaskWdt(8000);
+    }
+    return;
+}
+
+
+IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn ) {
+    IPAddress ip;
+    m_timeout = timeout;
+    WiFi.mode(WIFI_STA);
+    const char *_ssid;
+    const char *_pass;
+#if defined(ESP8266)
+    struct station_config conf;
+    wifi_station_get_config_default(&conf);
+    _ssid = reinterpret_cast<const char *>(conf.ssid);
+    _pass = reinterpret_cast<const char *>(conf.password);
+#elif defined(ESP32)
+    wifi_config_t conf;
+    esp_wifi_get_config(WIFI_IF_STA, &conf);
+    _ssid = reinterpret_cast<const char *>(conf.sta.ssid);
+    _pass = reinterpret_cast<const char *>(conf.sta.password);
+#endif
+
+    if (strlen(_ssid) && strlen(_pass)) {
+        WiFi.begin(_ssid, _pass);
+        Serial.print(F("Connecting to "));
+        Serial.println(_ssid);
+        uint32_t startTime = millis();
+        while (WiFi.status() != WL_CONNECTED) {
+            // execute callback function during wifi connection
+            if (fn != nullptr)
+                fn();
+
+            delay(250);
+            Serial.print(".");
+            if (WiFi.status() == WL_CONNECTED) {
+                ip = WiFi.localIP();
+                return ip;
+            }
+            // If no connection after a while go in Access Point mode
+            if (millis() - startTime > m_timeout) {
+                Serial.println("Timeout!");
+                break;
+            }
+        }
     }
 
-    return;
+    if (apSSID != nullptr && apPsw != nullptr)
+        return setAPmode(apSSID, apPsw);
+    else
+        return setAPmode("ESP_AP", "123456789");
+
+    ip = WiFi.softAPIP();
+    return ip;
 }
 
 
@@ -750,64 +819,5 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     json += PSTR(",\"unsupportedFiles\":\"\"}");
     request->send(200, "application/json", json);
 }
-
-
-IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn ) {
-    IPAddress ip;
-    m_timeout = timeout;
-    WiFi.mode(WIFI_STA);
-    const char *_ssid;
-    const char *_pass;
-#if defined(ESP8266)
-    struct station_config conf;
-    wifi_station_get_config_default(&conf);
-    _ssid = reinterpret_cast<const char *>(conf.ssid);
-    _pass = reinterpret_cast<const char *>(conf.password);
-
-    // Serial.print(F("SSID: "));
-    // Serial.println(_ssid);
-    // Serial.print(F("Password: "));
-    // Serial.println(_pass);
-
-#elif defined(ESP32)
-    wifi_config_t conf;
-    esp_wifi_get_config(WIFI_IF_STA, &conf);
-
-    _ssid = reinterpret_cast<const char *>(conf.sta.ssid);
-    _pass = reinterpret_cast<const char *>(conf.sta.password);
-#endif
-
-    if (strlen(_ssid) && strlen(_pass)) {
-        WiFi.begin(_ssid, _pass);
-        Serial.print(F("Connecting to "));
-        Serial.println(_ssid);
-        uint32_t startTime = millis();
-        while (WiFi.status() != WL_CONNECTED) {
-            // execute callback function during wifi connection
-            if (fn != nullptr)
-                fn();
-
-            delay(250);
-            Serial.print(".");
-            if (WiFi.status() == WL_CONNECTED) {
-                ip = WiFi.localIP();
-                return ip;
-            }
-            // If no connection after a while go in Access Point mode
-            if (millis() - startTime > m_timeout) {
-                Serial.println("Timeout!");
-                break;
-            }
-        }
-    }
-
-    if (apSSID != nullptr && apPsw != nullptr)
-        return setAPmode(apSSID, apPsw);
-    else
-        return setAPmode("ESP_AP", "123456789");
-
-    ip = WiFi.softAPIP();
-    return ip;
-}
-
 #endif // INCLUDE_EDIT_HTM
+
