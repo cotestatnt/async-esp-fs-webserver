@@ -3,7 +3,7 @@
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, LittleFS);
+AsyncFsWebServer server(80, LittleFS, "esphost");
 
 ////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
 void getDefaultValue (AsyncWebServerRequest *request) {
@@ -78,17 +78,6 @@ bool startFilesystem() {
   return false;
 }
 
-/*
-* Getting FS info (total and free bytes) is strictly related to
-* filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-*/
-#ifdef ESP32
-void getFsInfo(fsInfo_t* fsInfo) {
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-}
-#endif
-
 
 void setup(){
   Serial.begin(115200);
@@ -106,8 +95,17 @@ void setup(){
 
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
+  /*
+  * Getting FS info (total and free bytes) is strictly related to
+  * filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
+  * (On ESP8266 will be used "built-in" fsInfo data type)
+  */
   #ifdef ESP32
-  server.setFsInfoCallback(getFsInfo);
+  server.setFsInfoCallback( [](fsInfo_t* fsInfo) {
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
+    strcpy(fsInfo->fsName, "LittleFS");
+  });
   #endif
 
   // Start server
@@ -115,9 +113,9 @@ void setup(){
   Serial.print(F("ESP Web Server started on IP Address: "));
   Serial.println(myIP);
   Serial.println(F(
-      "This is \"handleFormData.ino\" example.\n"
-      "Open /setup page to configure optional parameters.\n"
-      "Open /edit page to view, edit or upload example or your custom webserver source files."
+    "This is \"handleFormData.ino\" example.\n"
+    "Open /setup page to configure optional parameters.\n"
+    "Open /edit page to view, edit or upload example or your custom webserver source files."
   ));
 }
 

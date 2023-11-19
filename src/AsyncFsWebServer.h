@@ -10,8 +10,6 @@
   #include <Update.h>
   #include <ESPmDNS.h>
   #include "esp_wifi.h"
-  // #include "esp_int_wdt.h"
-
   #include "esp_task_wdt.h"
   #include "sys/stat.h"
 #elif defined(ESP8266)
@@ -194,7 +192,6 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     void setLogoBase64(const char* logo, const char* width = "128", const char* height = "128", bool overwrite = false) ;
 
-
     /*
     * Set callback function to provide updated FS info to library
     * This it is necessary due to the different implementation of
@@ -228,8 +225,6 @@ class AsyncFsWebServer : public AsyncWebServer
       will be saved as file. The related option will contain the path to this file
     */
     bool optionToFile(const char* filename, const char* str, bool overWrite);
-
-
 
     /*
       Add an option which contain "raw" HTML code to be injected in /setup page
