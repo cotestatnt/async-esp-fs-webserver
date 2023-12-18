@@ -495,12 +495,18 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     request->send(401, "text/plain", "Wrong credentials provided");
 }
 
+// the request handler is triggered after the upload has finished...
+// create the response, add header, and send response
 void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
-    // the request handler is triggered after the upload has finished...
-    // create the response, add header, and send response
+
     String txt;
     if (Update.hasError()) {
-        txt = "Error! Formware update not performed";
+        txt = "Error! ";
+        #if defined(ESP8266)
+        txt += Update.getErrorString();
+        #elif defined(ESP32)
+        txt += Update.errorString();
+        #endif
     }
     else {
         txt = "Update completed successfully. The ESP32 will restart";
@@ -517,15 +523,13 @@ void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
 }
 
 void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    static uint8_t otaDone = 0;
 
     if (!m_contentLen) {
-        int headers = request->headers();
-        for(int i=0;i<headers;i++){
-            AsyncWebHeader* h = request->getHeader(i);
-            if (h->name().indexOf("Content-Length") > -1) {
-                m_contentLen = h->value().toInt();
-                DebugPrintln(h->value());
-            }
+        AsyncWebHeader* h = request->getHeader("Content-Length");
+        if (h->value().length()) {
+            m_contentLen = h->value().toInt();
+            DebugPrintln(h->value());
         }
     }
 
@@ -557,23 +561,30 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         if (Update.write(data, len) != len) {
             return request->send(400, "text/plain", "OTA could not begin");
         }
-        static uint32_t sendTime;
-        if (millis() - sendTime > 1000) {
-            sendTime = millis();
+        static uint32_t pTime = millis();
+        if (millis() - pTime > 500) {
+            pTime = millis();
+            otaDone = 100 * Update.progress() / Update.size();
             char buffer[100];
-            snprintf(buffer, sizeof(buffer),"Update... Get %d of %d bytes", index, m_contentLen);
-            m_ws->textAll(buffer);
+            snprintf(buffer, sizeof(buffer),"OTA progress: %d%%\n", otaDone);
+            // m_ws->textAll(buffer);
             DebugPrintln(buffer);
         }
     }
 
     if (final) { // if the final flag is set then this is the last frame of data
         if (!Update.end(true)) { //true to set the size to the current progress
-            Update.printError(Serial);
+            #if defined(ESP8266)
+            Serial.printf("%s\n", Update.getErrorString());
+            #elif defined(ESP32)
+            Serial.printf("%s\n", Update.errorString());
+            #endif
+            otaDone = 0;
             return request->send(400, "text/plain", "Could not end OTA");
         }
-        m_ws->textAll("Update done! ESP will be restarted");
-        DebugPrintln("Update done! ESP will be restarted");
+        // m_ws->textAll("Update done! ESP will be restarted");
+        DebugPrintln("Update Success.\nRebooting...\n");
+
         delay(100);
         // restore task WDT timeout
         setTaskWdt(8000);
@@ -586,18 +597,16 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     IPAddress ip;
     m_timeout = timeout;
     WiFi.mode(WIFI_STA);
-    const char *_ssid;
-    const char *_pass;
 #if defined(ESP8266)
     struct station_config conf;
     wifi_station_get_config_default(&conf);
-    _ssid = reinterpret_cast<const char *>(conf.ssid);
-    _pass = reinterpret_cast<const char *>(conf.password);
+    const char *_ssid = reinterpret_cast<const char *>(conf.ssid);
+    const char *_pass = reinterpret_cast<const char *>(conf.password);
 #elif defined(ESP32)
     wifi_config_t conf;
     esp_wifi_get_config(WIFI_IF_STA, &conf);
-    _ssid = reinterpret_cast<const char *>(conf.sta.ssid);
-    _pass = reinterpret_cast<const char *>(conf.sta.password);
+    const char *_ssid = reinterpret_cast<const char *>(conf.sta.ssid);
+    const char *_pass = reinterpret_cast<const char *>(conf.sta.password);
 #endif
 
     if (strlen(_ssid) && strlen(_pass)) {
