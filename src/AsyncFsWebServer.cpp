@@ -509,11 +509,10 @@ void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
         #endif
     }
     else {
-        txt = "Update completed successfully. The ESP32 will restart";
+        txt = "Update Success. Rebooting MCU...\n";
     }
     AsyncWebServerResponse *response = request->beginResponse((Update.hasError())?500:200, "text/plain", txt);
     response->addHeader("Connection", "close");
-    response->addHeader("Access-Control-Allow-Origin", "*");
     request->send(response);
 
     if (!Update.hasError()) {
@@ -529,7 +528,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         AsyncWebHeader* h = request->getHeader("Content-Length");
         if (h->value().length()) {
             m_contentLen = h->value().toInt();
-            DebugPrintln(h->value());
+            DebugPrintf("Firmware size: %d\n", m_contentLen);
         }
     }
 
@@ -537,29 +536,21 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         // Increase task WDT timeout
         setTaskWdt(15000);
 
-        if(!request->hasParam("MD5", true)) {
-            return request->send(400, "text/plain", "MD5 parameter missing");
-        }
-
-        if(!Update.setMD5(request->getParam("MD5", true)->value().c_str())) {
-            return request->send(400, "text/plain", "MD5 parameter invalid");
-        }
-
     #if defined(ESP8266)
         int cmd = (filename == "filesystem") ? U_FS : U_FLASH;
     #elif defined(ESP32)
         int cmd = (filename == "filesystem") ? U_SPIFFS : U_FLASH;
     #endif
-        if (!Update.begin(0xFFFFFFFF, cmd)) {
+        if (!Update.begin(m_contentLen, cmd)) {
             Update.printError(Serial);
-            return request->send(400, "text/plain", "OTA could not begin");
+            return request->send(500, "text/plain", "OTA could not begin");
         }
     }
 
     // Write chunked data to the free sketch space
     if (len){
         if (Update.write(data, len) != len) {
-            return request->send(400, "text/plain", "OTA could not begin");
+            return request->send(500, "text/plain", "OTA could not begin");
         }
         static uint32_t pTime = millis();
         if (millis() - pTime > 500) {
@@ -567,7 +558,6 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
             otaDone = 100 * Update.progress() / Update.size();
             char buffer[100];
             snprintf(buffer, sizeof(buffer),"OTA progress: %d%%\n", otaDone);
-            // m_ws->textAll(buffer);
             DebugPrintln(buffer);
         }
     }
@@ -580,16 +570,12 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
             Serial.printf("%s\n", Update.errorString());
             #endif
             otaDone = 0;
-            return request->send(400, "text/plain", "Could not end OTA");
+            return request->send(500, "text/plain", "Could not end OTA");
         }
-        // m_ws->textAll("Update done! ESP will be restarted");
         DebugPrintln("Update Success.\nRebooting...\n");
-
-        delay(100);
         // restore task WDT timeout
         setTaskWdt(8000);
     }
-    return;
 }
 
 

@@ -188,7 +188,7 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
-    * Set /setup webpage title
+    * Set /setup log (base64 string)
     */
     void setLogoBase64(const char* logo, const char* width = "128", const char* height = "128", bool overwrite = false) ;
 
@@ -214,11 +214,6 @@ class AsyncFsWebServer : public AsyncWebServer
       Start WiFi connection, if fails to in AP mode
     */
     IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr);
-
-    /*
-      Read the given file from the filesystem and stream it back to the client
-    */
-    String getContentType(const String& path);
 
     /*
       In order to keep config.json file small and clean, custom HTML, CSS and Javascript
