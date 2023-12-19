@@ -58,20 +58,24 @@ void getUpdatedtime(const uint32_t timeout)
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
   Serial.printf("\nListing directory: %s\n", dirname);
-  File root = fs.open(dirname);
-  if(!root){
+  File root = fs.open(dirname, "r");
+  if (!root) {
     Serial.println("- failed to open directory");
     return;
   }
-  if(!root.isDirectory()){
+  if (!root.isDirectory()) {
     Serial.println(" - not a directory");
     return;
   }
   File file = root.openNextFile();
-  while(file){
-    if(file.isDirectory()){
-      if(levels){
-        listDir(fs, file.path(), levels -1);
+  while (file) {
+    if (file.isDirectory()) {
+      if (levels) {
+        #ifdef ESP32
+          listDir(fs, file.path(), levels - 1);
+        #elif defined(ESP8266)
+          listDir(fs, file.fullName(), levels - 1);
+        #endif
       }
     } else {
       Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());

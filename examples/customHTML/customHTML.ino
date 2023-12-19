@@ -64,7 +64,7 @@ struct tm Time;
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
   Serial.printf("\nListing directory: %s\n", dirname);
-  File root = fs.open(dirname);
+  File root = fs.open(dirname, "r");
   if (!root) {
     Serial.println("- failed to open directory");
     return;
@@ -77,7 +77,11 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
   while (file) {
     if (file.isDirectory()) {
       if (levels) {
-        listDir(fs, file.path(), levels -1);
+        #ifdef ESP32
+          listDir(fs, file.path(), levels - 1);
+        #elif defined(ESP8266)
+          listDir(fs, file.fullName(), levels - 1);
+        #endif
       }
     } else {
       Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
