@@ -565,7 +565,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     if (final) { // if the final flag is set then this is the last frame of data
         if (!Update.end(true)) { //true to set the size to the current progress
             #if defined(ESP8266)
-            Serial.printf("%s\n", Update.getErrorString());
+            Serial.printf("%s\n", Update.getErrorString().c_str());
             #elif defined(ESP32)
             Serial.printf("%s\n", Update.errorString());
             #endif

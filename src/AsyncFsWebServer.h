@@ -131,9 +131,11 @@ class AsyncFsWebServer : public AsyncWebServer
       if(_catchAllHandler) delete _catchAllHandler;
     }
 
-    TaskHandle_t getTaskHandler() {
+  #ifdef ESP32
+    inline TaskHandle_t getTaskHandler() {
       return xTaskGetCurrentTaskHandle();
     }
+  #endif
 
     // AsyncWebServer* getServer() { return m_server;}
     AsyncWebSocket* getWebSocket() { return m_ws;}
