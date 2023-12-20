@@ -55,6 +55,7 @@ jobs:
       run: |
         pio ci --board=nodemcuv2 \
         --lib=examples/customHTML/**.h \
+        --lib=examples/withWebSocket/**.h 
       env:
         PLATFORMIO_CI_SRC: ${{ matrix.example }}
 
@@ -67,11 +68,13 @@ jobs:
         - "examples/simpleServer/simpleServer.ino"
         - "examples/customOptions/customOptions.ino"
         - "examples/customHTML/customHTML.ino"
+        - "examples/gpio_list/gpio_list.ino"
         - "examples/handleFormData/handleFormData.ino"
         - "examples/highcharts/highcharts.ino"
         - "examples/remoteOTA/remoteOTA.ino"
         - "examples/withWebSocket/withWebSocket.ino"
-        
+        - "examples/esp32-cam/esp32-cam.ino"
+                
     steps:
     - uses: actions/checkout@v2
     - name: Cache pip
@@ -101,5 +104,7 @@ jobs:
       run: |
         pio ci --board=esp32dev \
         --lib=examples/customHTML/**.h \
+        --lib=examples/withWebSocket/**.h \
+        --lib=examples/esp32-cam/**.h 
       env:
         PLATFORMIO_CI_SRC: ${{ matrix.example }}
