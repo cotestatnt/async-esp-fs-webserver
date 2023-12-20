@@ -116,6 +116,7 @@ bool startFilesystem() {
 void getFsInfo(fsInfo_t* fsInfo) {
     fsInfo->totalBytes = LittleFS.totalBytes();
     fsInfo->usedBytes = LittleFS.usedBytes();
+    strcpy(fsInfo->fsName, "LittleFS");
 }
 #endif
 
@@ -191,8 +192,8 @@ void setup() {
   server.addOption(STRING_LABEL, stringVar);
   server.addDropdownList(DROPDOWN_LABEL, dropdownList, LIST_SIZE);
 
-  server.addHTML(save_btn_htm, "buttons");
-  server.addJavascript(button_script);
+  server.addHTML(save_btn_htm, "buttons", /*overwite*/ false);
+  server.addJavascript(button_script, "js", /*overwite*/ false);
   
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
