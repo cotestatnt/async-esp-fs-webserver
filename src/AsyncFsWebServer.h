@@ -103,6 +103,11 @@ class AsyncFsWebServer : public AsyncWebServer
   */
   void addSource(const char* source, const char* tag, bool overWrite = false) ;
 
+  /*
+    Create a dir if not exist on uploading files
+  */
+  bool createDirFromPath( const String& path) ;
+
   private:
     char m_host[16] = {"espserver"};
     fs::FS* m_filesystem = nullptr;

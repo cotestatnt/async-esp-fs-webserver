@@ -108,7 +108,7 @@ bool AsyncFsWebServer::captivePortal(AsyncWebServerRequest *request) {
     // redirect if hostheader not server ip, prevent redirect loops
     String host = request->getHeader("Host")->toString();
     if (host.equals(serverLoc)) {
-        AsyncWebServerResponse *response = request->beginResponse(302, F("text/html"), "");
+        AsyncWebServerResponse *response = request->beginResponse(302, "text/html", "");
         response->addHeader("Location", serverLoc);
         request->send(response);                 // Empty content inhibits Content-length header so we have to close the socket ourselves.
         request->client()->stop();               // Stop is needed because we sent no content length
@@ -155,18 +155,17 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
 void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #if defined(ESP32)
     #if ESP_ARDUINO_VERSION_MAJOR > 2
-    // esp_task_wdt_config_t twdt_config = {
-    //     .timeout_ms = timeout,
-    //     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,    // Bitmask of all cores
-    //     .trigger_panic = false,
-    // };
-    // ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
+    esp_task_wdt_config_t twdt_config = {
+        .timeout_ms = timeout,
+        .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,    // Bitmask of all cores
+        .trigger_panic = false,
+    };
+    ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
     #else
     ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
     #endif
     #endif
 }
-
 
 void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)SETUP_HTML, SETUP_HTML_SIZE);
@@ -177,16 +176,21 @@ void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
 
 void AsyncFsWebServer::handleFileName(AsyncWebServerRequest *request) {
     if (m_filesystem->exists(request->url()))
-        request->send(302, "text/plain", "OK");
+        request->send(301, "text/plain", "OK");
     request->send(404, "text/plain", "File not found");
 }
-
 
 void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", "OK");
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
+    String pathWithGz = request->url() + ".gz";
+    if (m_filesystem->exists(pathWithGz)) {
+        AsyncWebServerResponse *response = request->beginResponse(302, F("text/html"), "");
+        response->addHeader("Location", pathWithGz);
+        request->send(response);   
+    }
     request->send(404);
     Serial.printf("Resource %s not found\n", request->url().c_str());
 }
@@ -364,24 +368,57 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     DebugPrintln(json);
 }
 
+
+bool AsyncFsWebServer::createDirFromPath(const String& path) {
+    String dir;
+    int p1 = 0;
+    int p2 = 0;
+    while (p2 != -1) {
+        p2 = path.indexOf("/", p1+1);
+        dir += path.substring(p1, p2);
+
+        // Check if its a valid dir
+        if (dir.indexOf(".") == -1) {
+            if (!m_filesystem->exists(dir)) {
+                if (m_filesystem->mkdir(dir)) {
+                    DebugPrintf("Folder %s created\n", dir.c_str());
+                }
+                else {
+                    DebugPrintf("Error. Folder %s not created\n", dir.c_str());
+                    return false;
+                } 
+            }
+        }
+        p1 = p2;
+    }
+    return true;
+}
+
 void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
 
-    Serial.println("Handle upload POST");
+    // DebugPrintln("Handle upload POST");
     if (!index) {
         // Increase task WDT timeout
         setTaskWdt(15000);
+
+        // Create folder if necessary (up to max 5 sublevels)
+        int len = filename.length();
+        char path[len+1];
+        strcpy(path, filename.c_str()); 
+        Serial.println(path);
+        createDirFromPath(path);
+
         // open the file on first call and store the file handle in the request object
-        Serial.printf("Client: %s %s\n", request->client()->remoteIP().toString().c_str(), request->url().c_str());
         request->_tempFile = m_filesystem->open(filename, "w");
-        Serial.printf("Upload Start.\nWriting file %s\n", filename.c_str());
+        DebugPrintf("Upload Start.\nWriting file %s\n", filename.c_str());
     }
 
     if (len) {
         // stream the incoming chunk to the opened file
         static int i = 0;
         request->_tempFile.write(data, len);
-        if(!i++ % 50) Serial.print("\n");
-        Serial.print(".");
+        if(!i++ % 20) DebugPrint("\n");
+        DebugPrintf(".%d", len);
     }
 
     if (final) {
@@ -389,7 +426,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         setTaskWdt(8000);
         // close the file handle as the upload is now done
         request->_tempFile.close();
-        Serial.printf("\nUpload complete: %s, size: %d \n", filename.c_str(), index + len);
+        DebugPrintf("\nUpload complete: %s, size: %d \n", filename.c_str(), index + len);
     }
 }
 

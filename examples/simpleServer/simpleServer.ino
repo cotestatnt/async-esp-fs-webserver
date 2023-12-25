@@ -47,15 +47,14 @@ void getFsInfo(fsInfo_t* fsInfo) {
 
 //---------------------------------------
 void handleLed(AsyncWebServerRequest *request) {
-  bool led = false;
+  static int value = false;
   // http://xxx.xxx.xxx.xxx/led?val=1
   if(request->hasParam("val")) {
-    int value = request->arg("val").toInt();
+    value = request->arg("val").toInt();
     digitalWrite(ledPin, value);
   }
-
   String reply = "LED is now ";
-  reply += digitalRead(ledPin) ? "OFF" : "ON";
+  reply += value ? "ON" : "OFF";
   request->send(200, "text/plain", reply);
 }
 
