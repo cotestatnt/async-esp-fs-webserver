@@ -5,23 +5,19 @@
 * where the id value will be equal to the id parameter passed to the function addHTML(html_code, id).
 */
 static const char custom_html[] PROGMEM = R"EOF(
-<form class=form>
-  <div class=tf-wrapper>
-    <label for=httpmethod class=input-label>Method</label>
-    <select class='select' id='httpmethod'>
-      <option>GET</option>
-      <option>POST</option>
-    </select>
-    <label for=url class=input-label>Endpoint</label>
-    <input type=text placeholder='https://httpbin.org/' id=url value='https://httpbin.org/' />
-  </div>
-  <br>
+<label for=url class=input-label>Endpoint</label>
+<input type=text placeholder='https://httpbin.org/' id=url value='https://httpbin.org/' />
+<br>
+<div class=row-wrapper>
+  <input type="radio" id="get" name="httpmethod" value="GET" checked>
+  <label for="html">GET</label><br>
+  <input type="radio" id="post" name="httpmethod" value="POST">
+  <label for="css">POST</label>
   <a id=fetch class='btn'>
-    <span>Fecth url</span>
+  <span>Fecth url</span>
   </a>
-  <br>
-  <pre id=payload></pre>
-</form>
+</div>
+<pre id=payload></pre>
 )EOF";
 
 
@@ -42,15 +38,7 @@ pre{
     overflow-y: scroll;
     min-height: 350px;
     font-size: 85%;
-}
-.select{
-  width: 25%;
-  height:40px;
-  padding-top: 10px;
-  padding-left: 20px;
-  border:1px solid #ccc;
-  border-radius: 6px;
-  box-shadow: 0 1px 2px 0 rgba(220, 220, 230, 0.5);
+    width: 95%;
 }
 )EOF";
 
@@ -69,7 +57,12 @@ pre{
 */
 static const char custom_script[] PROGMEM = R"EOF(
 function fetchEndpoint() {
-  var mt = $('httpmethod').options[$('httpmethod').selectedIndex].text;
+  var mt;
+  document.getElementsByName('httpmethod').forEach(el => {
+    if (el.checked)
+      mt = el.value;
+  })
+
   var url = $('url').value + mt.toLowerCase();
   var bd = (mt != 'GET') ? 'body: ""' : '';
   var options = {

@@ -4,8 +4,6 @@
 #include <FS.h>
 #include "ESPAsyncWebServer/src/ESPAsyncWebServer.h"
 
-#define DIR_FROM_PATH(x) {}
-
 #ifdef ESP32
   #include <Update.h>
   #include <ESPmDNS.h>
@@ -164,6 +162,13 @@ class AsyncFsWebServer : public AsyncWebServer
       Enable the built-in ACE web file editor
     */
     void enableFsCodeEditor();
+
+    /*
+      List FS file content
+    */
+    void printFileList(fs::FS &fs, const char * dirname, uint8_t levels);
+
+
 
     /*
     * Get reference to current config.json file

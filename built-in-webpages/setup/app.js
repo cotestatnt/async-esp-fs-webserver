@@ -1,4 +1,4 @@
-svgLogo = '<svg height=120px viewBox="0 0 200 200"><path d="M47.1,106.3c0,5.5-4.5,10-10,10c-5.5,0-10-4.5-10-10c0-5.5,4.5-10,10-10C42.6,96.3,47.1,100.8,47.1,106.3" transform="matrix(1, 0, 0, 1, 3.552713678800501e-15, 3.552713678800501e-15)"/><path d="M134.8,95.9C128.4,50.2,92.1,14,46.5,7.5c-5.3,2.8-10.2,6.4-14.6,10.5v9.7c45.6,0,82.6,37.1,82.6,82.6h9.7 C128.4,106.1,132,101.2,134.8,95.9" transform="matrix(1, 0, 0, 1, 3.552713678800501e-15, 3.552713678800501e-15)"/><path d="M142.3,65.4C142.3,29.3,113.1,0,77,0c-2.3,0-4.5,0.1-6.7,0.4l-1.5,4.3c32.1,11.2,57.6,36.7,68.9,68.8L142,72 C142.2,69.8,142.3,67.6,142.3,65.4" transform="matrix(1, 0, 0, 1, 3.552713678800501e-15, 3.552713678800501e-15)"/><path d="M77.7,143c-20.8,0-40.3-8.1-54.9-22.8C8.1,105.6,0,86.1,0,65.3C0,44.5,8.1,25,22.8,10.3l4.1,4.2 c-13.6,13.6-21,31.6-21,50.8s7.5,37.2,21,50.8c13.6,13.6,31.6,21,50.8,21c19.2,0,37.2-7.5,50.8-21l4.2,4.1 C118,134.9,98.5,143,77.7,143" transform="matrix(1, 0, 0, 1, 3.552713678800501e-15, 3.552713678800501e-15)"/><path d="M76.9,114.9c1.6-16.2-5.6-31.3-17.7-40.5c-6.4-4.8-14.2-8.1-22.7-8.9c-2.2-0.2-3.9-2.2-3.6-4.4 c0.3-2.4,2.3-3.9,4.4-3.6c9.3,0.9,17.8,4.2,24.9,9.2c15.4,10.7,24.8,29.2,22.8,49.1c-0.3,3.2-0.9,6.2-1.8,9.2l11.8,3.3 c3.5-1,7-2.3,10.2-3.8c0.8-4.5,1.3-9.2,1.3-14c0-37.4-27.6-68.4-63.6-73.7c-4.3-0.6-8.7-0.7-11.9,0.1c-5.1,1.3-9.5,4.1-12.9,7.9 c-4,4.5-6.3,10.4-6.3,16.8c0,11.4,7.4,21,17.7,24.3c1.9,0.6,4.9,0.9,6.4,1.1H36c11.2,1.9,19.8,11.8,19.8,23.5 c0,4.7-1.4,9.1-3.8,12.9l8.2,5.2c3.9,1,8,1.7,12.2,2C74.7,125.8,76.3,120.5,76.9,114.9" transform="matrix(1, 0, 0, 1, 3.552713678800501e-15, 3.552713678800501e-15)"/></svg>';
+const svgLogo = '<svg fill="brown" height=120px viewBox="0 0 24 24"><path d="M5 3C3.9 3 3 3.9 3 5S2.1 7 1 7V9C2.1 9 3 9.9 3 11S3.9 13 5 13H7V11H5V10C5 8.9 4.1 8 3 8C4.1 8 5 7.1 5 6V5H7V3M11 3C12.1 3 13 3.9 13 5S13.9 7 15 7V9C13.9 9 13 9.9 13 11S12.1 13 11 13H9V11H11V10C11 8.9 11.9 8 13 8C11.9 8 11 7.1 11 6V5H9V3H11M22 6V18C22 19.11 21.11 20 20 20H4C2.9 20 2 19.11 2 18V15H4V18H20V6H17.03V4H20C21.11 4 22 4.89 22 6Z" /></svg>'
 const svgLock =  '<svg height="16pt" viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z" /></svg>';
 const svgUnlock = '<svgheight="16pt" viewBox="0 0 24 24"><path d="M18 1C15.24 1 13 3.24 13 6V8H4C2.9 8 2 8.89 2 10V20C2 21.11 2.9 22 4 22H16C17.11 22 18 21.11 18 20V10C18 8.9 17.11 8 16 8H15V6C15 4.34 16.34 3 18 3C19.66 3 21 4.34 21 6V8H23V6C23 3.24 20.76 1 18 1M10 13C11.1 13 12 13.89 12 15C12 16.11 11.11 17 10 17C8.9 17 8 16.11 8 15C8 13.9 8.9 13 10 13Z" /></svg>';
 const svgScan = '<path d="M12 20L8.4 15.2C9.4 14.45 10.65 14 12 14S14.6 14.45 15.6 15.2L12 20M4.8 10.4L6.6 12.8C8.1 11.67 9.97 11 12 11S15.9 11.67 17.4 12.8L19.2 10.4C17.19 8.89 14.7 8 12 8S6.81 8.89 4.8 10.4M12 2C7.95 2 4.21 3.34 1.2 5.6L3 8C5.5 6.12 8.62 5 12 5S18.5 6.12 21 8L22.8 5.6C19.79 3.34 16.05 2 12 2M7 24H9V22H7V24M15 24H17V22H15V24M11 24H13V22H11V24Z" /></svg>';
@@ -130,7 +130,7 @@ function getParameters() {
                 var img = newEl('img');
                 img.classList.add('logo');
                 img.setAttribute('src', 'data:image/png;base64, ' + base64);
-                img.setAttribute('style', `width:${size[0]}px;heigth:${size[1]}px`);
+                img.setAttribute('style', `width:${size[0]}px;height:${size[1]}px`);
                 $('img-logo').innerHTML = "";
                 $('img-logo').append(img);
                 $('img-logo').setAttribute('type', 'number');
@@ -142,13 +142,104 @@ function getParameters() {
         }
       }
       options = data;
-      listParameters(options);
+      createOptionsBox(options)
       $('loader').classList.add('hide');
     })
     .then( () => {
       getEspStatus();
     });
   });
+}
+
+
+
+function addOptionsElement(opt) {
+  const bools = Object.keys(opt)
+  .filter(key => typeof(opt[key]) === "boolean")
+  .reduce((obj, key) => {
+    obj[key] = opt[key];
+    return obj;
+  }, {});
+  
+  const others = Object.keys(opt)
+  .filter(key => typeof(opt[key]) !== "boolean")
+  .reduce((obj, key) => {
+    obj[key] = opt[key];
+    return obj;
+  }, {});
+  
+  Object.entries(others).forEach(([key, value]) => {
+    let lbl = newEl('label');
+    el = newEl('input');
+    el.setAttribute('id', key);
+    el.setAttribute('type', 'text');
+    el.value = value;
+    el.classList.add('opt-input');
+    lbl.setAttribute('label-for', key);
+    lbl.classList.add('input-label');
+    lbl.textContent = key;
+    if (typeof(value) === "number")
+      el.setAttribute('type', 'number');
+    if (typeof(value) === "object" ) {
+      // This is a select/option
+      if (value.values) {
+        el = newEl('select');
+        el.setAttribute('id', key);
+        value.values.forEach((a) => {
+          var opt = newEl('option');
+          opt.textContent = a;
+          opt.value = a;
+          el.appendChild(opt);
+        })
+        el.value = value.selected;
+        lastBox.appendChild(el);
+      }
+      // This is a float value
+      else {
+        var num = Math.round(value.value  * (1/value.step)) / (1/value.step);
+        el.setAttribute('type', 'number');
+        el.setAttribute('step', value.step);
+        el.setAttribute('min', value.min);
+        el.setAttribute('max', value.max);
+        el.value = Number(num).toFixed(3);
+      }
+    }
+    addInputListener(el);
+    var d  = newEl('div');
+    d.classList.add('tf-wrapper');
+    d.appendChild(lbl);
+    d.appendChild(el);
+    lastBox.appendChild(d);
+
+    if(key.endsWith('-hidden'))  {
+      el.classList.add('hide');
+    }
+  });
+  
+  if (Object.entries(bools).length !== 0) {
+    var d  = newEl('div');
+    d.classList.add('row-wrapper');
+    Object.entries(bools).forEach(([key, value]) => {
+      let lbl = newEl('label');
+      el = newEl('input');
+      el.setAttribute('id', key);
+      el.setAttribute('type', 'checkbox');
+      el.classList.add('t-check', 'opt-input');
+      el.checked = value;
+      lbl.classList.add('input-label', 'toggle');
+      let dv = newEl('div');
+      dv.classList.add('toggle-switch');
+      let sp = newEl('span');
+      sp.classList.add('toggle-label');
+      sp.textContent = key;
+      lbl.appendChild(el);
+      lbl.appendChild(dv);
+      lbl.appendChild(sp);
+      addInputListener(el);
+      d.appendChild(lbl);
+    });
+    lastBox.appendChild(d);
+  }
 }
 
 
@@ -172,126 +263,77 @@ function createNewBox(cont, lbl) {
   return box;
 }
 
-async function listParameters (params) {
-  var el;
-  if(!Object.keys(params)[0].startsWith('param-box')) {
-    params = {'param-box1': 'Options', ...params};
-    options = params;
+
+async function createOptionsBox(raw) {
+  if(!Object.keys(raw)[0].startsWith('param-box')) {
+    raw = {'param-box1': 'Options', ...raw};
+    options = raw;
   }
-
-  // Iterate through the object
-  var i = 0;
-  for (const key in params) {
-    i++;
-    // Create a new box
-    if(key.startsWith('param-box')) {
-      lastBox = createNewBox(i, params[key]);
-      continue;
+  var boxId;
+  let nest = {};
+  
+  Object.entries(raw).forEach(([key, value], index) => {
+    if (index === 0) {
+      lastBox = createNewBox(Math.floor(Math.random() * 100), value);
+      boxId = value;
     }
-    // Inject runtime CSS source file          
-    else  if(key.startsWith('raw-css')) {
-        fetchFromFile(params[key], 'HEAD').then(() => {
-        var css = newEl("link");
-        css.setAttribute('rel', 'stylesheet');
-        css.setAttribute('href', params[key]);
-        document.head.appendChild(css);
-        delete params[key];
-      });
-      continue;
+    if (key.startsWith('param-box')) {
+      if (index !== 0) {
+        addOptionsElement(nest);
+        lastBox = createNewBox(Math.floor(Math.random() * 100), value);
+        nest = {};
+        boxId = value;
+      }
     }
-    // Inject runtime JS source file
-    else if(key.startsWith('raw-javascript')) {
-        fetchFromFile(params[key], 'HEAD').then(() => {
-        var js = newEl("script");
-        js.setAttribute('src', params[key]);
-        document.body.appendChild(js);
-        delete params[key];
-      });
-      continue;
-    }
-    // Inject runtime HTML source file
-    else if(key.startsWith('raw-html')) {
-      await fetchFromFile(params[key], 'GET').then((res) => {
-        el = newEl('div');
-        el.setAttribute('id', 'row' + i)
-        el.style.width = '100%';
-        el.innerHTML = res;
-        lastBox.appendChild(el);
-      });
-      continue;
-    }
-    // Option variables
     else {
-      let lbl = newEl('label');
-      el = newEl('input');
-      el.setAttribute('id', key);
-      el.setAttribute('type', 'text');
-
-      // Set input property (id, type and value). Check first if is boolean
-      if (typeof(params[key]) === "boolean"){
-        el.setAttribute('type', 'checkbox');
-        el.classList.add('t-check', 'opt-input');
-        el.checked = params[key];
-        lbl.classList.add('input-label', 'toggle');
-        let dv = newEl('div');
-        dv.classList.add('toggle-switch');
-        let sp = newEl('span');
-        sp.classList.add('toggle-label');
-        sp.textContent = key;
-        lbl.appendChild(el);
-        lbl.appendChild(dv);
-        lbl.appendChild(sp);
-        addInputListener(el);
-        lastBox.appendChild(lbl);
+      var hidden = false;
+      if (key.startsWith('img-logo') || key.startsWith('name-logo')) {
+        hidden = true;
       }
-      else {
-        el.value = params[key];
-        el.classList.add('opt-input');
-        lbl.setAttribute('label-for', key);
-        lbl.classList.add('input-label');
-        lbl.textContent = key;
-        if (typeof(params[key]) === "number")
-          el.setAttribute('type', 'number');
-
-        if (typeof(params[key]) === "object" ) {
-          // This is a select/option
-          if (params[key].values) {
-            el = newEl('select');
-            el.setAttribute('id', key);
-            params[key].values.forEach((a) => {
-              var opt = newEl('option');
-              opt.textContent = a;
-              opt.value = a;
-              el.appendChild(opt);
-            })
-            el.value = params[key].selected;
-            lastBox.appendChild(el);
-          }
-
-          // This is a float value
-          else {
-            var num = Math.round(params[key].value  * (1/params[key].step)) / (1/params[key].step);
-            el.setAttribute('type', 'number');
-            el.setAttribute('step', params[key].step);
-            el.setAttribute('min', params[key].min);
-            el.setAttribute('max', params[key].max);
-            el.value = Number(num).toFixed(3);
-          }
-        }
-        addInputListener(el);
-        var d  = newEl('div');
-        d.classList.add('tf-wrapper');
-        d.appendChild(lbl);
-        d.appendChild(el);
-        lastBox.appendChild(d);
+      else if(key.startsWith('raw-css')) {
+        fetchFromFile(value, 'HEAD').then(() => {
+          var css = newEl("link");
+          css.setAttribute('rel', 'stylesheet');
+          css.setAttribute('href', value);
+          document.head.appendChild(css);
+          delete raw[key];
+        });
+        hidden = true;
+      }
+      // Inject runtime JS source file
+      else if(key.startsWith('raw-javascript')) {
+        fetchFromFile(value, 'HEAD').then(() => {
+          var js = newEl("script");
+          js.setAttribute('src', value);
+          document.body.appendChild(js);
+          delete raw[key];
+        });
+        hidden = true;
+      }
+      // Inject runtime HTML source file
+      else if(key.startsWith('raw-html')) {
+        var el = newEl('div');
+        el.classList.add('tf-wrapper');
+        el.setAttribute('id', value);
+        lastBox.appendChild(el);
+        fetchFromFile(value, 'GET')
+        .then((res) => {
+          $(value).innerHTML = res;
+        });
+        hidden = true;
+      }
+      if (!hidden) {
+        nest[key] = value;
       }
     }
-
-    if(key.endsWith('-hidden'))  {
-      el.classList.add('hide');
-    }
+  });
+  
+  // Add last items
+  if (Object.entries(nest).length !== 0) {
+    addOptionsElement(nest);
   }
 }
+
 
 function addInputListener(item) {
   // Add event listener to option inputs
@@ -401,6 +443,7 @@ function switchPage(el) {
 
   if(el.target.id != 'set-wifi') {
     var fragment = document.createDocumentFragment();
+    fragment.appendChild($('btn-hr'));
 	  fragment.appendChild($('btn-box'));
 	  $(el.target.getAttribute("data-box")).appendChild(fragment);
     $('btn-box').classList.remove('hide');
@@ -457,17 +500,18 @@ function handleSubmit() {
   var loader = $('loader');
   var prg = $('progress-wrap');
   loader.classList.remove('hide');
+  prg.classList.remove('hide');
   prg.classList.add('active')
   update.innerHTML = 'Update in progress';
   
   let formData = new FormData();
   formData.set('update', fileElement.files[0]);
-  var fsize = fileElement.files[0].size;
   var req = new XMLHttpRequest();
-  req.open('POST', '/update?size=' + fsize);  
+  req.open('POST', '/update?size=' + fileElement.files[0].size);  
   req.onload = function(d) {
     loader.classList.add('hide');
     prg.classList.remove('active');
+    prg.classList.add('hide');
     if (req.status != 200) 
       update.innerHTML = `Error ${req.status}: ${req.statusText}`; 
     else 
@@ -483,6 +527,33 @@ function handleSubmit() {
   req.send(formData);
 }
 
+async function uploadFolder(e) {
+  let listing = document.getElementById('listing');
+  for (let file of Array.from(e.target.files)) {
+    let path = file.webkitRelativePath;
+    let item = document.createElement('li');
+    item.textContent = path;
+    listing.appendChild(item);
+    
+    // Save each file in the ESP flash
+    var reader = new FileReader();
+    reader.onload = function(event) {
+      // Remove default "data" from path
+      if (path.startsWith("data/"))
+        path = path.replace("data/", "");
+        
+      var formData = new FormData();
+      formData.set("data", file, "/" + path);
+      
+      // POST data using the Fetch API
+      fetch('/edit', {method: 'POST', body: formData})
+      .then(response => response.text())
+    };
+    reader.readAsText(file);
+  };
+}
+
+
 // Initializes the app.
 $('svg-menu').innerHTML = svgMenu;
 $('svg-eye').innerHTML = svgEye;
@@ -492,6 +563,7 @@ $('svg-connect').innerHTML = svgConnect;
 $('svg-save').innerHTML = svgSave;
 $('svg-restart').innerHTML = svgRestart;
 $('img-logo').innerHTML = svgLogo;
+
 $('hum-btn').addEventListener('click', showMenu);
 $('scan-wifi').addEventListener('click', getWiFiList);
 $('connect-wifi').addEventListener('click', doConnection);
@@ -501,6 +573,7 @@ $('set-wifi').addEventListener('click', switchPage);
 $('set-update').addEventListener('click', switchPage);
 $('about').addEventListener('click', switchPage);
 $('restart').addEventListener('click', restartESP);
+$('picker').addEventListener('change', uploadFolder );
 $('update-btn').addEventListener('click', handleSubmit);
 $('file-input').addEventListener('change', () => {
   $('fw-label').innerHTML = $('file-input').files.item(0).name +' (' + $('file-input').files.item(0).size + ' bytes)' ;

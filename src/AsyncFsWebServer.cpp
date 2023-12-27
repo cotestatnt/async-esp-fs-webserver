@@ -1,6 +1,4 @@
-
 #include "AsyncFsWebServer.h"
-
 
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     File file = m_filesystem->open(CONFIG_FOLDER, "r");
@@ -80,7 +78,35 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 }
 
 
-  void AsyncFsWebServer::enableFsCodeEditor() {
+void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t levels) {
+    Serial.printf("\nListing directory: %s\n", dirname);
+    File root = fs.open(dirname, "r");
+    if (!root) {
+        Serial.println("- failed to open directory");
+        return;
+    }
+    if (!root.isDirectory()) {
+        Serial.println(" - not a directory");
+        return;
+    }
+    File file = root.openNextFile();
+    while (file) {
+        if (file.isDirectory()) {
+        if (levels) {
+            #ifdef ESP32
+            printFileList(fs, file.path(), levels - 1);
+            #elif defined(ESP8266)
+            printFileList(fs, file.fullName(), levels - 1);
+            #endif
+        }
+        } else {
+        Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
+        }
+        file = root.openNextFile();
+    }
+}
+
+void AsyncFsWebServer::enableFsCodeEditor() {
 #ifdef INCLUDE_EDIT_HTM
     using namespace std::placeholders;
     on("/status", HTTP_GET, std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
@@ -99,7 +125,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 #endif
   }
 
-
 bool AsyncFsWebServer::captivePortal(AsyncWebServerRequest *request) {
     IPAddress ip = request->client()->localIP();
     char serverLoc[sizeof("https:://255.255.255.255/") + MAX_APNAME_LEN + 1];
@@ -116,7 +141,6 @@ bool AsyncFsWebServer::captivePortal(AsyncWebServerRequest *request) {
     }
     return false;
 }
-
 
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
@@ -185,13 +209,13 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
-    String pathWithGz = request->url() + ".gz";
-    if (m_filesystem->exists(pathWithGz)) {
-        AsyncWebServerResponse *response = request->beginResponse(302, F("text/html"), "");
-        response->addHeader("Location", pathWithGz);
-        request->send(response);   
-    }
-    request->send(404);
+    // String pathWithGz = request->url() + ".gz";
+    // if (m_filesystem->exists(pathWithGz)) {
+    //     AsyncWebServerResponse *response = request->beginResponse(302, F("text/html"), "");
+    //     response->addHeader("Location", pathWithGz);
+    //     request->send(response);
+    // }
+    request->send(404, "text/plain", "Not found");
     Serial.printf("Resource %s not found\n", request->url().c_str());
 }
 
@@ -233,17 +257,16 @@ IPAddress AsyncFsWebServer::setAPmode(const char *ssid, const char *psk)  {
     return WiFi.softAPIP();
 }
 
-
-  void AsyncFsWebServer::setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
-      char filename[32] = {CONFIG_FOLDER};
-      strcat(filename, "/img-logo-");
-      strcat(filename, width);
-      strcat(filename, "_");
-      strcat(filename, height);
-      strcat(filename, ".txt");
-      optionToFile(filename, logo, overwrite);
-      addOption("img-logo", filename);
-    }
+void AsyncFsWebServer::setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
+    char filename[32] = {CONFIG_FOLDER};
+    strcat(filename, "/img-logo-");
+    strcat(filename, width);
+    strcat(filename, "_");
+    strcat(filename, height);
+    strcat(filename, ".txt");
+    optionToFile(filename, logo, overwrite);
+    addOption("img-logo", filename);
+}
 
 bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool overWrite) {
     // Check if file is already saved
@@ -296,7 +319,6 @@ void AsyncFsWebServer::addJavascript(const char* script,  const char* id, bool o
     String jsonId = "raw-javascript-" + String(id);
     addSource(script, jsonId.c_str(), overWrite);
 }
-
 
 void AsyncFsWebServer::addDropdownList(const char *label, const char** array, size_t size) {
     File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
@@ -368,7 +390,6 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     DebugPrintln(json);
 }
 
-
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
     String dir;
     int p1 = 0;
@@ -386,7 +407,7 @@ bool AsyncFsWebServer::createDirFromPath(const String& path) {
                 else {
                     DebugPrintf("Error. Folder %s not created\n", dir.c_str());
                     return false;
-                } 
+                }
             }
         }
         p1 = p2;
@@ -404,7 +425,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         // Create folder if necessary (up to max 5 sublevels)
         int len = filename.length();
         char path[len+1];
-        strcpy(path, filename.c_str()); 
+        strcpy(path, filename.c_str());
         Serial.println(path);
         createDirFromPath(path);
 
@@ -615,7 +636,6 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     }
 }
 
-
 IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn ) {
     IPAddress ip;
     m_timeout = timeout;
@@ -664,7 +684,6 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     ip = WiFi.softAPIP();
     return ip;
 }
-
 
 // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
 #ifdef INCLUDE_EDIT_HTM

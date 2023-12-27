@@ -16,6 +16,7 @@ AsyncFsWebServer server(80, FILESYSTEM, hostname);
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
 bool boolVar = true;
+bool boolVar2 = false;
 uint32_t longVar = 1234567890;
 float floatVar = 15.5F;
 String stringVar = "Test option String";
@@ -62,37 +63,9 @@ struct tm Time;
 #include "thingsboard.h"
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-  Serial.printf("\nListing directory: %s\n", dirname);
-  File root = fs.open(dirname, "r");
-  if (!root) {
-    Serial.println("- failed to open directory");
-    return;
-  }
-  if (!root.isDirectory()) {
-    Serial.println(" - not a directory");
-    return;
-  }
-  File file = root.openNextFile();
-  while (file) {
-    if (file.isDirectory()) {
-      if (levels) {
-        #ifdef ESP32
-          listDir(fs, file.path(), levels - 1);
-        #elif defined(ESP8266)
-          listDir(fs, file.fullName(), levels - 1);
-        #endif
-      }
-    } else {
-      Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
-    }
-    file = root.openNextFile();
-  }
-}
-
 bool startFilesystem() {
   if (FILESYSTEM.begin()){
-    listDir(FILESYSTEM, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 1);
     return true;
   }
   else {
@@ -200,6 +173,9 @@ void setup() {
   server.addOption(FLOAT_LABEL, floatVar, 0.0, 100.0, 0.01);
   server.addOption(STRING_LABEL, stringVar);
   server.addOption(BOOL_LABEL, boolVar);
+  server.addOption(BOOL_LABEL "2", boolVar2);
+  const char* dropItem[3] = {"Item1", "Item2", "Item3"};
+  server.addDropdownList("DROPDOWN_TEST", dropItem, 3);
 
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");
@@ -216,7 +192,6 @@ void setup() {
   server.addOption(TB_DEVICE_KEY, tb_device_key);
   server.addOption(TB_SECRET_KEY, tb_secret_key);
   server.addOption(TB_DEVICE_TOKEN, tb_deviceToken);
-  server.addHTML(info_html, "info");
   server.addHTML(thingsboard_htm, "ts", /*overwite file*/ true);
 
   // CSS will be appended to HTML head
@@ -252,5 +227,5 @@ void setup() {
 
 
 void loop() {
-    
+
 }
