@@ -2,6 +2,7 @@
 #define ASYNC_FS_WEBSERVER_H
 
 #include <FS.h>
+#include <DNSServer.h>
 #include "ESPAsyncWebServer/src/ESPAsyncWebServer.h"
 
 #ifdef ESP32
@@ -17,35 +18,21 @@
   #error Platform not supported
 #endif
 
-
 #define INCLUDE_EDIT_HTM
 #ifdef INCLUDE_EDIT_HTM
 #include "edit_htm.h"
 #endif
 
-#define INCLUDE_SETUP_HTM
-#ifdef INCLUDE_SETUP_HTM
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
 #include "setup_htm.h"
 #define CONFIG_FOLDER "/config"
 #define CONFIG_FILE "/config.json"
-#endif
 
-#define DBG_OUTPUT_PORT Serial
-#define DEBUG_MODE 1
-
-#if DEBUG_MODE
-#define DebugPrint(x) DBG_OUTPUT_PORT.print(x)
-#define DebugPrintln(x) DBG_OUTPUT_PORT.println(x)
-#define DebugPrintf(fmt, ...) DBG_OUTPUT_PORT.printf(fmt, ##__VA_ARGS__)
-#define DebugPrintf_P(fmt, ...) DBG_OUTPUT_PORT.printf_P(fmt, ##__VA_ARGS__)
-#else
-#define DebugPrint(x)
-#define DebugPrintln(x)
-#define DebugPrintf(x, ...)
-#define DebugPrintf_P(x, ...)
-#endif
+#define DBG_OUTPUT_PORT     Serial
+#define DEBUG_MODE          1
+#include "SerialLog.h"
+#include "CaptiverPortal.hpp"
 
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
@@ -60,11 +47,13 @@ typedef struct {
 using FsInfoCallbackF = std::function<void(fsInfo_t*)>;
 using CallbackF = std::function<void(void)>;
 
-
 class AsyncFsWebServer : public AsyncWebServer
 {
   protected:
     AsyncWebSocket* m_ws = nullptr;
+    AsyncWebHandler *m_captive = nullptr;
+    DNSServer* m_dnsServer = nullptr;
+
     void handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len);
     void handleScanNetworks(AsyncWebServerRequest *request);
     void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
@@ -82,18 +71,15 @@ class AsyncFsWebServer : public AsyncWebServer
 
         // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
 #ifdef INCLUDE_EDIT_HTM
-    void handleFileCreate(AsyncWebServerRequest *request);
+    void deleteFolderContent(File& root) ;
     void handleFileDelete(AsyncWebServerRequest *request);
+    void handleFileCreate(AsyncWebServerRequest *request);
     void handleFsStatus(AsyncWebServerRequest *request);
     void handleFileList(AsyncWebServerRequest *request);
+    void handleFileEdit(AsyncWebServerRequest *request);
 #endif
 
-    void setTaskWdt(uint32_t timeout);
-
-  /**
-   * Redirect to captive portal if we got a request for another domain.
-  */
-  bool captivePortal(AsyncWebServerRequest *request);
+  void setTaskWdt(uint32_t timeout);
 
   /*
     Add an option which contain "raw" HTML code to be injected in /setup page
@@ -107,7 +93,9 @@ class AsyncFsWebServer : public AsyncWebServer
   bool createDirFromPath( const String& path) ;
 
   private:
-    char m_host[16] = {"espserver"};
+    char* m_pageUser = nullptr;
+    char* m_pagePswd = nullptr;
+    String m_host = "esphost";
     fs::FS* m_filesystem = nullptr;
 
     uint32_t m_timeout = 10000;
@@ -116,15 +104,15 @@ class AsyncFsWebServer : public AsyncWebServer
     bool m_filesystem_ok = false;
     char m_apWebpage[MAX_APNAME_LEN] = "/setup";
     size_t m_contentLen = 0;
-    uint16_t m_port = 80;
+    uint16_t m_port;
     FsInfoCallbackF getFsInfo = nullptr;
 
   public:
-    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = nullptr) : AsyncWebServer(port) {
+    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") : AsyncWebServer(port) {
       m_ws = new AsyncWebSocket("/ws");
       m_filesystem = &fs;
-      if (hostname != nullptr)
-        strncpy(m_host, hostname, sizeof(m_host));
+      if (strlen(hostname))
+        m_host = hostname;
       m_port = port;
     }
 
@@ -148,11 +136,6 @@ class AsyncFsWebServer : public AsyncWebServer
       m_ws->textAll(buffer);
     }
 
-    // TO-DO! //
-    void setCaptiveWebage(const char *url){
-      strncpy(m_apWebpage, url, MAX_APNAME_LEN);
-    }
-
     /*
       Start webserver aand bind a websocket event handler (optional)
     */
@@ -162,12 +145,15 @@ class AsyncFsWebServer : public AsyncWebServer
       Enable the built-in ACE web file editor
     */
     void enableFsCodeEditor();
+    /*
+      Enable authenticate for /setup webpage
+    */
+    void setAuthentication(const char* user, const char* pswd);
 
     /*
-      List FS file content
+      List FS content
     */
     void printFileList(fs::FS &fs, const char * dirname, uint8_t levels);
-
 
 
     /*
@@ -222,10 +208,28 @@ class AsyncFsWebServer : public AsyncWebServer
       Set the WiFi mode as Access Point
     */
     IPAddress setAPmode(const char *ssid, const char *psk);
+
     /*
       Start WiFi connection, if fails to in AP mode
     */
     IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr);
+
+    /*
+      Start WiFi connection, NO AP mode on fail
+    */
+    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr ) ;
+
+    /*
+     * Redirect to captive portal if we got a request for another domain.
+    */
+    bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
+
+    /*
+    Need to be run in loop to handle DNS requests
+    */
+    void updateDNS() {
+      m_dnsServer->processNextRequest();
+    }
 
     /*
       In order to keep config.json file small and clean, custom HTML, CSS and Javascript
@@ -280,14 +284,15 @@ class AsyncFsWebServer : public AsyncWebServer
         // If file is present, load actual configuration
         DeserializationError error = deserializeJson(doc, file);
         if (error) {
-          DebugPrintln(F("Failed to deserialize file, may be corrupted"));
-          DebugPrintln(error.c_str());
+          log_error("Failed to deserialize file, may be corrupted\n %s", error.c_str());
           file.close();
           return;
         }
         file.close();
       }
-      else DebugPrintln(F("File not found, will be created new configuration file"));
+      else 
+        log_error("File not found, will be created new configuration file");
+
       numOptions++ ;
       String key = label;
       if (hidden)
@@ -316,7 +321,7 @@ class AsyncFsWebServer : public AsyncWebServer
 
       file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
       if (serializeJsonPretty(doc, file) == 0)
-        DebugPrintln(F("Failed to write to file"));
+        log_error("Failed to write to file");
       file.close();
     }
     /*
@@ -329,8 +334,7 @@ class AsyncFsWebServer : public AsyncWebServer
       if (file) {
         DeserializationError error = deserializeJson(doc, file);
         if (error) {
-          DebugPrintln(F("Failed to deserialize file, may be corrupted"));
-          DebugPrintln(error.c_str());
+          log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
           file.close();
           return false;
         }

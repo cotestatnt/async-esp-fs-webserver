@@ -5,7 +5,9 @@
 #include <AsyncFsWebServer.h>  //https://github.com/cotestatnt/async-esp-fs-webserver
 
 #define FILESYSTEM LittleFS
+bool captiveRun = false;
 
+// AsyncFsWebServer server(80, FILESYSTEM, "esphost");
 AsyncFsWebServer server(80, FILESYSTEM);
 
 #ifndef LED_BUILTIN
@@ -22,10 +24,10 @@ float floatVar = 15.5F;
 String stringVar = "Test option String";
 
 // In order to show a dropdown list box in /setup page
-// we need a list ef values and a variable to store the selected option
+// we need a list of values and a variable to store the selected option
 #define LIST_SIZE  7
-const char* dropdownList[LIST_SIZE] = {
-  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+const char* dropdownList[LIST_SIZE] = 
+{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
 String dropdownSelected;
 
 // Var labels (in /setup webpage)
@@ -67,43 +69,15 @@ function reload() {
 
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-    Serial.printf("\nListing directory: %s\n", dirname);
-    File root = fs.open(dirname, "r");
-    if(!root){
-        Serial.println("- failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println(" - not a directory");
-        return;
-    }
-    File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            if(levels){
-            #ifdef ESP32
-			  listDir(fs, file.path(), levels - 1);
-			#elif defined(ESP8266)
-			  listDir(fs, file.fullName(), levels - 1);
-			#endif
-            }
-        } else {
-            Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
 bool startFilesystem() {
   if (FILESYSTEM.begin()){
-    listDir(FILESYSTEM, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 2);
     return true;
   }
   else {
-      Serial.println("ERROR on mounting filesystem. It will be formmatted!");
-      FILESYSTEM.format();
-      ESP.restart();
+    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+    FILESYSTEM.format();
+    ESP.restart();
   }
   return false;
 }
@@ -114,9 +88,9 @@ bool startFilesystem() {
 */
 #ifdef ESP32
 void getFsInfo(fsInfo_t* fsInfo) {
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-    strcpy(fsInfo->fsName, "LittleFS");
+  fsInfo->totalBytes = LittleFS.totalBytes();
+  fsInfo->usedBytes = LittleFS.usedBytes();
+  strcpy(fsInfo->fsName, "LittleFS");
 }
 #endif
 
@@ -134,7 +108,7 @@ bool loadOptions() {
     Serial.println("\nThis are the current values stored: \n");
     Serial.printf("LED pin value: %d\n", ledPin);
     Serial.printf("Bool value: %s\n", boolVar ? "true" : "false");
-    Serial.printf("Long value: %lu\n",longVar);
+    Serial.printf("Long value: %u\n", longVar);
     Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
     Serial.printf("String value: %s\n", stringVar.c_str());
     Serial.printf("Dropdown selected value: %s\n\n", dropdownSelected.c_str());
@@ -167,9 +141,6 @@ void setup() {
   Serial.begin(115200);
   pinMode(BTN_SAVE, INPUT_PULLUP);
 
-  // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
-
   // FILESYSTEM INIT
   if (startFilesystem()){
     // Load configuration (if not present, default will be created when webserver will start)
@@ -177,6 +148,15 @@ void setup() {
       Serial.println(F("Application option loaded"));
     else
       Serial.println(F("Application options NOT loaded!"));
+  }
+
+  // Try to connect to stored SSID, start AP if fails after timeout
+  IPAddress myIP = server.startWiFi(15000);
+  if (!myIP) {
+    Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
+    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+    myIP = WiFi.softAPIP();
+    captiveRun = true;
   }
 
   // Add custom page handlers to webserver
@@ -194,12 +174,15 @@ void setup() {
 
   server.addHTML(save_btn_htm, "buttons", /*overwite*/ false);
   server.addJavascript(button_script, "js", /*overwite*/ false);
-  
+
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
   #ifdef ESP32
   server.setFsInfoCallback(getFsInfo);
   #endif
+
+  // set /setup and /edit page authentication
+  server.setAuthentication("admin", "admin");
 
   // Start server
   server.init();
@@ -213,6 +196,9 @@ void setup() {
 }
 
 void loop() {
+  if (captiveRun)
+    server.updateDNS();
+
   // Savew options also on button click
   if (! digitalRead(BTN_SAVE)) {
     saveOptions();

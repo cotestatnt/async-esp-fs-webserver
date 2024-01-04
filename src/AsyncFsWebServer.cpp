@@ -3,7 +3,7 @@
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     File file = m_filesystem->open(CONFIG_FOLDER, "r");
     if (!file) {
-        DebugPrintln("Failed to open /setup directory. Create new folder\n");
+        log_error("Failed to open /setup directory. Create new folder\n");
         m_filesystem->mkdir(CONFIG_FOLDER);
         ESP.restart();
     }
@@ -18,11 +18,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     } else
         file.close();
 
-    if (m_host != nullptr) {
-        if (MDNS.begin(m_host)){
-            DebugPrintln("MDNS responder started");
-        }
-    }
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
 
@@ -72,7 +67,12 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         m_ws->onEvent(std::bind(&AsyncFsWebServer::handleWebSocket,this, _1, _2, _3, _4, _5, _6));
     addHandler(m_ws);
     begin();
-    MDNS.addService("http","tcp", m_port);
+
+    // Configure and start MDNS responder
+    if (!MDNS.begin(m_host)){
+        log_error("MDNS responder started");
+    }
+    MDNS.addService("http", "tcp", m_port);
     MDNS.setInstanceName("async-fs-webserver");
     return true;
 }
@@ -113,33 +113,40 @@ void AsyncFsWebServer::enableFsCodeEditor() {
     on("/list", HTTP_GET, std::bind(&AsyncFsWebServer::handleFileList, this, _1));
     on("/edit", HTTP_PUT, std::bind(&AsyncFsWebServer::handleFileCreate, this, _1));
     on("/edit", HTTP_DELETE, std::bind(&AsyncFsWebServer::handleFileDelete, this, _1));
+    on("/edit", HTTP_GET, std::bind(&AsyncFsWebServer::handleFileEdit, this, _1));
     on("/edit", HTTP_POST,
         std::bind(&AsyncFsWebServer::sendOK, this, _1),
         std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
     );
-    on("/edit", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acedit_htm, sizeof(_acedit_htm));
-        response->addHeader("Content-Encoding", "gzip");
-        request->send(response);
-    });
 #endif
   }
 
-bool AsyncFsWebServer::captivePortal(AsyncWebServerRequest *request) {
-    IPAddress ip = request->client()->localIP();
-    char serverLoc[sizeof("https:://255.255.255.255/") + MAX_APNAME_LEN + 1];
-    snprintf(serverLoc, sizeof(serverLoc), "http://%d.%d.%d.%d%s", ip[0], ip[1], ip[2], ip[3], m_apWebpage);
-
-    // redirect if hostheader not server ip, prevent redirect loops
-    String host = request->getHeader("Host")->toString();
-    if (host.equals(serverLoc)) {
-        AsyncWebServerResponse *response = request->beginResponse(302, "text/html", "");
-        response->addHeader("Location", serverLoc);
-        request->send(response);                 // Empty content inhibits Content-length header so we have to close the socket ourselves.
-        request->client()->stop();               // Stop is needed because we sent no content length
-        return true;
+bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
+    
+    if (! WiFi.softAP(ssid, pass)) {
+        log_error("Captive portal failed to start: WiFi.softAP failed!");
+        return false;
     }
-    return false;
+
+#ifndef CAPTIVE_PORTAL_NO_SAMSUNG
+    // Set AP IP 8.8.8.8 and subnet 255.255.255.0
+    if (! WiFi.softAPConfig(0x08080808, 0x08080808, 0x00FFFFFF)) {
+        log_error("Captive portal failed to start: WiFi.softAPConfig failed!");
+        WiFi.enableAP(false);
+        return false;
+    }
+#endif
+
+    m_dnsServer = new DNSServer();
+    if (! m_dnsServer->start(53, "*", WiFi.softAPIP())) {
+        log_error("Captive portal failed to start: no sockets for DNS server available!");
+        WiFi.enableAP(false);
+        return false;
+    }
+    m_captive = new CaptiveRequestHandler(redirectTargetURL);
+    addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
+    log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
+    return true;
 }
 
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
@@ -191,7 +198,20 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #endif
 }
 
+
+void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
+    m_pageUser = (char*) malloc(strlen(user)*sizeof(char));
+    m_pagePswd = (char*) malloc(strlen(pswd)*sizeof(char));
+    strcpy(m_pageUser, user);
+    strcpy(m_pagePswd, pswd);
+}
+
 void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
+    if (m_pageUser != nullptr) {
+        if(!request->authenticate(m_pageUser, m_pagePswd))
+            return request->requestAuthentication();
+    }
+
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)SETUP_HTML, SETUP_HTML_SIZE);
     response->addHeader("Content-Encoding", "gzip");
     response->addHeader("X-Config-File", CONFIG_FOLDER CONFIG_FILE);
@@ -216,7 +236,7 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
     //     request->send(response);
     // }
     request->send(404, "text/plain", "Not found");
-    Serial.printf("Resource %s not found\n", request->url().c_str());
+    log_info("Resource %s not found\n", request->url().c_str());
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
@@ -281,11 +301,11 @@ bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool 
         if (file) {
             file.print(str);
             file.close();
-            DebugPrintf("File %s saved\n", filename);
+            log_info("File %s saved\n", filename);
             return true;
         }
         else {
-            DebugPrintf("Error writing file %s\n", filename);
+            log_info("Error writing file %s\n", filename);
         }
     }
     return false;
@@ -329,15 +349,14 @@ void AsyncFsWebServer::addDropdownList(const char *label, const char** array, si
         // If file is present, load actual configuration
         DeserializationError error = deserializeJson(doc, file);
         if (error) {
-            DebugPrintln(F("Failed to deserialize file, may be corrupted"));
-            DebugPrintln(error.c_str());
+            log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
             file.close();
             return;
         }
         file.close();
     }
     else {
-        DebugPrintln(F("File not found, will be created new configuration file"));
+        log_error("File not found, will be created new configuration file");
     }
     numOptions++ ;
 
@@ -354,7 +373,7 @@ void AsyncFsWebServer::addDropdownList(const char *label, const char** array, si
 
     file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
     if (serializeJsonPretty(doc, file) == 0) {
-        DebugPrintln(F("Failed to write to file"));
+        log_error("Failed to write to file");
     }
     file.close();
 }
@@ -363,9 +382,9 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     // Increase task WDT timeout
     setTaskWdt(15000);
 
-    DebugPrint("Start scan WiFi networks");
+    log_info("Start scan WiFi networks");
     int res = WiFi.scanNetworks();
-    DebugPrintf(" done!\nNumber of networks: %d\n", res);
+    log_info(" done!\nNumber of networks: %d\n", res);
     String json = "[";
     if (res > 0) {
         for (int i = 0; i < res; ++i) {
@@ -387,7 +406,7 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     }
     json += "]";
     request->send(200, "application/json", json);
-    DebugPrintln(json);
+    log_info("%s", json.c_str());
 }
 
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
@@ -402,10 +421,10 @@ bool AsyncFsWebServer::createDirFromPath(const String& path) {
         if (dir.indexOf(".") == -1) {
             if (!m_filesystem->exists(dir)) {
                 if (m_filesystem->mkdir(dir)) {
-                    DebugPrintf("Folder %s created\n", dir.c_str());
+                    log_info("Folder %s created\n", dir.c_str());
                 }
                 else {
-                    DebugPrintf("Error. Folder %s not created\n", dir.c_str());
+                    log_info("Error. Folder %s not created\n", dir.c_str());
                     return false;
                 }
             }
@@ -426,20 +445,17 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         int len = filename.length();
         char path[len+1];
         strcpy(path, filename.c_str());
-        Serial.println(path);
         createDirFromPath(path);
 
         // open the file on first call and store the file handle in the request object
         request->_tempFile = m_filesystem->open(filename, "w");
-        DebugPrintf("Upload Start.\nWriting file %s\n", filename.c_str());
+        log_info("Upload Start.\nWriting file %s\n", filename.c_str());
     }
 
     if (len) {
         // stream the incoming chunk to the opened file
         static int i = 0;
         request->_tempFile.write(data, len);
-        if(!i++ % 20) DebugPrint("\n");
-        DebugPrintf(".%d", len);
     }
 
     if (final) {
@@ -447,7 +463,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         setTaskWdt(8000);
         // close the file handle as the upload is now done
         request->_tempFile.close();
-        DebugPrintf("\nUpload complete: %s, size: %d \n", filename.c_str(), index + len);
+        log_info("\nUpload complete: %s, size: %d \n", filename.c_str(), index + len);
     }
 }
 
@@ -516,9 +532,11 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
 
     // Connect to the provided SSID
     if (ssid.length() && pass.length()) {
+        setTaskWdt(m_timeout + 1000);
         WiFi.mode(WIFI_AP_STA);
         Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
         WiFi.begin(ssid.c_str(), pass.c_str());
+        delay(500);
 
         uint32_t beginTime = millis();
         while (WiFi.status() != WL_CONNECTED) {
@@ -526,12 +544,14 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             Serial.print("*.*");
             #if defined(ESP8266)
             ESP.wdtFeed();
+            #else
+            esp_task_wdt_reset();
             #endif
-            if (millis() - beginTime > 10000) {
+            if (millis() - beginTime > m_timeout) {
                 request->send(408, "text/plain", "<br><br>Connection timeout!<br>Check password or try to restart ESP.");
                 delay(100);
-                Serial.println("\nWiFi connect timeout!");
-                return;
+                Serial.println("\nWiFi connect timeout!");;
+                break;
             }
         }
         // reply to client
@@ -550,6 +570,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             request->send(200, "text/plain", resp);
         }
     }
+    setTaskWdt(8000);
     request->send(401, "text/plain", "Wrong credentials provided");
 }
 
@@ -586,7 +607,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         AsyncWebHeader* h = request->getHeader("Content-Length");
         if (h->value().length()) {
             m_contentLen = h->value().toInt();
-            DebugPrintf("Firmware size: %d\n", m_contentLen);
+            log_info("Firmware size: %d\n", m_contentLen);
         }
     }
 
@@ -614,9 +635,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         if (millis() - pTime > 500) {
             pTime = millis();
             otaDone = 100 * Update.progress() / Update.size();
-            char buffer[100];
-            snprintf(buffer, sizeof(buffer),"OTA progress: %d%%\n", otaDone);
-            DebugPrintln(buffer);
+            log_info("OTA progress: %d%%\n", otaDone);
         }
     }
 
@@ -630,14 +649,14 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
             otaDone = 0;
             return request->send(500, "text/plain", "Could not end OTA");
         }
-        DebugPrintln("Update Success.\nRebooting...\n");
+        log_info("Update Success.\nRebooting...\n");
         // restore task WDT timeout
         setTaskWdt(8000);
     }
 }
 
-IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn ) {
-    IPAddress ip;
+IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
+    IPAddress ip (0, 0, 0, 0);
     m_timeout = timeout;
     WiFi.mode(WIFI_STA);
 #if defined(ESP8266)
@@ -675,18 +694,32 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
             }
         }
     }
+    return ip;
+}
 
-    if (apSSID != nullptr && apPsw != nullptr)
-        return setAPmode(apSSID, apPsw);
-    else
-        return setAPmode("ESP_AP", "123456789");
-
-    ip = WiFi.softAPIP();
+IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn) {
+    IPAddress ip (0, 0, 0, 0);  
+    ip = startWiFi(timeout, fn);    
+    if (!ip) {
+        // No connection, start AP and then captive portal
+        startCaptivePortal("ESP_AP", "123456789", "/setup");
+        ip = WiFi.softAPIP();
+    }
     return ip;
 }
 
 // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
 #ifdef INCLUDE_EDIT_HTM
+
+void AsyncFsWebServer::handleFileEdit(AsyncWebServerRequest *request) {
+    if (m_pageUser != nullptr) {
+        if(!request->authenticate(m_pageUser, m_pagePswd))
+            return request->requestAuthentication();
+    }
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acedit_htm, sizeof(_acedit_htm));
+    response->addHeader("Content-Encoding", "gzip");
+    request->send(response);
+}
 
 /*
     Return the list of files in the directory specified by the "dir" query string parameter.
@@ -699,7 +732,7 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
     }
 
     String path = request->arg("dir");
-    DebugPrintln("handleFileList: " + path);
+    log_info("handleFileList: %s", path.c_str());
     if (path != "/" && !m_filesystem->exists(path)) {
         return request->send(400, "BAD PATH");
     }
@@ -754,7 +787,7 @@ void AsyncFsWebServer::handleFileCreate(AsyncWebServerRequest *request)
     String src = request->arg("src");
     if (src.isEmpty())  {
         // No source specified: creation
-        DebugPrintf_P(PSTR("handleFileCreate: %s\n"), path.c_str());
+        log_info("handleFileCreate: %s\n", path.c_str());
         if (path.endsWith("/")) {
             // Create a folder
             path.remove(path.length() - 1);
@@ -784,7 +817,7 @@ void AsyncFsWebServer::handleFileCreate(AsyncWebServerRequest *request)
             return request->send(400,  "FILE NOT FOUND");
         }
 
-        DebugPrintf_P(PSTR("handleFileCreate: %s from %s\n"), path.c_str(), src.c_str());
+        log_info("handleFileCreate: %s from %s\n", path.c_str(), src.c_str());
         if (path.endsWith("/")) {
             path.remove(path.length() - 1);
         }
@@ -805,6 +838,24 @@ void AsyncFsWebServer::handleFileCreate(AsyncWebServerRequest *request)
     Delete file    | parent of deleted file, or remaining ancestor
     Delete folder  | parent of deleted folder, or remaining ancestor
 */
+
+// void AsyncFsWebServer::deleteFolderContent(File& root) {
+//     if (root.isDirectory()) {
+//         File file;
+//         while (file = root.openNextFile()) {
+//             delay(10);
+//             file.close();
+//             #ifdef ESP32
+//             m_filesystem->remove(file.path());
+//             DebugPrintf("File %s deleted\n", file.path());
+//             #elif defined(ESP8266)
+//             m_filesystem->remove(file.fullName());
+//             DebugPrintf("File %s deleted\n", file.fullName.c_str());
+//             #endif
+//         }
+//     }
+// }
+
 void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
 
     String path = request->arg((size_t)0);
@@ -812,21 +863,23 @@ void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
         return request->send(400, "BAD PATH");
     }
 
-    DebugPrintf_P(PSTR("handleFileDelete: %s\n"), path.c_str());
     if (!m_filesystem->exists(path))  {
         return request->send(400, "File Not Found");
     }
-    // deleteRecursive(path);
-    File root = m_filesystem->open(path, "r");
+
+    File file = m_filesystem->open(path, "r");
     // If it's a plain file, delete it
-    if (!root.isDirectory()) {
-        root.close();
+    if (!file.isDirectory()) {
+        log_info("File delete: %s\n", path.c_str());
+        file.close();
         m_filesystem->remove(path);
         sendOK(request);
     }
     else  {
+        log_info("Folder delete: %s\n", path.c_str());
+        file.close();
         m_filesystem->rmdir(path);
-         sendOK(request);
+        sendOK(request);
     }
 }
 
@@ -835,7 +888,7 @@ void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
 */
 void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
 {
-    DebugPrintln(PSTR("handleStatus"));
+    log_info("handleStatus");
     fsInfo_t info = {1024, 1024, "Unset"};
 #ifdef ESP8266
     FSInfo fs_info;

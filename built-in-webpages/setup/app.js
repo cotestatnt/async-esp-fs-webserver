@@ -447,9 +447,12 @@ function switchPage(el) {
 	  fragment.appendChild($('btn-box'));
 	  $(el.target.getAttribute("data-box")).appendChild(fragment);
     $('btn-box').classList.remove('hide');
+    $('btn-hr').classList.remove('hide');
   }
-  else
+  else {
     $('btn-box').classList.add('hide');
+    $('btn-hr').classList.add('hide');
+  }
 }
 
 
