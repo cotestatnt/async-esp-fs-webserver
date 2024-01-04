@@ -150,7 +150,7 @@ void setup() {
       Serial.println(F("Application options NOT loaded!"));
   }
 
-  // Try to connect to stored SSID, start AP if fails after timeout
+  // Try to connect to stored SSID, start AP with captive portal if fails after timeout
   IPAddress myIP = server.startWiFi(15000);
   if (!myIP) {
     Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");

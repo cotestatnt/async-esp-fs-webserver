@@ -6,6 +6,7 @@
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(80, FILESYSTEM, hostname);
+bool captiveRun = false;
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -151,8 +152,6 @@ void setup() {
   if (server.clearOptions())
     ESP.restart();
 #endif
-  // Try to connect to stored SSID, start AP if fails after timeout
-  server.startWiFi(15000, "ESP8266_AP", "123456789" );
 
   // FILESYSTEM INIT
   if (startFilesystem()){
@@ -162,6 +161,16 @@ void setup() {
     else
       Serial.println(F("Application options NOT loaded!"));
   }
+
+  // Try to connect to stored SSID, start AP with captive portal if fails after timeout
+  IPAddress myIP = server.startWiFi(15000);
+  if (!myIP) {
+    Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
+    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+    myIP = WiFi.softAPIP();
+    captiveRun = true;
+  }
+  
   // Add custom page handlers to webserver
   server.on("/reload", HTTP_GET, handleLoadOptions);
 
@@ -227,5 +236,6 @@ void setup() {
 
 
 void loop() {
-
+  if (captiveRun)
+    server.updateDNS();
 }
