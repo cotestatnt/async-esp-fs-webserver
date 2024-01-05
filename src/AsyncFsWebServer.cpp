@@ -13,7 +13,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
     if (!file) {
         file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
-        file.print("{\"param-box0\": \"\"}");
+        file.print("{\"wifi-box\": \"\"}");
         file.close();
     } else
         file.close();
@@ -236,7 +236,7 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
     //     request->send(response);
     // }
     request->send(404, "text/plain", "Not found");
-    log_info("Resource %s not found\n", request->url().c_str());
+    log_debug("Resource %s not found\n", request->url().c_str());
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
@@ -301,11 +301,11 @@ bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool 
         if (file) {
             file.print(str);
             file.close();
-            log_info("File %s saved\n", filename);
+            log_debug("File %s saved", filename);
             return true;
         }
         else {
-            log_info("Error writing file %s\n", filename);
+            log_debug("Error writing file %s", filename);
         }
     }
     return false;
@@ -384,7 +384,7 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
 
     log_info("Start scan WiFi networks");
     int res = WiFi.scanNetworks();
-    log_info(" done!\nNumber of networks: %d\n", res);
+    log_info(" done!\nNumber of networks: %d", res);
     String json = "[";
     if (res > 0) {
         for (int i = 0; i < res; ++i) {
@@ -421,10 +421,10 @@ bool AsyncFsWebServer::createDirFromPath(const String& path) {
         if (dir.indexOf(".") == -1) {
             if (!m_filesystem->exists(dir)) {
                 if (m_filesystem->mkdir(dir)) {
-                    log_info("Folder %s created\n", dir.c_str());
+                    log_info("Folder %s created", dir.c_str());
                 }
                 else {
-                    log_info("Error. Folder %s not created\n", dir.c_str());
+                    log_info("Error. Folder %s not created", dir.c_str());
                     return false;
                 }
             }
@@ -469,6 +469,15 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 
 void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     String ssid, pass;
+    IPAddress gateway, subnet, local_ip;
+    bool config = false;
+
+    if (request->hasArg("ip_address") && request->hasArg("subnet") && request->hasArg("gateway")) {
+        gateway.fromString(request->arg("gateway"));
+        subnet.fromString(request->arg("subnet"));
+        local_ip.fromString(request->arg("ip_address"));
+        config = true;
+    }
 
     if (request->hasArg("ssid"))
         ssid = request->arg("ssid");
@@ -534,6 +543,14 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     if (ssid.length() && pass.length()) {
         setTaskWdt(m_timeout + 1000);
         WiFi.mode(WIFI_AP_STA);
+
+        // Manual connection setup
+        if (config) {            
+            log_info("Manual config WiFi connection with IP: %s", local_ip.toString().c_str());
+            if (!WiFi.config(local_ip, gateway, subnet))           
+                log_error("STA Failed to configure");
+        }
+        
         Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
         WiFi.begin(ssid.c_str(), pass.c_str());
         delay(500);
@@ -607,7 +624,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         AsyncWebHeader* h = request->getHeader("Content-Length");
         if (h->value().length()) {
             m_contentLen = h->value().toInt();
-            log_info("Firmware size: %d\n", m_contentLen);
+            log_info("Firmware size: %d", m_contentLen);
         }
     }
 
@@ -635,7 +652,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         if (millis() - pTime > 500) {
             pTime = millis();
             otaDone = 100 * Update.progress() / Update.size();
-            log_info("OTA progress: %d%%\n", otaDone);
+            log_info("OTA progress: %d%%", otaDone);
         }
     }
 
@@ -656,6 +673,36 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
 }
 
 IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
+    // Check if we need to config wifi connection
+    IPAddress local_ip, subnet, gateway;
+
+    File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
+    int sz = file.size() * 1.33;
+    int docSize = max(sz, 2048);
+    DynamicJsonDocument doc((size_t)docSize);
+    if (file) {
+        // If file is present, load actual configuration
+        DeserializationError error = deserializeJson(doc, file);
+        if (error) {
+            log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
+            file.close();
+        }
+        file.close();
+        if (doc["dhcp"].as<bool>() == true) {
+            gateway.fromString(doc["gateway"].as<String>());
+            subnet.fromString(doc["subnet"].as<String>());
+            local_ip.fromString(doc["ip_address"].as<String>());
+            log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
+            if (!WiFi.config(local_ip, gateway, subnet))           
+                log_error("STA Failed to configure");
+            delay(100);
+        }
+    }
+    else {
+        log_error("File not found, will be created new configuration file");
+    }
+
+
     IPAddress ip (0, 0, 0, 0);
     m_timeout = timeout;
     WiFi.mode(WIFI_STA);
@@ -703,7 +750,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     if (!ip) {
         // No connection, start AP and then captive portal
         startCaptivePortal("ESP_AP", "123456789", "/setup");
-        ip = WiFi.softAPIP();
+        ip.fromString("8.8.8.8");
     }
     return ip;
 }
@@ -732,7 +779,7 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
     }
 
     String path = request->arg("dir");
-    log_info("handleFileList: %s", path.c_str());
+    log_debug("handleFileList: %s", path.c_str());
     if (path != "/" && !m_filesystem->exists(path)) {
         return request->send(400, "BAD PATH");
     }
@@ -787,7 +834,7 @@ void AsyncFsWebServer::handleFileCreate(AsyncWebServerRequest *request)
     String src = request->arg("src");
     if (src.isEmpty())  {
         // No source specified: creation
-        log_info("handleFileCreate: %s\n", path.c_str());
+        log_debug("handleFileCreate: %s\n", path.c_str());
         if (path.endsWith("/")) {
             // Create a folder
             path.remove(path.length() - 1);
@@ -817,7 +864,7 @@ void AsyncFsWebServer::handleFileCreate(AsyncWebServerRequest *request)
             return request->send(400,  "FILE NOT FOUND");
         }
 
-        log_info("handleFileCreate: %s from %s\n", path.c_str(), src.c_str());
+        log_debug("handleFileCreate: %s from %s\n", path.c_str(), src.c_str());
         if (path.endsWith("/")) {
             path.remove(path.length() - 1);
         }
@@ -870,13 +917,13 @@ void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
     File file = m_filesystem->open(path, "r");
     // If it's a plain file, delete it
     if (!file.isDirectory()) {
-        log_info("File delete: %s\n", path.c_str());
+        log_info("File delete: %s", path.c_str());
         file.close();
         m_filesystem->remove(path);
         sendOK(request);
     }
     else  {
-        log_info("Folder delete: %s\n", path.c_str());
+        log_info("Folder delete: %s", path.c_str());
         file.close();
         m_filesystem->rmdir(path);
         sendOK(request);
@@ -888,7 +935,7 @@ void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
 */
 void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
 {
-    log_info("handleStatus");
+    log_debug("handleStatus");
     fsInfo_t info = {1024, 1024, "Unset"};
 #ifdef ESP8266
     FSInfo fs_info;

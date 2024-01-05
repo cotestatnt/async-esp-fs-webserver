@@ -30,7 +30,7 @@
 #define CONFIG_FILE "/config.json"
 
 #define DBG_OUTPUT_PORT     Serial
-#define DEBUG_MODE          1
+#define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
 #include "SerialLog.h"
 #include "CaptiverPortal.hpp"
 

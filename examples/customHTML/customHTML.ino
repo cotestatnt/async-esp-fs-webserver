@@ -222,14 +222,16 @@ void setup() {
 
   // Start server
   if (server.init()) {
-    Serial.print(F("Web Server started on IP Address: "));
-    Serial.println(WiFi.localIP());
+    Serial.print(F("\n\nWeb Server started on IP Address: "));
+    Serial.println(myIP);    
     Serial.println(F(
       "This is \"customHTML.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"
       "Open /edit page to view, edit or upload example or your custom webserver source files."
     ));
     Serial.printf("Ready! Open http://%s.local in your browser\n", hostname);
+    if (captiveRun)
+      Serial.print(F("Captive portal is running"));
   }
 
 }
