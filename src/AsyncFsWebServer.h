@@ -30,7 +30,7 @@
 #define CONFIG_FILE "/config.json"
 
 #define DBG_OUTPUT_PORT     Serial
-#define LOG_LEVEL           3         // (0 disable, 1 error, 2 info, 3 debug)
+#define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
 #include "SerialLog.h"
 #include "CaptiverPortal.hpp"
 
@@ -203,11 +203,6 @@ class AsyncFsWebServer : public AsyncWebServer
       Send a default "OK" reply to client
     */
     void sendOK(AsyncWebServerRequest *request);
-
-    /*
-      Set the WiFi mode as Access Point
-    */
-    IPAddress setAPmode(const char *ssid, const char *psk);
 
     /*
       Start WiFi connection, if fails to in AP mode

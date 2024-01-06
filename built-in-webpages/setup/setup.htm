@@ -47,7 +47,7 @@
                       <input type=password placeholder="Enter your WiFi password"
                         id=password autocomplete=current-password data-ms-member="password">
                       <span class=show-hide-wrap id=show-hide-password>
-                        <a class="show-hide w--current" id=show-pass>
+                        <a class="show-hide hide" id=show-pass>
                             <div class=svg><svg class=svg-e id=svg-eye viewBox="0 0 24 24"></svg></div>
                         </a>
                         <a class="show-hide" id=hide-pass>
@@ -55,10 +55,29 @@
                         </a>
                       </span>  
                     </div>
-                    
-                    
-                    
                 </div>
+                <div class="tf-wrapper">
+                  <label class="input-label toggle">
+                    <input id=no-dhcp type=checkbox class="t-check">
+                    <div class=toggle-switch></div>
+                    <span class=toggle-label>Manual configuration (no DHCP)</span>
+                  </label>
+                </div>
+                <div class=hide id=conf-wifi> 
+                  <div class="tf-wrapper">
+                      <label for=ip class=input-label>IP Address</label>
+                      <input type=text placeholder="IP Address" id=ip value=192.168.0.10>
+                  </div>
+                  <div class="tf-wrapper">
+                      <label for=gateway class=input-label>Gateway</label>
+                      <input type=text placeholder="Gateway address" id=gateway value=192.168.0.1>
+                  </div>
+                  <div class="tf-wrapper">
+                      <label for=subnet class=input-label>Subnet</label>
+                      <input type=text placeholder="Subnet mask" id=subnet value="255.255.255.0">
+                  </div>
+                </div>
+                    
                 <div class=tf-wrapper>
                   <label class="lbl-wifi toggle">
                     <input id=persistent type=checkbox class="t-check" checked>
@@ -76,6 +95,10 @@
                 <a id=connect-wifi class="btn">
                     <div class=svg><svg id=svg-connect fill=currentColor viewBox="0 0 24 24"></svg></div>
                     <span>Connect to <span id=ssid-name>SSID</span></span>
+                </a>
+                <a id=save-wifi class="btn hide">
+                    <div class=svg><svg id=svg-save fill=currentColor viewBox="0 0 24 24"></svg></div>
+                    <span>Save configuration</span>
                 </a>
             </div>
         </div>
