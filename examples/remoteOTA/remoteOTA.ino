@@ -175,7 +175,7 @@ void setup(){
 
   // Try to connect to flash stored SSID, start AP if fails after timeout
   IPAddress myIP = server.startWiFi(30000, "ESP_AP", "123456789" );
-
+  (void) myIP; // return value is not used
   // WiFi.persistent(true);
   // WiFi.begin("PuccosNET", "Tole76tnt");
   // uint32_t beginTime = millis();
