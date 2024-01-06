@@ -21,7 +21,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
 
-    on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
+    //on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
     on("/wifistatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
@@ -69,7 +69,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     begin();
 
     // Configure and start MDNS responder
-    if (!MDNS.begin(m_host)){
+    if (!MDNS.begin(m_host.c_str())){
         log_error("MDNS responder started");
     }
     MDNS.addService("http", "tcp", m_port);
@@ -122,7 +122,7 @@ void AsyncFsWebServer::enableFsCodeEditor() {
   }
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
-    
+
     if (! WiFi.softAP(ssid, pass)) {
         log_error("Captive portal failed to start: WiFi.softAP failed!");
         return false;
@@ -240,14 +240,14 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
-    uint32_t ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
+    IPAddress ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
     String reply = "{\"firmware\": \"";
     reply += m_version;
     reply += "\", \"mode\":\"";
-    reply += WiFi.status() == WL_CONNECTED ? "Station" : "Access Point";
-    reply += "\", \"ip\":";
-    reply += ip;
-    reply += "}";
+    reply += WiFi.status() == WL_CONNECTED ? "Station " + WiFi.SSID() : "Access Point";
+    reply += "\", \"ip\":\"";
+    reply += ip.toString();
+    reply += "\"}";
     request->send(200, "application/json", reply);
 }
 
@@ -454,7 +454,6 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 
     if (len) {
         // stream the incoming chunk to the opened file
-        static int i = 0;
         request->_tempFile.write(data, len);
     }
 
@@ -545,12 +544,12 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         WiFi.mode(WIFI_AP_STA);
 
         // Manual connection setup
-        if (config) {            
+        if (config) {
             log_info("Manual config WiFi connection with IP: %s", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet))           
+            if (!WiFi.config(local_ip, gateway, subnet))
                 log_error("STA Failed to configure");
         }
-        
+
         Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
         WiFi.begin(ssid.c_str(), pass.c_str());
         delay(500);
@@ -693,7 +692,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
             subnet.fromString(doc["subnet"].as<String>());
             local_ip.fromString(doc["ip_address"].as<String>());
             log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet))           
+            if (!WiFi.config(local_ip, gateway, subnet))
                 log_error("STA Failed to configure");
             delay(100);
         }
@@ -745,8 +744,8 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
 }
 
 IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn) {
-    IPAddress ip (0, 0, 0, 0);  
-    ip = startWiFi(timeout, fn);    
+    IPAddress ip (0, 0, 0, 0);
+    ip = startWiFi(timeout, fn);
     if (!ip) {
         // No connection, start AP and then captive portal
         startCaptivePortal("ESP_AP", "123456789", "/setup");
@@ -952,7 +951,7 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     json += info.fsName;
     json += "\", \"isOk\":";
     if (m_filesystem_ok)  {
-        uint32_t ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
+        IPAddress ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
         json += PSTR("\"true\", \"totalBytes\":\"");
         json += info.totalBytes;
         json += PSTR("\", \"usedBytes\":\"");
@@ -962,7 +961,7 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
         json += PSTR("\", \"ssid\":\"");
         json += WiFi.SSID();
         json += PSTR("\", \"ip\":\"");
-        json += ip;
+        json += ip.toString();
         json += "\"";
     }
     else
