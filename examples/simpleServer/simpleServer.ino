@@ -83,7 +83,7 @@ void setup() {
     server.addOptionBox("Custom options");
     server.addOption("Test int variable", testInt);
     server.addOption("Test float variable", testFloat);
-    server.setSetupPageTitle("Async ESP FS<br>WebServer");
+    server.setSetupPageTitle("Simple Async ESP FS WebServer");
 
     // Enable ACE FS file web editor and add FS info callback fucntion
     server.enableFsCodeEditor();
@@ -95,7 +95,7 @@ void setup() {
 
     // Start server
     server.init();
-    Serial.print(F("ESP Web Server started on IP Address: "));
+    Serial.print(F("Async ESP Web Server started on IP Address: "));
     Serial.println(myIP);
     Serial.println(F(
         "This is \"simpleServer.ino\" example.\n"
