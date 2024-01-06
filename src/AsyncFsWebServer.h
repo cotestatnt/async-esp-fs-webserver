@@ -205,11 +205,6 @@ class AsyncFsWebServer : public AsyncWebServer
     void sendOK(AsyncWebServerRequest *request);
 
     /*
-      Set the WiFi mode as Access Point
-    */
-    IPAddress setAPmode(const char *ssid, const char *psk);
-
-    /*
       Start WiFi connection, if fails to in AP mode
     */
     IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr);
