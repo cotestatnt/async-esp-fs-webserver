@@ -189,7 +189,7 @@ void setup() {
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");
   // How many times you need (for example one in different option box)
-  server.addHTML(custom_html, "fetch-test", /*overwite*/ true);
+  server.addHTML(custom_html, "fetch-test", /*overwite*/ false);
 
   // Add a new options box
   server.addOptionBox("ThingsBoard");
@@ -201,7 +201,7 @@ void setup() {
   server.addOption(TB_DEVICE_KEY, tb_device_key);
   server.addOption(TB_SECRET_KEY, tb_secret_key);
   server.addOption(TB_DEVICE_TOKEN, tb_deviceToken);
-  server.addHTML(thingsboard_htm, "ts", /*overwite file*/ true);
+  server.addHTML(thingsboard_htm, "ts", /*overwite file*/ false);
 
   // CSS will be appended to HTML head
   server.addCSS(custom_css, "fetch", /*overwite file*/ false);
@@ -209,9 +209,9 @@ void setup() {
   server.addJavascript(custom_script, "fetch", /*overwite file*/ false);
   server.addJavascript(thingsboard_script, "ts", /*overwite file*/ false);
 
-  // Add custom page title to /setup
+  Add custom page title to /setup
   server.setSetupPageTitle("Test setup page");
-  // Add custom logo to /setup page with custom size
+  Add custom logo to /setup page with custom size
   server.setLogoBase64(base64_logo, "128", "128", /*overwite file*/ true);
 
   // Enable ACE FS file web editor and add FS info callback fucntion

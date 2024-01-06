@@ -374,7 +374,7 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     int res = WiFi.scanNetworks();
     wdt_enable(4000);
     #else
-    int res = WiFi.scanNetworks();
+    int res = WiFi.scanNetworks(false, false, false, 50);
     #endif
 
     log_info(" done!\nNumber of networks: %d", res);
@@ -557,7 +557,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         WiFi.begin(ssid.c_str(), pass.c_str());
 
         if (WiFi.status() == WL_CONNECTED && newSSID) {
-            log_i("Disconnect from current WiFi network");
+            log_info("Disconnect from current WiFi network");
             WiFi.disconnect();
             delay(10);
         }
@@ -595,7 +595,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
                 "<br><br><i>Note: disconnect your browser from ESP AP and then reload <a href='%s'>%s</a></i>",
                 ssid.c_str(), serverLoc.c_str(), serverLoc.c_str()
             );
-            log_d("%s", resp);
+            log_debug("%s", resp);
             request->send(200, "application/json", resp);
         }
     }
