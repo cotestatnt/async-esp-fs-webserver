@@ -21,7 +21,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
 
-    on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
+    //on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
     on("/wifistatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
@@ -240,14 +240,14 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
-    uint32_t ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
+    IPAddress ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
     String reply = "{\"firmware\": \"";
     reply += m_version;
     reply += "\", \"mode\":\"";
-    reply += WiFi.status() == WL_CONNECTED ? "Station" : "Access Point";
-    reply += "\", \"ip\":";
-    reply += ip;
-    reply += "}";
+    reply += WiFi.status() == WL_CONNECTED ? "Station " + WiFi.SSID() : "Access Point";
+    reply += "\", \"ip\":\"";
+    reply += ip.toString();
+    reply += "\"}";
     request->send(200, "application/json", reply);
 }
 
@@ -951,7 +951,7 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     json += info.fsName;
     json += "\", \"isOk\":";
     if (m_filesystem_ok)  {
-        uint32_t ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
+        IPAddress ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
         json += PSTR("\"true\", \"totalBytes\":\"");
         json += info.totalBytes;
         json += PSTR("\", \"usedBytes\":\"");
@@ -961,7 +961,7 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
         json += PSTR("\", \"ssid\":\"");
         json += WiFi.SSID();
         json += PSTR("\", \"ip\":\"");
-        json += ip;
+        json += ip.toString();
         json += "\"";
     }
     else

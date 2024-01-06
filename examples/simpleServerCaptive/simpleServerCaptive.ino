@@ -64,13 +64,18 @@ void setup() {
     IPAddress myIP = server.startWiFi(15000);
     if (!myIP) {
         Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
+        myIP = WiFi.softAPIP();
+        Serial.print("My IP 1 ");
+        Serial.println(myIP.toString());
         server.startCaptivePortal("ESP_AP", "123456789", "/setup");
         myIP = WiFi.softAPIP();
+        Serial.print("\nMy IP 2 ");
+        Serial.println(myIP.toString());
         captiveRun = true;
     }
 
     // Set a custom /setup page title
-    server.setSetupPageTitle("Simple Async FS<br>Web Server");
+    server.setSetupPageTitle("Simple Async FS Captive Web Server");
 
     // Enable ACE FS file web editor and add FS info callback fucntion
     server.enableFsCodeEditor();
@@ -83,10 +88,10 @@ void setup() {
 
     // Start server
     server.init();
-    Serial.print(F("ESP Web Server started on IP Address: "));
+    Serial.print(F("Async ESP Web Server started on IP Address: "));
     Serial.println(myIP);
     Serial.println(F(
-        "This is \"simpleServer.ino\" example.\n"
+        "This is \"simpleServerCaptive.ino\" example.\n"
         "Open /setup page to configure optional parameters.\n"
         "Open /edit page to view, edit or upload example or your custom webserver source files."
     ));

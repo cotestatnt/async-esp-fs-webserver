@@ -30,7 +30,7 @@
 #define CONFIG_FILE "/config.json"
 
 #define DBG_OUTPUT_PORT     Serial
-#define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
+#define LOG_LEVEL           3         // (0 disable, 1 error, 2 info, 3 debug)
 #include "SerialLog.h"
 #include "CaptiverPortal.hpp"
 
@@ -175,7 +175,7 @@ class AsyncFsWebServer : public AsyncWebServer
     * Set current firmware version (shown in /setup webpage)
     */
     void setFirmwareVersion(char* version) {
-      strncpy(m_version, version, sizeof(m_version));
+      strlcpy(m_version, version, sizeof(m_version));
     }
 
     /*
