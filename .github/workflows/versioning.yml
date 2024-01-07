@@ -1,4 +1,5 @@
 name: Versioning
+on: [push]
 jobs:
   generate:
     steps:
