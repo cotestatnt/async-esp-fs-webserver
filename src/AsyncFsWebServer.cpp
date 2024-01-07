@@ -761,7 +761,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     ip = startWiFi(timeout, fn);    
     if (!ip) {
         // No connection, start AP and then captive portal
-        startCaptivePortal("ESP_AP", "123456789", "/setup");
+        startCaptivePortal(apSSID, apPsw, "/setup");
         ip.fromString("8.8.8.8");
     }
     return ip;
