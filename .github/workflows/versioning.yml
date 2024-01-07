@@ -35,5 +35,5 @@ jobs:
           branch: master
           files: src/version.cpp
           repository: https://github.com/cotestatnt/async-esp-fs-webserver
-          token: ${{ secrets.MY_SECRET_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           force: true
