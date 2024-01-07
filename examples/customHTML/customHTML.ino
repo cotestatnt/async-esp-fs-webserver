@@ -212,7 +212,7 @@ void setup() {
   // Add custom page title to /setup
   server.setSetupPageTitle("Test setup page");
   // Add custom logo to /setup page with custom size
-  server.setLogoBase64(base64_logo, "128", "128", /*overwite file*/ true);
+  server.setLogoBase64(base64_logo, "128", "128", /*overwite file*/ false);
 
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();

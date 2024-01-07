@@ -266,24 +266,26 @@ void AsyncFsWebServer::setLogoBase64(const char* logo, const char* width, const 
     strcat(filename, "_");
     strcat(filename, height);
     strcat(filename, ".txt");
+
     optionToFile(filename, logo, overwrite);
     addOption("img-logo", filename);
 }
 
 bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool overWrite) {
     // Check if file is already saved
-    File file = m_filesystem->open(filename, "r");
-    if (file && !overWrite) {
-        file.close();
+    if (m_filesystem->exists(filename) && !overWrite) {
         return true;
     }
     // Create or overwrite option file
     else {
-        file.close();
-        file = m_filesystem->open(filename, "w");
-
+        File file = m_filesystem->open(filename, "w");
         if (file) {
+            #if defined(ESP8266)
+            String _str = str;
+            file.print(_str);
+            #else
             file.print(str);
+            #endif
             file.close();
             log_debug("File %s saved", filename);
             return true;
@@ -306,6 +308,7 @@ void AsyncFsWebServer::addSource(const char* source, const char* tag, bool overW
         path += ".css";
     else if (strstr(tag, "javascript") != NULL)
         path += ".js";
+
     optionToFile(path.c_str(), source, overWrite);
     addOption(tag, path.c_str(), false);
 }
