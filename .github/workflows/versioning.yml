@@ -31,10 +31,10 @@ jobs:
             const char* AsyncFsWebServer::getVersion() { 
             	return "${{ steps.previoustag.outputs.tag }}"; 
             }
-      - name: Commit & Push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Commit & Push
+        uses: Andro999b/push@v1.3
         with:
-          commit_message: Set new version
-          commit_options: '--amend --no-edit'
-          push_options: '--force'
-          skip_fetch: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: master
+          force: true
+          message: 'Overwritten by Github Actions'
