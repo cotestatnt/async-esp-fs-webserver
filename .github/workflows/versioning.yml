@@ -7,11 +7,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the
+      # added or changed files to the repository.
+      contents: write
     steps:
-      - uses: actions/checkout@4
+      - uses: actions/checkout@v3
         with:
-          # Fetch the last 2 commits instead of just 1.
-          fetch-depth: 2
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
+          fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
       - name: 'Get tag'
         id: previoustag
         uses: "WyriHaximus/github-action-get-previous-tag@v1"
