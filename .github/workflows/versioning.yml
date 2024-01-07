@@ -16,11 +16,14 @@ jobs:
         with:
           persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
           fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
-      - name: 'Get tag'
-        id: previoustag
-        uses: "WyriHaximus/github-action-get-previous-tag@v1"
+          
+      - name: Read value from Properties-file
+        id: read_property
+        uses: christian-draeger/read-properties@1.1.1
         with:
-          fallback: 1.0.0 # Optional fallback tag to use when no tag can be found
+          path: 'library.properties'
+          properties: 'version'
+          
       - name: Overwrite version.h
         uses: "DamianReeves/write-file-action@master"
         with:
@@ -29,7 +32,7 @@ jobs:
           contents: |
             #include "AsyncFsWebServer.h" 
             const char* AsyncFsWebServer::getVersion() { 
-            	return "${{ steps.previoustag.outputs.tag }}"; 
+            	return "${{ steps.read_property.outputs.version }}"; 
             }
       - name: Commit & Push
         uses: Andro999b/push@v1.3
