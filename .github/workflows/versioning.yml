@@ -1,38 +1,33 @@
-name: Versioning
-on: [push]
+name: Set Lib Version
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
 jobs:
-  generate:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Required due to the way Git works, without it this action won't be able to find any or the correct tags
-      - name: 'Get Previous tag'
+          fetch-depth: 0 # Required due to the way Git works
+      - name: 'Get tag'
         id: previoustag
         uses: "WyriHaximus/github-action-get-previous-tag@v1"
         with:
           fallback: 1.0.0 # Optional fallback tag to use when no tag can be found
-      - name: 'Get next minor version'
-        id: semvers
-        uses: "WyriHaximus/github-action-next-semvers@v1"
+      - name: Overwrite version.h
+        uses: "DamianReeves/write-file-action@master"
         with:
-          version: ${{ steps.previoustag.outputs.tag }}
-      - name: 'Create new milestone'
-        id: createmilestone
-        uses: "WyriHaximus/github-action-create-milestone@v1"
-        with:
-          title: ${{ steps.semvers.outputs.patch }}
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-      - name: Write File
-        # You may pin to the exact commit or the version.
-        # uses: DamianReeves/write-file-action@0a7fcbe1960c53fc08fe789fa4850d24885f4d84
-        uses: DamianReeves/write-file-action@v1.2
-        with:
-          # The path to the file to write
-          path: /version.h
-          # The contents of the file
-          contents: const char* getVsersion() { return "1.0.4";}
-          # The mode of writing to use: `overwrite`, `append`, or `preserve`.
+          path: version.h
           write-mode: overwrite
-          
+          contents: |
+            const char* getVersion() {return "${{ steps.previoustag.outputs.tag }}";}
+            
+      - name: Commit & Push
+        uses: Andro999b/push@v1.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: master
+          force: true
+          message: 'Overwritten by Github Actions - ${date}'
