@@ -19,22 +19,17 @@ jobs:
       - name: Overwrite version.h
         uses: "DamianReeves/write-file-action@master"
         with:
-          path: src/version.cpp
+          path: version.h
           write-mode: overwrite
           contents: |
-            #include "AsyncFsWebServer.h" |
-            const char* AsyncFsWebServer::getVersion() { |
-            	return "${{ steps.previoustag.outputs.tag }}"; |
+            #include "AsyncFsWebServer.h" 
+            const char* AsyncFsWebServer::getVersion() { 
+            	return "${{ steps.previoustag.outputs.tag }}"; 
             }
-      - name: Commit & Push changes
-        uses: actions-js/push@master
+      - name: Commit & Push
+        uses: Andro999b/push@v1.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          
-      # - name: Commit & Push
-      #   uses: Andro999b/push@v1.3
-      #   with:
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
-      #     branch: master
-      #     force: true
-      #     message: 'Overwritten by Github Actions - ${date}'
+          branch: master
+          force: true
+          message: 'Overwritten by Github Actions - ${date}'
