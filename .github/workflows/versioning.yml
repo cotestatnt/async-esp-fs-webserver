@@ -30,7 +30,7 @@ jobs:
       - name: Commit & Push changes
         uses: actions-js/push@master
         with:
-          github_token: ${{ secrets.MY_SECRET_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           author_email: cotestatnt@yahoo.com
           branch: master
           force: true
