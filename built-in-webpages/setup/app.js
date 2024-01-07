@@ -372,6 +372,9 @@ function saveParameters() {
     options = insertKey('ip_address', $('ip').value, options, 2);
     options = insertKey('gateway', $('gateway').value, options, 3);
     options = insertKey('subnet', $('subnet').value, options, 4);
+    options["ip_address"] = $('ip').value;
+    options["gateway"] = $('gateway').value;
+    options["subnet"] = $('subnet').value;
   }
   
   var myblob = new Blob([JSON.stringify(options, null, 2)], {
