@@ -28,9 +28,6 @@ jobs:
             	return "${{ steps.previoustag.outputs.tag }}"; 
             }
       - name: Commit & Push changes
-        uses: actions-js/push@master
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          author_email: cotestatnt@yahoo.com
-          branch: master
-          force: true
+          commit_message: Set new version
