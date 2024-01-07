@@ -27,13 +27,10 @@ jobs:
             const char* AsyncFsWebServer::getVersion() { 
             	return "${{ steps.previoustag.outputs.tag }}"; 
             }
-      - name: push
-        uses: actions-x/commit@v6
+      - name: Commit & Push changes
+        uses: actions-js/push@master
         with:
-          email: cotestatnt@yahoo.com
-          name: cotestatnt
+          github_token: ${{ secrets.MY_SECRET_TOKEN }}
+          author_email: cotestatnt@yahoo.com
           branch: master
-          files: src/version.cpp
-          repository: https://github.com/cotestatnt/async-esp-fs-webserver
-          token: ${{ secrets.GITHUB_TOKEN }}
           force: true
