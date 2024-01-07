@@ -25,12 +25,16 @@ jobs:
             #include "AsyncFsWebServer.h" |
             const char* AsyncFsWebServer::getVersion() { |
             	return "${{ steps.previoustag.outputs.tag }}"; |
-            } |
-            
-      - name: Commit & Push
-        uses: Andro999b/push@v1.3
+            }
+      - name: Commit & Push changes
+        uses: actions-js/push@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: master
-          force: true
-          message: 'Overwritten by Github Actions - ${date}'
+          
+      # - name: Commit & Push
+      #   uses: Andro999b/push@v1.3
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     branch: master
+      #     force: true
+      #     message: 'Overwritten by Github Actions - ${date}'
