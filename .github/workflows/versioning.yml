@@ -24,3 +24,15 @@ jobs:
           title: ${{ steps.semvers.outputs.patch }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Write File
+        # You may pin to the exact commit or the version.
+        # uses: DamianReeves/write-file-action@0a7fcbe1960c53fc08fe789fa4850d24885f4d84
+        uses: DamianReeves/write-file-action@v1.2
+        with:
+          # The path to the file to write
+          path: /version.h
+          # The contents of the file
+          contents: const char* getVsersion() { return "1.0.4";}
+          # The mode of writing to use: `overwrite`, `append`, or `preserve`.
+          write-mode: overwrite
+          
