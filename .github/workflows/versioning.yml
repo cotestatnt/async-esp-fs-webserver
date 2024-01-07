@@ -20,17 +20,20 @@ jobs:
       - name: Overwrite version.h
         uses: "DamianReeves/write-file-action@master"
         with:
-          path: version.h
+          path: src/version.cpp
           write-mode: overwrite
           contents: |
             #include "AsyncFsWebServer.h" 
             const char* AsyncFsWebServer::getVersion() { 
             	return "${{ steps.previoustag.outputs.tag }}"; 
             }
-      - name: Commit & Push
-        uses: Andro999b/push@v1.3
+      - name: push
+        uses: actions-x/commit@v6
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          email: cotestatnt@yahoo.com
+          name: cotestatnt
           branch: master
+          files: src/version.cpp
+          repository: https://github.com/cotestatnt/async-esp-fs-webserver
+          token: ${{ secrets.MY_SECRET_TOKEN }}
           force: true
-          message: 'Overwritten by Github Actions'
