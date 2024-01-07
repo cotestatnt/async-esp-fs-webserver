@@ -32,7 +32,7 @@
 #define DBG_OUTPUT_PORT     Serial
 #define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
 #include "SerialLog.h"
-#include "CaptiverPortal.hpp"
+#include "CaptivePortal.hpp"
 
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
