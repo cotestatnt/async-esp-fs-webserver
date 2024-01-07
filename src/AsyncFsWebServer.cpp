@@ -21,7 +21,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
 
-    on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
+    //on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
     on("/wifistatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
