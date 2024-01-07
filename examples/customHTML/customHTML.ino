@@ -126,7 +126,7 @@ bool loadOptions() {
     Serial.println();
     Serial.printf("LED pin value: %d\n", ledPin);
     Serial.printf("Bool value: %d\n", boolVar);
-    Serial.printf("Long value: %ld\n",longVar);
+    Serial.printf("Long value: %ld\n",(long) longVar);
     Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
     Serial.println(stringVar);
     return true;
@@ -170,7 +170,7 @@ void setup() {
     myIP = WiFi.softAPIP();
     captiveRun = true;
   }
-  
+
   // Add custom page handlers to webserver
   server.on("/reload", HTTP_GET, handleLoadOptions);
 
@@ -209,9 +209,9 @@ void setup() {
   server.addJavascript(custom_script, "fetch", /*overwite file*/ false);
   server.addJavascript(thingsboard_script, "ts", /*overwite file*/ false);
 
-  Add custom page title to /setup
+  // Add custom page title to /setup
   server.setSetupPageTitle("Test setup page");
-  Add custom logo to /setup page with custom size
+  // Add custom logo to /setup page with custom size
   server.setLogoBase64(base64_logo, "128", "128", /*overwite file*/ true);
 
   // Enable ACE FS file web editor and add FS info callback fucntion
@@ -223,7 +223,7 @@ void setup() {
   // Start server
   if (server.init()) {
     Serial.print(F("\n\nWeb Server started on IP Address: "));
-    Serial.println(myIP);    
+    Serial.println(myIP);
     Serial.println(F(
       "This is \"customHTML.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"

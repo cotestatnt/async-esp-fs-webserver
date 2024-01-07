@@ -174,7 +174,7 @@ void loop() {
     doc["maxBlock"]  =  heap_caps_get_largest_free_block(0);
 #elif defined(ESP8266)
     uint32_t free;
-    uint16_t max;
+    uint32_t max;
     ESP.getHeapStats(&free, &max, nullptr);
     doc["totalHeap"] = free;
     doc["maxBlock"]  =  max;
