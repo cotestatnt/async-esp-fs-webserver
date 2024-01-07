@@ -19,10 +19,13 @@ jobs:
       - name: Overwrite version.h
         uses: "DamianReeves/write-file-action@master"
         with:
-          path: version.h
+          path: src/version.cpp
           write-mode: overwrite
           contents: |
-            const char* getVersion() {return "${{ steps.previoustag.outputs.tag }}";}
+            #include "AsyncFsWebServer.h" |
+            const char* AsyncFsWebServer::getVersion() { |
+            	return "${{ steps.previoustag.outputs.tag }}"; |
+            } |
             
       - name: Commit & Push
         uses: Andro999b/push@v1.3
