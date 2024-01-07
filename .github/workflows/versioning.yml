@@ -31,3 +31,6 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Set new version
+          commit_options: '--amend --no-edit'
+          push_options: '--force'
+          skip_fetch: true
