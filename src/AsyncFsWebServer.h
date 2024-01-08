@@ -33,6 +33,7 @@
 #define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
 #include "SerialLog.h"
 #include "CaptivePortal.hpp"
+#include "SetupConfig.hpp"
 
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
@@ -108,12 +109,17 @@ class AsyncFsWebServer : public AsyncWebServer
     FsInfoCallbackF getFsInfo = nullptr;
 
   public:
-    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") : AsyncWebServer(port) {
+    SetupConfigurator setup;
+
+    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") :
+    AsyncWebServer(port),
+    m_filesystem(&fs),
+    setup(&fs),
+    m_port(port)
+    {
       m_ws = new AsyncWebSocket("/ws");
-      m_filesystem = &fs;
       if (strlen(hostname))
         m_host = hostname;
-      m_port = port;
     }
 
     ~AsyncFsWebServer() {
@@ -122,21 +128,11 @@ class AsyncFsWebServer : public AsyncWebServer
       if(_catchAllHandler) delete _catchAllHandler;
     }
 
-    const char* getVersion();
-
   #ifdef ESP32
     inline TaskHandle_t getTaskHandler() {
       return xTaskGetCurrentTaskHandle();
     }
   #endif
-
-    // AsyncWebServer* getServer() { return m_server;}
-    AsyncWebSocket* getWebSocket() { return m_ws;}
-
-    // Broadcast a websocket message to all clients connected
-    void wsBroadcast(const char * buffer) {
-      m_ws->textAll(buffer);
-    }
 
     /*
       Start webserver aand bind a websocket event handler (optional)
@@ -147,6 +143,7 @@ class AsyncFsWebServer : public AsyncWebServer
       Enable the built-in ACE web file editor
     */
     void enableFsCodeEditor();
+
     /*
       Enable authenticate for /setup webpage
     */
@@ -157,6 +154,54 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     void printFileList(fs::FS &fs, const char * dirname, uint8_t levels);
 
+    /*
+      Send a default "OK" reply to client
+    */
+    void sendOK(AsyncWebServerRequest *request);
+
+    /*
+      Start WiFi connection, if fails to in AP mode
+    */
+    IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr);
+
+    /*
+      Start WiFi connection, NO AP mode on fail
+    */
+    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr ) ;
+
+    /*
+     * Redirect to captive portal if we got a request for another domain.
+    */
+    bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
+
+
+    /*
+     * get instance of current websocket handler
+    */
+    AsyncWebSocket* getWebSocket() { return m_ws;}
+
+    /*
+     * Broadcast a websocket message to all clients connected
+    */
+    void wsBroadcast(const char * buffer) {
+      m_ws->textAll(buffer);
+    }
+
+    /*
+    * Need to be run in loop to handle DNS requests
+    */
+    void updateDNS() {
+      m_dnsServer->processNextRequest();
+    }
+
+    /*
+    * Set callback function to provide updated FS info to library
+    * This it is necessary due to the different implementation of
+    * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
+    */
+    void setFsInfoCallback(FsInfoCallbackF fsCallback) {
+      getFsInfo = fsCallback;
+    }
 
     /*
     * Get reference to current config.json file
@@ -181,173 +226,42 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
+    * Set current library version
+    */
+    const char* getVersion();
+
+    /*
     * Set /setup webpage title
     */
     void setSetupPageTitle(const char* title) {
-      addOption("name-logo", title);
+      setup.addOption("name-logo", title);
     }
 
-    /*
-    * Set /setup log (base64 string)
-    */
-    void setLogoBase64(const char* logo, const char* width = "128", const char* height = "128", bool overwrite = false) ;
 
-    /*
-    * Set callback function to provide updated FS info to library
-    * This it is necessary due to the different implementation of
-    * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
-    */
-    void setFsInfoCallback(FsInfoCallbackF fsCallback) {
-      getFsInfo = fsCallback;
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////   BACKWARD COMPATIBILITY ONLY /////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    bool optionToFile(const char* f, const char* id, bool ow) {return setup.optionToFile(f, id, ow);}
+    void addHTML(const char* h, const char* id, bool ow = false) {setup.addHTML(h, id, ow);}
+    void addCSS(const char* c, const char* id, bool ow = false){setup.addCSS(c, id, ow);}
+    void addJavascript(const char* s, const char* id, bool ow = false) {setup.addJavascript(s, id, ow);}
+    void addDropdownList(const char *l, const char** a, size_t size){setup.addDropdownList(l, a, size);}
+    void addOptionBox(const char* title) { setup.addOption("param-box", title); }
+    void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
+      setup.setLogoBase64(logo, w, h, ow);
     }
-
-    /*
-      Send a default "OK" reply to client
-    */
-    void sendOK(AsyncWebServerRequest *request);
-
-    /*
-      Start WiFi connection, if fails to in AP mode
-    */
-    IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr);
-
-    /*
-      Start WiFi connection, NO AP mode on fail
-    */
-    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr ) ;
-
-    /*
-     * Redirect to captive portal if we got a request for another domain.
-    */
-    bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
-
-    /*
-    Need to be run in loop to handle DNS requests
-    */
-    void updateDNS() {
-      m_dnsServer->processNextRequest();
-    }
-
-    /*
-      In order to keep config.json file small and clean, custom HTML, CSS and Javascript
-      will be saved as file. The related option will contain the path to this file
-    */
-    bool optionToFile(const char* filename, const char* str, bool overWrite);
-
-    /*
-      Add an option which contain "raw" HTML code to be injected in /setup page
-      Th HTML code will be written in a file with named as option id
-    */
-    void addHTML(const char* html, const char* id, bool overWrite = false) ;
-    /*
-      Add an option which contain "raw" CSS style to be injected in /setup page
-      Th CSS code will be written in a file with named as option raw-css.css
-    */
-    void addCSS(const char* css, const char* id, bool overWrite = false);
-    /*
-      Add an option which contain "raw" JS script to be injected in /setup page
-      Th JS code will be written in a file with named as option raw-javascript.js
-    */
-    void addJavascript(const char* script, const char* id, bool overWrite = false) ;
-    /*
-      Add a new option box with custom label
-    */
-    void addDropdownList(const char *label, const char** array, size_t size);
-
-    /*
-      Add a new option box with custom label
-    */
-    inline void addOptionBox(const char* boxTitle) {
-      addOption("param-box", boxTitle, false);
-    }
-    /*
-      Add custom option to config webpage (float values)
-    */
     template <typename T>
-    inline void addOption(const char *label, T val, double d_min, double d_max, double step) {
-      addOption(label, val, false, d_min, d_max, step);
+    void addOption(const char *lbl, T val, double min, double max, double st){
+      setup.addOption(lbl, val, false, min, max, st);
     }
-    /*
-      Add custom option to config webpage (type of parameter will be deduced from variable itself)
-    */
     template <typename T>
-    inline void addOption(const char *label, T val, bool hidden = false,
-                          double d_min = MIN_F, double d_max = MAX_F, double step = 1.0) {
-      File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
-      int sz = file.size() * 1.33;
-      int docSize = max(sz, 2048);
-      DynamicJsonDocument doc((size_t)docSize);
-      if (file) {
-        // If file is present, load actual configuration
-        DeserializationError error = deserializeJson(doc, file);
-        if (error) {
-          log_error("Failed to deserialize file, may be corrupted\n %s", error.c_str());
-          file.close();
-          return;
-        }
-        file.close();
-      }
-      else 
-        log_error("File not found, will be created new configuration file");
-
-      numOptions++ ;
-      String key = label;
-      if (hidden)
-        key += "-hidden";
-      // Univoque key name
-      if (key.equals("param-box"))
-        key += numOptions ;
-      if (key.equals("raw-javascript"))
-        key += numOptions ;
-
-      // If key is present in json, we don't need to create it.
-      if (doc.containsKey(key.c_str()))
-        return;
-
-      // if min, max, step != from default, treat this as object in order to set other properties
-      if (d_min != MIN_F || d_max != MAX_F || step != 1.0) {
-        JsonObject obj = doc.createNestedObject(key);
-        obj["value"] = static_cast<T>(val);
-        obj["min"] = d_min;
-        obj["max"] = d_max;
-        obj["step"] = step;
-      }
-      else {
-        doc[key] = static_cast<T>(val);
-      }
-
-      file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
-      if (serializeJsonPretty(doc, file) == 0)
-        log_error("Failed to write to file");
-      file.close();
+    void addOption(const char *lbl, T val, bool hd = false,  double min = MIN_F,
+      double max = MAX_F, double st = 1.0) {
+      setup.addOption(lbl, val, hd, min, max, st);
     }
-    /*
-      Get current value for a specific custom option (true on success)
-    */
     template <typename T>
-    inline bool getOptionValue(const char *label, T &var) {
-      File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
-      DynamicJsonDocument doc(file.size() * 1.33);
-      if (file) {
-        DeserializationError error = deserializeJson(doc, file);
-        if (error) {
-          log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-          file.close();
-          return false;
-        }
-        file.close();
-      }
-      else
-        return false;
-
-      if (doc[label]["value"])
-        var = doc[label]["value"].as<T>();
-      else if (doc[label]["selected"])
-        var = doc[label]["selected"].as<T>();
-      else
-        var = doc[label].as<T>();
-      return true;
-    }
+    bool getOptionValue(const char *lbl, T &var) { return setup.getOptionValue(lbl, var);}
+    /////////////////////////////////////////////////////////////////////////////////////////////////
 
 };
 

@@ -579,6 +579,7 @@ $('svg-no-eye').innerHTML = svgNoEye;
 $('svg-scan').innerHTML = svgScan;
 $('svg-connect').innerHTML = svgConnect;
 $('svg-save').innerHTML = svgSave;
+$('svg-save2').innerHTML = svgSave;
 $('svg-restart').innerHTML = svgRestart;
 $('img-logo').innerHTML = svgLogo;
 

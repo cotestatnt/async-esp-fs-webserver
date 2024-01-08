@@ -77,7 +77,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     return true;
 }
 
-
 void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t levels) {
     Serial.printf("\nListing directory: %s\n", dirname);
     File root = fs.open(dirname, "r");
@@ -122,7 +121,7 @@ void AsyncFsWebServer::enableFsCodeEditor() {
   }
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
-    
+
     if (! WiFi.softAP(ssid, pass)) {
         log_error("Captive portal failed to start: WiFi.softAP failed!");
         return false;
@@ -196,7 +195,6 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #endif
 }
 
-
 void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
     m_pageUser = (char*) malloc(strlen(user)*sizeof(char));
     m_pagePswd = (char*) malloc(strlen(pswd)*sizeof(char));
@@ -212,7 +210,7 @@ void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
 
     // AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)SETUP_HTML, SETUP_HTML_SIZE);
     // Changed array name to match SEGGER Bin2C output
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acall_htm, sizeof(_acall_htm)); 
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acall_htm, sizeof(_acall_htm));
     response->addHeader("Content-Encoding", "gzip");
     response->addHeader("X-Config-File", CONFIG_FOLDER CONFIG_FILE);
     request->send(response);
@@ -256,117 +254,6 @@ void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
         request->send(200, "text/plain", "Clear config OK");
     else
         request->send(200, "text/plain", "Clear config not done");
-}
-
-
-void AsyncFsWebServer::setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
-    char filename[32] = {CONFIG_FOLDER};
-    strcat(filename, "/img-logo-");
-    strcat(filename, width);
-    strcat(filename, "_");
-    strcat(filename, height);
-    strcat(filename, ".txt");
-
-    optionToFile(filename, logo, overwrite);
-    addOption("img-logo", filename);
-}
-
-bool AsyncFsWebServer::optionToFile(const char* filename, const char* str, bool overWrite) {
-    // Check if file is already saved
-    if (m_filesystem->exists(filename) && !overWrite) {
-        return true;
-    }
-    // Create or overwrite option file
-    else {
-        File file = m_filesystem->open(filename, "w");
-        if (file) {
-            #if defined(ESP8266)
-            String _str = str;
-            file.print(_str);
-            #else
-            file.print(str);
-            #endif
-            file.close();
-            log_debug("File %s saved", filename);
-            return true;
-        }
-        else {
-            log_debug("Error writing file %s", filename);
-        }
-    }
-    return false;
-}
-
-void AsyncFsWebServer::addSource(const char* source, const char* tag, bool overWrite) {
-    String path = CONFIG_FOLDER;
-    path += "/";
-    path += tag;
-
-    if (strstr(tag, "html") != NULL)
-        path += ".htm";
-    else if (strstr(tag, "css") != NULL)
-        path += ".css";
-    else if (strstr(tag, "javascript") != NULL)
-        path += ".js";
-
-    optionToFile(path.c_str(), source, overWrite);
-    addOption(tag, path.c_str(), false);
-}
-
-void AsyncFsWebServer::addHTML(const char* html, const char* id, bool overWrite) {
-    String _id = "raw-html-";
-    _id  += id;
-    addSource(html, _id.c_str(), overWrite);
-}
-
-void AsyncFsWebServer::addCSS(const char* css,  const char* id, bool overWrite) {
-    String _id = "raw-css-" ;
-    _id  += id;
-    addSource(css, _id.c_str(), overWrite);
-}
-
-void AsyncFsWebServer::addJavascript(const char* script,  const char* id, bool overWrite) {
-    String _id = "raw-javascript-" ;
-    _id  += id;
-    addSource(script, _id.c_str(), overWrite);
-}
-
-void AsyncFsWebServer::addDropdownList(const char *label, const char** array, size_t size) {
-    File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
-    int sz = file.size() * 1.33;
-    int docSize = max(sz, 2048);
-    DynamicJsonDocument doc((size_t)docSize);
-    if (file) {
-        // If file is present, load actual configuration
-        DeserializationError error = deserializeJson(doc, file);
-        if (error) {
-            log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-            file.close();
-            return;
-        }
-        file.close();
-    }
-    else {
-        log_error("File not found, will be created new configuration file");
-    }
-    numOptions++ ;
-
-    // If key is present in json, we don't need to create it.
-    if (doc.containsKey(label))
-        return;
-
-    JsonObject obj = doc.createNestedObject(label);
-    obj["selected"] = array[0];     // first element selected as default
-    JsonArray arr = obj.createNestedArray("values");
-    for (unsigned int i=0; i<size; i++) {
-        arr.add(array[i]);
-    }
-
-    file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
-    if (serializeJsonPretty(doc, file) == 0) {
-        log_error("Failed to write to file");
-    }
-    file.close();
 }
 
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
@@ -484,8 +371,8 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
 
     /*
     *  If we are already connected and a new SSID is needed, once the ESP will join the new network,
-    *  /setup web page will no longer be able to communicate with ESP and therefore 
-    *  it will not be possible to inform the user about the new IP address. 
+    *  /setup web page will no longer be able to communicate with ESP and therefore
+    *  it will not be possible to inform the user about the new IP address.
     *  Inform and prompt the user for a confirmation (if OK, the next request will force disconnect variable)
     */
     if (WiFi.status() == WL_CONNECTED && !newSSID) {
@@ -550,12 +437,12 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         WiFi.mode(WIFI_AP_STA);
 
         // Manual connection setup
-        if (config) {            
+        if (config) {
             log_info("Manual config WiFi connection with IP: %s", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet))           
+            if (!WiFi.config(local_ip, gateway, subnet))
                 log_error("STA Failed to configure");
         }
-        
+
         Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
         WiFi.begin(ssid.c_str(), pass.c_str());
 
@@ -593,7 +480,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             serverLoc += "/setup";
 
             char resp[256];
-            snprintf(resp, sizeof(resp), 
+            snprintf(resp, sizeof(resp),
                 "ESP successfully connected to %s WiFi network. <br><b>Restart ESP now?</b>"
                 "<br><br><i>Note: disconnect your browser from ESP AP and then reload <a href='%s'>%s</a></i>",
                 ssid.c_str(), serverLoc.c_str(), serverLoc.c_str()
@@ -708,7 +595,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
             subnet.fromString(doc["subnet"].as<String>());
             local_ip.fromString(doc["ip_address"].as<String>());
             log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet))           
+            if (!WiFi.config(local_ip, gateway, subnet))
                 log_error("STA Failed to configure");
             delay(100);
         }
@@ -760,8 +647,8 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
 }
 
 IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn) {
-    IPAddress ip (0, 0, 0, 0);  
-    ip = startWiFi(timeout, fn);    
+    IPAddress ip (0, 0, 0, 0);
+    ip = startWiFi(timeout, fn);
     if (!ip) {
         // No connection, start AP and then captive portal
         startCaptivePortal(apSSID, apPsw, "/setup");
@@ -769,6 +656,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, cons
     }
     return ip;
 }
+
 
 // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
 #ifdef INCLUDE_EDIT_HTM
