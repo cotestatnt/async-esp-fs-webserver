@@ -785,48 +785,50 @@ void AsyncFsWebServer::handleFileCreate(AsyncWebServerRequest *request)
     Delete folder  | parent of deleted folder, or remaining ancestor
 */
 
-// void AsyncFsWebServer::deleteFolderContent(File& root) {
-//     if (root.isDirectory()) {
-//         File file;
-//         while (file = root.openNextFile()) {
-//             delay(10);
-//             file.close();
-//             #ifdef ESP32
-//             m_filesystem->remove(file.path());
-//             DebugPrintf("File %s deleted\n", file.path());
-//             #elif defined(ESP8266)
-//             m_filesystem->remove(file.fullName());
-//             DebugPrintf("File %s deleted\n", file.fullName.c_str());
-//             #endif
-//         }
-//     }
-// }
+void AsyncFsWebServer::deleteContent(String& path) {
+  File file = m_filesystem->open(path.c_str(), "r");
+  if (!file.isDirectory()) {
+    file.close();
+    m_filesystem->remove(path.c_str());
+    log_info("File %s deleted", path.c_str());
+    return;
+  }
+
+  file.rewindDirectory();
+  while (true) {
+    File entry = file.openNextFile();
+    if (!entry) {
+      break;
+    }
+    String entryPath = path + "/" + entry.name();
+    if (entry.isDirectory()) {
+      entry.close();
+      deleteContent(entryPath);
+    } 
+    else {
+      entry.close();
+      m_filesystem->remove(entryPath.c_str());
+      log_info("File %s deleted", path.c_str());
+    }
+    yield();
+  }
+  m_filesystem->rmdir(path.c_str());
+  log_info("Folder %s removed", path.c_str());
+  file.close();
+}
+
+
 
 void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
-
     String path = request->arg((size_t)0);
     if (path.isEmpty() || path == "/")  {
         return request->send(400, "BAD PATH");
     }
-
     if (!m_filesystem->exists(path))  {
         return request->send(400, "File Not Found");
     }
-
-    File file = m_filesystem->open(path, "r");
-    // If it's a plain file, delete it
-    if (!file.isDirectory()) {
-        log_info("File delete: %s", path.c_str());
-        file.close();
-        m_filesystem->remove(path);
-        sendOK(request);
-    }
-    else  {
-        log_info("Folder delete: %s", path.c_str());
-        file.close();
-        m_filesystem->rmdir(path);
-        sendOK(request);
-    }
+    deleteContent(path);
+    sendOK(request);
 }
 
 /*

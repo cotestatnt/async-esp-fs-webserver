@@ -72,7 +72,7 @@ class AsyncFsWebServer : public AsyncWebServer
 
         // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
 #ifdef INCLUDE_EDIT_HTM
-    void deleteFolderContent(File& root) ;
+    void deleteContent(String& path) ;
     void handleFileDelete(AsyncWebServerRequest *request);
     void handleFileCreate(AsyncWebServerRequest *request);
     void handleFsStatus(AsyncWebServerRequest *request);
