@@ -8,7 +8,7 @@ bool captiveRun = false;
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
-uint8_t ledPin = LED_BUILTIN;
+const int ledPin = LED_BUILTIN;
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
@@ -17,7 +17,7 @@ bool startFilesystem() {
     return true;
   }
   else {
-    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+    Serial.println("ERROR on mounting filesystem. It will be formatted!");
     LittleFS.format();
     ESP.restart();
   }
@@ -49,6 +49,8 @@ void handleLed(AsyncWebServerRequest *request) {
   String reply = "LED is now ";
   reply += value ? "ON" : "OFF";
   request->send(200, "text/plain", reply);
+  Serial.print("handleLed:");
+  Serial.println(reply);
 }
 
 
@@ -77,7 +79,7 @@ void setup() {
     // Set a custom /setup page title
     server.setSetupPageTitle("Simple Async FS Captive Web Server");
 
-    // Enable ACE FS file web editor and add FS info callback fucntion
+    // Enable ACE FS file web editor and add FS info callback function
     server.enableFsCodeEditor();
     #ifdef ESP32
     server.setFsInfoCallback(getFsInfo);

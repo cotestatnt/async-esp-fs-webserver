@@ -75,7 +75,7 @@ bool startFilesystem() {
     return true;
   }
   else {
-      Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+      Serial.println("ERROR on mounting filesystem. It will be reformatted!");
       FILESYSTEM.format();
       ESP.restart();
   }
@@ -87,7 +87,7 @@ void setup(){
   Serial.begin(115200);
 
   // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
+  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789" );
 
   // FILESYSTEM INIT
   startFilesystem();
@@ -97,7 +97,7 @@ void setup(){
   server.on("/setForm1", HTTP_POST, handleForm1);
   server.on("/setForm2", HTTP_POST, handleForm2);
 
-  // Enable ACE FS file web editor and add FS info callback fucntion
+  // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
   /*
   * Getting FS info (total and free bytes) is strictly related to

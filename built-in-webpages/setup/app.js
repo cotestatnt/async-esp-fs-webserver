@@ -18,7 +18,7 @@ var lastBox;
 
 // Simple JQuery-like selector
 var $ = function(el) {
-  return document.getElementById(el);
+	return document.getElementById(el);
 };
 
 function newEl(element, attribute) {
@@ -71,13 +71,13 @@ function selectWifi(row) {
 function listWifiNetworks(elems) {
   const list = document.querySelector('#wifi-list');
   list.innerHTML = "";
-  elems.forEach((elem, idx) => {
+	elems.forEach((elem, idx) => {
     // Create a single row with all columns
     var row = newEl('tr');
     var id = 'wifi-' + idx;
     row.id = id;
     row.addEventListener('click', selectWifi);
-    row.innerHTML  = `<td><input type="radio" name="select" id="select-${id}"></td>`;
+	  row.innerHTML  = `<td><input type="radio" name="select" id="select-${id}"></td>`;
     row.innerHTML += `<td id="ssid-${id}">${elem.ssid}</td>`;
     row.innerHTML += '<td class="hide-tiny">' + elem.strength + ' dBm</td>';
     row.innerHTML += (elem.security) ? '<td>' + svgLock + '</td>' : '<td>' + svgUnlock + '</td>';
@@ -156,7 +156,7 @@ function addOptionsElement(opt) {
     obj[key] = opt[key];
     return obj;
   }, {});
-
+  
   if (Object.entries(bools).length !== 0) {
     var d  = newEl('div', {'class': 'row-wrapper'});
     Object.entries(bools).forEach(([key, value]) => {
@@ -174,20 +174,20 @@ function addOptionsElement(opt) {
     });
     lastBox.appendChild(d);
   }
-
+  
   const others = Object.keys(opt)
   .filter(key => typeof(opt[key]) !== "boolean")
   .reduce((obj, key) => {
     obj[key] = opt[key];
     return obj;
   }, {});
-
+  
   Object.entries(others).forEach(([key, value]) => {
     let lbl = newEl('label', {'class': 'input-label', 'label-for': key});
     lbl.textContent = key;
     let el = newEl('input',  {'class': 'opt-input', 'type': 'text', 'id': key});
     el.value = value;
-
+    
     if (typeof(value) === "number")
       el.setAttribute('type', 'number');
     if (typeof(value) === "object" ) {
@@ -223,7 +223,7 @@ function addOptionsElement(opt) {
       el.classList.add('hide');
     }
   });
-
+  
 }
 
 
@@ -233,7 +233,7 @@ function createNewBox(cont, lbl) {
   h.innerHTML = lbl;
   box.appendChild(h);
   $('main-box').appendChild(box);
-
+  
   // Add new voice in menu and relatvie listener
   var lnk = newEl('a', {'class': 'a-link', 'id': 'set-opt'+cont, 'data-box': 'option-box'+cont});
   lnk.innerHTML = lbl;
@@ -245,8 +245,8 @@ function createNewBox(cont, lbl) {
 async function createOptionsBox(raw) {
   var nest = {};
   var boxId = 'wifi-box';
-  lastBox =  $(boxId);
-
+  lastBox =  $(boxId);  
+      
   Object.entries(raw).forEach(([key, value], index) => {
     if (boxId === 'wifi-box') {
       $('no-dhcp').checked = raw.dhcp;
@@ -300,7 +300,7 @@ async function createOptionsBox(raw) {
       }
     }
   });
-
+  
   // Add last items
   if (Object.entries(nest).length !== 0) {
     addOptionsElement(nest);
@@ -351,7 +351,7 @@ function addInputListener(item) {
 function insertKey(key,value,obj,pos){
   return Object.keys(obj).reduce((ac,a,i) => {
     if(i === pos) ac[key] = value;
-    ac[a] = obj[a];
+    ac[a] = obj[a]; 
     return ac;
   },{});
 }
@@ -360,13 +360,13 @@ function saveParameters() {
   // Backward compatibility
   if(Object.keys(options)[0].startsWith('param-box')) {
     if(Object.keys(options)[0] === 'param-box0') {
-      options['param-box-0'] = options['wifi-box'];
+      options['param-box-0'] = options['wifi-box']; 
       options = {'dhcp': false, ...options};
     }
     else
       options = {'wifi-box': '', 'dhcp': false, ...options};
   }
-
+  
   options.dhcp = $('no-dhcp').checked;
   if ($('no-dhcp').checked) {
     options = insertKey('ip_address', $('ip').value, options, 2);
@@ -376,7 +376,7 @@ function saveParameters() {
     options["gateway"] = $('gateway').value;
     options["subnet"] = $('subnet').value;
   }
-
+  
   var myblob = new Blob([JSON.stringify(options, null, 2)], {
     type: 'application/json'
   });
@@ -417,7 +417,7 @@ function doConnection(e, f) {
     body: formdata,
     redirect: 'follow'
   };
-
+  
   $('loader').classList.remove('hide');
   var s;
   fetch('/connect', requestOptions)
@@ -434,13 +434,13 @@ function doConnection(e, f) {
       else
         openModalMessage('Connect to WiFi', data, restartESP);
     }
-    else
+    else 
       openModalMessage('Error!', data);
     $('loader').classList.add('hide');
   })
   .catch((error) => {
     openModalMessage('Connect to WiFi', error);
-    $('loader').classList.add('hide');
+    $('loader').classList.add('hide'); 
   });
 }
 
@@ -463,13 +463,15 @@ function switchPage(el) {
   if(el.target.id != 'set-wifi') {
     var fragment = document.createDocumentFragment();
     fragment.appendChild($('btn-hr'));
-    fragment.appendChild($('btn-box'));
-    const box = $(el.target.getAttribute("data-box"));
-    box.appendChild(fragment);
-    document.querySelectorAll('.raw-html').forEach(function(el) {
-      if (el.getAttribute("data-box") === box.id)
+	  fragment.appendChild($('btn-box'));
+	  const box = $(el.target.getAttribute("data-box"));
+	  box.appendChild(fragment);
+	  
+	  document.querySelectorAll('.raw-html').forEach(function(el) {
+	    if (el.getAttribute("data-box") === box.id)
         box.insertBefore(el,  $('btn-hr'));
     });
+    
     $('btn-box').classList.remove('hide');
     $('btn-hr').classList.remove('hide');
   }
@@ -527,11 +529,11 @@ function handleSubmit() {
   prg.classList.remove('hide');
   prg.classList.add('active')
   update.innerHTML = 'Update in progress';
-
+  
   let formData = new FormData();
   formData.set('update', fileElement.files[0]);
   var req = new XMLHttpRequest();
-  req.open('POST', '/update?size=' + fileElement.files[0].size);
+  req.open('POST', '/update?size=' + fileElement.files[0].size);  
   req.onload = function(d) {
     loader.classList.add('hide');
     prg.classList.remove('active');
@@ -607,7 +609,6 @@ $('no-dhcp').addEventListener('change', function() {
   }
   else {
     el.classList.add('hide');
-    btn.classList.remove('hide');
   }
 });
 window.addEventListener('load', getParameters);

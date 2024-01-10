@@ -117,7 +117,7 @@ bool startFilesystem() {
     listDir(LittleFS, "/", 1);
     return true;
   } else {
-    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+    Serial.println("ERROR on mounting filesystem. It will be reformatted!");
     FILESYSTEM.format();
     ESP.restart();
   }
@@ -161,7 +161,7 @@ bool loadApplicationConfig() {
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(BOOT_BUTTON, INPUT_PULLUP);
-  
+
   Serial.begin(115200);
   delay(1000);
 
@@ -201,7 +201,7 @@ void setup() {
     request->send(200, "text/html", homepage);
   });
 
-  // Enable ACE FS file web editor and add FS info callback fucntion
+  // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
   /*
   * Getting FS info (total and free bytes) is strictly related to
