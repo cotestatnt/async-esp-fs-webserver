@@ -50,7 +50,7 @@ void setup() {
   /*
    Init onboard SD filesystem (format if necessary)
    SD_MMC.begin(const char * mountpoint, bool mode1bit, bool format_if_mount_failed, int sdmmc_frequency, uint8_t maxOpenFiles)
-   To avoid led glowindg, set mode1bit = true (SD HS_DATA1 is tied to GPIO4, the same of on-board flash led)
+   To avoid led glowing, set mode1bit = true (SD HS_DATA1 is tied to GPIO4, the same of on-board flash led)
   */
   if (!SD_MMC.begin("/sdcard", true, true, SDMMC_FREQ_HIGHSPEED, 5)) {
     Serial.println("\nSD Mount Failed.\n");
@@ -64,7 +64,7 @@ void setup() {
   }
   listDir(getFolder, 1);
 
-  // Enable ACE FS file web editor and add FS info callback fucntion
+  // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
   server.setFsInfoCallback([](fsInfo_t* fsInfo) {
     fsInfo->totalBytes = SD_MMC.totalBytes();
@@ -85,7 +85,7 @@ void setup() {
     "Open /edit page to view, edit or upload example or your custom webserver source files."
   ));
 
-  // Init the camera module (accordind the camera_config_t defined)
+  // Init the camera module (according the camera_config_t defined)
   init_camera();
 }
 

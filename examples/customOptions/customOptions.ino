@@ -26,7 +26,7 @@ String stringVar = "Test option String";
 // In order to show a dropdown list box in /setup page
 // we need a list of values and a variable to store the selected option
 #define LIST_SIZE  7
-const char* dropdownList[LIST_SIZE] = 
+const char* dropdownList[LIST_SIZE] =
 {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
 String dropdownSelected;
 
@@ -75,7 +75,7 @@ bool startFilesystem() {
     return true;
   }
   else {
-    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+    Serial.println("ERROR on mounting filesystem. It will be reformatted!");
     FILESYSTEM.format();
     ESP.restart();
   }
@@ -172,10 +172,10 @@ void setup() {
   server.addOption(STRING_LABEL, stringVar);
   server.addDropdownList(DROPDOWN_LABEL, dropdownList, LIST_SIZE);
 
-  server.addHTML(save_btn_htm, "buttons", /*overwite*/ false);
-  server.addJavascript(button_script, "js", /*overwite*/ false);
+  server.addHTML(save_btn_htm, "buttons", /*overwrite*/ false);
+  server.addJavascript(button_script, "js", /*overwrite*/ false);
 
-  // Enable ACE FS file web editor and add FS info callback fucntion
+  // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
   #ifdef ESP32
   server.setFsInfoCallback(getFsInfo);

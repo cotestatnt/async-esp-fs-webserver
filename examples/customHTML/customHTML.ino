@@ -22,7 +22,7 @@ uint32_t longVar = 1234567890;
 float floatVar = 15.5F;
 String stringVar = "Test option String";
 
-// ThingsBoard varaibles
+// ThingsBoard variables
 String tb_deviceName = "ESP Sensor";
 double tb_deviceLatitude = 41.88505;
 double tb_deviceLongitude = 12.50050;
@@ -49,8 +49,8 @@ uint16_t tb_port = 80;
 #define TB_SECRET_KEY "Provisioning secret key"
 
 // Timezone definition to get properly time from NTP server
-#define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
-struct tm Time;
+//n.u. #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
+//n.u. struct tm Time;
 
 
 /*
@@ -58,7 +58,7 @@ struct tm Time;
 * HTML code will be injected according to the order of options declaration.
 * CSS and JavaScript will be appended to the end of body in order to work properly.
 * In this manner, is also possible override the default element styles
-* like for example background color, margins, paddings etc etc
+* like for example background color, margins, padding etc etc
 */
 #include "customElements.h"
 #include "thingsboard.h"
@@ -70,7 +70,7 @@ bool startFilesystem() {
     return true;
   }
   else {
-    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+    Serial.println("ERROR on mounting filesystem. It will be reformatted!");
     FILESYSTEM.format();
     ESP.restart();
   }
@@ -145,6 +145,9 @@ void handleLoadOptions(AsyncWebServerRequest *request) {
 }
 
 void setup() {
+#ifdef LED_BUILTIN
+  pinMode(LED_BUILTIN, OUTPUT);
+#endif
   Serial.begin(115200);
 
   // Load configuration (if not present, default will be created when webserver will start)
@@ -189,7 +192,7 @@ void setup() {
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");
   // How many times you need (for example one in different option box)
-  server.addHTML(custom_html, "fetch-test", /*overwite*/ false);
+  server.addHTML(custom_html, "fetch-test", /*overwrite*/ false);
 
   // Add a new options box
   server.addOptionBox("ThingsBoard");
@@ -201,20 +204,20 @@ void setup() {
   server.addOption(TB_DEVICE_KEY, tb_device_key);
   server.addOption(TB_SECRET_KEY, tb_secret_key);
   server.addOption(TB_DEVICE_TOKEN, tb_deviceToken);
-  server.addHTML(thingsboard_htm, "ts", /*overwite file*/ false);
+  server.addHTML(thingsboard_htm, "ts", /*overwrite file*/ false);
 
   // CSS will be appended to HTML head
-  server.addCSS(custom_css, "fetch", /*overwite file*/ false);
+  server.addCSS(custom_css, "fetch", /*overwrite file*/ false);
   // Javascript will be appended to HTML body
-  server.addJavascript(custom_script, "fetch", /*overwite file*/ false);
-  server.addJavascript(thingsboard_script, "ts", /*overwite file*/ false);
+  server.addJavascript(custom_script, "fetch", /*overwrite file*/ false);
+  server.addJavascript(thingsboard_script, "ts", /*overwrite file*/ false);
 
   // Add custom page title to /setup
-  server.setSetupPageTitle("Test setup page");
+  server.setSetupPageTitle("Custom HTML Web Server");
   // Add custom logo to /setup page with custom size
-  server.setLogoBase64(base64_logo, "128", "128", /*overwite file*/ false);
+  server.setLogoBase64(base64_logo, "128", "128", /*overwrite file*/ false);
 
-  // Enable ACE FS file web editor and add FS info callback fucntion
+  // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
   #ifdef ESP32
   server.setFsInfoCallback(getFsInfo);

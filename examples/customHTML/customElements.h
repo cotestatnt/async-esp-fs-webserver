@@ -1,7 +1,7 @@
 
 /*
 * This HTML code will be injected in /setup webpage using a <div></div> element as parent
-* The parent element will hhve the HTML id properties equal to 'raw-html-<id>'
+* The parent element will have the HTML id properties equal to 'raw-html-<id>'
 * where the id value will be equal to the id parameter passed to the function addHTML(html_code, id).
 */
 static const char custom_html[] PROGMEM = R"EOF(
@@ -25,7 +25,7 @@ static const char custom_html[] PROGMEM = R"EOF(
 * In this example, a style sections is added in order to render properly the new
 * <select> and <pre> elements introduced. Since this section will be added at the end of the body,
 * it is also possible to override the style of the elements already present:
-* for example the background color of body will be ovverrided with a different color
+* for example the background color of body will be overridden with a different color
 */
 static const char custom_css[] PROGMEM = R"EOF(
 pre{
