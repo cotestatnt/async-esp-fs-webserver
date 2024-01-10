@@ -69,7 +69,7 @@ class AsyncFsWebServer : public AsyncWebServer
     void update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
     void update_second(AsyncWebServerRequest *request);
 
-        // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
+        // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
 #ifdef INCLUDE_EDIT_HTM
     void deleteFolderContent(File& root) ;
     void handleFileDelete(AsyncWebServerRequest *request);
@@ -139,7 +139,7 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
-      Start webserver aand bind a websocket event handler (optional)
+      Start webserver and bind a websocket event handler (optional)
     */
     bool init(AwsEventHandler wsHandle = nullptr);
 

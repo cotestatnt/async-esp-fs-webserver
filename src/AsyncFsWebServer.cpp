@@ -509,13 +509,13 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             #if defined(ESP8266)
                 struct station_config stationConf;
                 wifi_station_get_config_default(&stationConf);
-                // Clear previuos configuration
+                // Clear previous configuration
                 memset(&stationConf, 0, sizeof(stationConf));
                 wifi_station_set_config(&stationConf);
             #elif defined(ESP32)
                 wifi_config_t stationConf;
                 esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-                // Clear previuos configuration
+                // Clear previous configuration
                 memset(&stationConf, 0, sizeof(stationConf));
                 esp_wifi_set_config(WIFI_IF_STA, &stationConf);
             #endif
@@ -526,7 +526,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             #if defined(ESP8266)
                 struct station_config stationConf;
                 wifi_station_get_config_default(&stationConf);
-                // Clear previuos configuration
+                // Clear previous configuration
                 memset(&stationConf, 0, sizeof(stationConf));
                 os_memcpy(&stationConf.ssid, ssid.c_str(), ssid.length());
                 os_memcpy(&stationConf.password, pass.c_str(), pass.length());
@@ -535,7 +535,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             #elif defined(ESP32)
                 wifi_config_t stationConf;
                 esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-                // Clear previuos configuration
+                // Clear previous configuration
                 memset(&stationConf, 0, sizeof(stationConf));
                 memcpy(&stationConf.sta.ssid, ssid.c_str(), ssid.length());
                 memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
@@ -785,7 +785,7 @@ void AsyncFsWebServer::handleFileEdit(AsyncWebServerRequest *request) {
 
 /*
     Return the list of files in the directory specified by the "dir" query string parameter.
-    Also demonstrates the use of chuncked responses.
+    Also demonstrates the use of chunked responses.
 */
 void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
 {
