@@ -9,7 +9,7 @@ float testFloat = 123.456;
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
-uint8_t ledPin = LED_BUILTIN;
+const uint8_t ledPin = LED_BUILTIN;
 
 
 // FILESYSTEM INIT
@@ -24,7 +24,7 @@ bool startFilesystem(){
       return true;
   }
   else {
-      Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+      Serial.println("ERROR on mounting filesystem. It will be reformatted!");
       LittleFS.format();
       ESP.restart();
   }
@@ -85,7 +85,7 @@ void setup() {
     server.addOption("Test float variable", testFloat);
     server.setSetupPageTitle("Simple Async ESP FS WebServer");
 
-    // Enable ACE FS file web editor and add FS info callback fucntion
+    // Enable ACE FS file web editor and add FS info callback function
     server.enableFsCodeEditor();
     #ifdef ESP32
     server.setFsInfoCallback(getFsInfo);

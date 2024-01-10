@@ -87,7 +87,7 @@ function createNewDevice() {
     var token = $(TB_DEVICE_TOKEN);
     token.focus();
     token.value = obj.credentialsValue;
-    openModalMessage('Write device attributes', 'Device provisioned correctly.<br>Do you want set client attirbutes on ThingsBoard server?', setDeviceClientAttribute);
+    openModalMessage('Write device attributes', 'Device provisioned correctly.<br>Do you want to set client attributes on ThingsBoard server?', setDeviceClientAttribute);
   });
 }
 

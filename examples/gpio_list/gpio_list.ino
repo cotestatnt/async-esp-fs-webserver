@@ -156,9 +156,9 @@ void setup() {
   }
 
   // Try to connect to flash stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP8266_AP", "123456789" );
+  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789" );
 
-  // Enable ACE FS file web editor and add FS info callback fucntion
+  // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
 
   /*
