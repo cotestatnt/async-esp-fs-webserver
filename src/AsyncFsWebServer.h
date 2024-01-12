@@ -92,25 +92,25 @@ class AsyncFsWebServer : public AsyncWebServer
     char* m_pagePswd = nullptr;
     String m_host = "esphost";
     fs::FS* m_filesystem = nullptr;
-
+    uint16_t m_port;
     uint32_t m_timeout = 10000;
     uint8_t numOptions = 0;
     char m_version[16] = {__TIME__};
     bool m_filesystem_ok = false;
     char m_apWebpage[MAX_APNAME_LEN] = "/setup";
     size_t m_contentLen = 0;
-    uint16_t m_port;
+    
     FsInfoCallbackF getFsInfo = nullptr;
 
   public:
-    SetupConfigurator setup;
+    SetupConfigurator* setup = nullptr;
 
     AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") :
     AsyncWebServer(port),
-    m_filesystem(&fs),
-    setup(&fs),
-    m_port(port)
+    m_filesystem(&fs)
     {
+      m_port = port;
+      setup = new SetupConfigurator(m_filesystem);
       m_ws = new AsyncWebSocket("/ws");
       if (strlen(hostname))
         m_host = hostname;
@@ -228,32 +228,32 @@ class AsyncFsWebServer : public AsyncWebServer
     * Set /setup webpage title
     */
     void setSetupPageTitle(const char* title) {
-      setup.addOption("name-logo", title);
+      setup->addOption("name-logo", title);
     }
 
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////   BACKWARD COMPATIBILITY ONLY /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    void addHTML(const char* h, const char* id, bool ow = false) {setup.addHTML(h, id, ow);}
-    void addCSS(const char* c, const char* id, bool ow = false){setup.addCSS(c, id, ow);}
-    void addJavascript(const char* s, const char* id, bool ow = false) {setup.addJavascript(s, id, ow);}
-    void addDropdownList(const char *l, const char** a, size_t size){setup.addDropdownList(l, a, size);}
-    void addOptionBox(const char* title) { setup.addOption("param-box", title); }
+    void addHTML(const char* h, const char* id, bool ow = false) {setup->addHTML(h, id, ow);}
+    void addCSS(const char* c, const char* id, bool ow = false){setup->addCSS(c, id, ow);}
+    void addJavascript(const char* s, const char* id, bool ow = false) {setup->addJavascript(s, id, ow);}
+    void addDropdownList(const char *l, const char** a, size_t size){setup->addDropdownList(l, a, size);}
+    void addOptionBox(const char* title) { setup->addOption("param-box", title); }
     void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
-      setup.setLogoBase64(logo, w, h, ow);
+      setup->setLogoBase64(logo, w, h, ow);
     }
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){
-      setup.addOption(lbl, val, false, min, max, st);
+      setup->addOption(lbl, val, false, min, max, st);
     }
     template <typename T>
     void addOption(const char *lbl, T val, bool hd = false,  double min = MIN_F,
       double max = MAX_F, double st = 1.0) {
-      setup.addOption(lbl, val, hd, min, max, st);
+      setup->addOption(lbl, val, hd, min, max, st);
     }
     template <typename T>
-    bool getOptionValue(const char *lbl, T &var) { return setup.getOptionValue(lbl, var);}
+    bool getOptionValue(const char *lbl, T &var) { return setup->getOptionValue(lbl, var);}
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
 };
