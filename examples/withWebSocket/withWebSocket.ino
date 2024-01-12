@@ -165,22 +165,6 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  // Try to connect to stored SSID, start AP if fails after timeout
-  // IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789");
-
-  WiFi.begin("iPhoneAP", "aat191ee");
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-
-
   // FILESYSTEM INIT
   if (startFilesystem()) {
     // Load configuration (if not present, default will be created when webserver will start)
@@ -189,6 +173,9 @@ void setup() {
     else
       Serial.println(F("Application options NOT loaded!"));
   }
+
+  // Try to connect to stored SSID, start AP if fails after timeout
+  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789");
 
   // Configure /setup page
   server.addOptionBox("My Options");

@@ -55,7 +55,9 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     });
 
     on("/get_config", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(200, "text/plain", CONFIG_FOLDER CONFIG_FILE);
+        // We need top remove the first "/" char
+        String name = CONFIG_FOLDER CONFIG_FILE;
+        request->send(200, "text/plain", name.substring(1));
     });
 
     onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));

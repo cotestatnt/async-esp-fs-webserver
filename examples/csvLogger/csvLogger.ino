@@ -5,7 +5,6 @@
 AsyncFsWebServer server(80, LittleFS, "myServer");
 bool captiveRun = false;
 
-
 // Timezone definition to get properly time from NTP server
 #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
 #include <time.h>

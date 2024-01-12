@@ -83,12 +83,6 @@ class AsyncFsWebServer : public AsyncWebServer
   void setTaskWdt(uint32_t timeout);
 
   /*
-    Add an option which contain "raw" HTML code to be injected in /setup page
-    Th HTML code will be written in a file with named as option id
-  */
-  void addSource(const char* source, const char* tag, bool overWrite = false) ;
-
-  /*
     Create a dir if not exist on uploading files
   */
   bool createDirFromPath( const String& path) ;
@@ -241,7 +235,6 @@ class AsyncFsWebServer : public AsyncWebServer
     /////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////   BACKWARD COMPATIBILITY ONLY /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    bool optionToFile(const char* f, const char* id, bool ow) {return setup.optionToFile(f, id, ow);}
     void addHTML(const char* h, const char* id, bool ow = false) {setup.addHTML(h, id, ow);}
     void addCSS(const char* c, const char* id, bool ow = false){setup.addCSS(c, id, ow);}
     void addJavascript(const char* s, const char* id, bool ow = false) {setup.addJavascript(s, id, ow);}
