@@ -234,6 +234,33 @@ class SetupConfigurator
             return true;
         }
 
+        template <typename T>
+        bool saveOptionValue(const char *label, T val) {
+            File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
+            DynamicJsonDocument doc(file.size() * 1.33);
+
+            if (file) {
+                DeserializationError error = deserializeJson(doc, file);
+                if (error)  {
+                    log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
+                    file.close();
+                    return false;
+                }
+                file.close();
+            }
+            else
+                return false;
+
+            if (doc[label]["value"])
+                doc[label]["value"] = val;
+            else if (doc[label]["selected"])
+                doc[label]["selected"] = val;
+            else
+                doc[label] = val;
+            return true;
+        }
+
+
 };
 
 #endif

@@ -220,7 +220,7 @@ function addOptionsElement(opt) {
     lastBox.appendChild(d);
 
     if(key.endsWith('-hidden'))  {
-      el.classList.add('hide');
+      d.classList.add('hide');
     }
   });
   

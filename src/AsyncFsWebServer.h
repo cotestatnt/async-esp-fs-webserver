@@ -37,13 +37,13 @@
 
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
-#define MAX_APNAME_LEN 16
 
 typedef struct {
   size_t totalBytes;
   size_t usedBytes;
-  char fsName[MAX_APNAME_LEN];
+  String fsName;
 } fsInfo_t;
+
 
 using FsInfoCallbackF = std::function<void(fsInfo_t*)>;
 using CallbackF = std::function<void(void)>;
@@ -91,15 +91,15 @@ class AsyncFsWebServer : public AsyncWebServer
     char* m_pageUser = nullptr;
     char* m_pagePswd = nullptr;
     String m_host = "esphost";
-    fs::FS* m_filesystem = nullptr;
+
     uint16_t m_port;
     uint32_t m_timeout = 10000;
-    uint8_t numOptions = 0;
+    size_t m_contentLen = 0;
+
     char m_version[16] = {__TIME__};
     bool m_filesystem_ok = false;
-    char m_apWebpage[MAX_APNAME_LEN] = "/setup";
-    size_t m_contentLen = 0;
-    
+  
+    fs::FS* m_filesystem = nullptr;
     FsInfoCallbackF getFsInfo = nullptr;
 
   public:
@@ -161,7 +161,7 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
       Start WiFi connection, NO AP mode on fail
     */
-    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr ) ;
+    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr) ;
 
     /*
      * Redirect to captive portal if we got a request for another domain.
@@ -224,21 +224,15 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     const char* getVersion();
 
-    /*
-    * Set /setup webpage title
-    */
-    void setSetupPageTitle(const char* title) {
-      setup->addOption("name-logo", title);
-    }
-
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////   BACKWARD COMPATIBILITY ONLY /////////////////////////////////////////
+    ////////////////////////////   SETUP PAGE CONFIGURATION /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    void addHTML(const char* h, const char* id, bool ow = false) {setup->addHTML(h, id, ow);}
-    void addCSS(const char* c, const char* id, bool ow = false){setup->addCSS(c, id, ow);}
-    void addJavascript(const char* s, const char* id, bool ow = false) {setup->addJavascript(s, id, ow);}
-    void addDropdownList(const char *l, const char** a, size_t size){setup->addDropdownList(l, a, size);}
+      void setSetupPageTitle(const char* title) { setup->addOption("name-logo", title); }
+    void addHTML(const char* html, const char* id, bool ow = false) {setup->addHTML(html, id, ow);}
+    void addCSS(const char* css, const char* id, bool ow = false){setup->addCSS(css, id, ow);}
+    void addJavascript(const char* script, const char* id, bool ow = false) {setup->addJavascript(script, id, ow);}
+    void addDropdownList(const char *lbl, const char** a, size_t size){setup->addDropdownList(lbl, a, size);}
     void addOptionBox(const char* title) { setup->addOption("param-box", title); }
     void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
       setup->setLogoBase64(logo, w, h, ow);
@@ -248,12 +242,14 @@ class AsyncFsWebServer : public AsyncWebServer
       setup->addOption(lbl, val, false, min, max, st);
     }
     template <typename T>
-    void addOption(const char *lbl, T val, bool hd = false,  double min = MIN_F,
+    void addOption(const char *lbl, T val, bool hidden = false,  double min = MIN_F,
       double max = MAX_F, double st = 1.0) {
-      setup->addOption(lbl, val, hd, min, max, st);
+      setup->addOption(lbl, val, hidden, min, max, st);
     }
     template <typename T>
     bool getOptionValue(const char *lbl, T &var) { return setup->getOptionValue(lbl, var);}
+    template <typename T>
+    bool saveOptionValue(const char *lbl, T val) { return setup->saveOptionValue(lbl, val);}
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
 };

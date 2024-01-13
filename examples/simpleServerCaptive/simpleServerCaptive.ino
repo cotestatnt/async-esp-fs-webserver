@@ -31,9 +31,9 @@ bool startFilesystem() {
 */
 #ifdef ESP32
 void getFsInfo(fsInfo_t* fsInfo) {
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-    strcpy(fsInfo->fsName, "LittleFS");
+	fsInfo->fsName = "LittleFS";
+	fsInfo->totalBytes = LittleFS.totalBytes();
+	fsInfo->usedBytes = LittleFS.usedBytes();  
 }
 #endif
 

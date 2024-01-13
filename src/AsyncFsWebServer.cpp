@@ -124,7 +124,13 @@ void AsyncFsWebServer::enableFsCodeEditor() {
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
 
-    if (! WiFi.softAP(ssid, pass)) {
+    bool ap = false;
+    if (strlen(pass))
+		ap = WiFi.softAP(ssid, pass);	
+	else
+		ap = WiFi.softAP(ssid);
+
+    if (!ap) {
         log_error("Captive portal failed to start: WiFi.softAP failed!");
         return false;
     }
@@ -332,7 +338,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 
         // open the file on first call and store the file handle in the request object
         request->_tempFile = m_filesystem->open(filename, "w");
-        log_info("Upload Start.\nWriting file %s\n", filename.c_str());
+        log_debug("Upload Start: writing file %s", filename.c_str());
     }
 
     if (len) {
@@ -345,7 +351,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         setTaskWdt(8000);
         // close the file handle as the upload is now done
         request->_tempFile.close();
-        log_info("\nUpload complete: %s, size: %d \n", filename.c_str(), index + len);
+        log_debug("Upload complete: %s, size: %d", filename.c_str(), index + len);
     }
 }
 
@@ -645,6 +651,17 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
             }
         }
     }
+
+    // No connection, start AP and then run captive portal
+    if (!ip) {
+        char ssid[21];
+        #ifdef ESP8266
+        snprintf(ssid, sizeof(ssid), "ESP-%lX", ESP.getChipId());
+        #elif defined(ESP32)
+        snprintf(ssid, sizeof(ssid), "ESP-%llX", ESP.getEfuseMac());
+        #endif
+        startCaptivePortal((const char*)ssid, "", "/setup");
+    }
     return ip;
 }
 
@@ -839,7 +856,7 @@ void AsyncFsWebServer::handleFileDelete(AsyncWebServerRequest *request) {
 void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
 {
     log_debug("handleStatus");
-    fsInfo_t info = {1024, 1024, "Unset"};
+    fsInfo_t info = {1024, 1024, "ESP Filesystem"};
 #ifdef ESP8266
     FSInfo fs_info;
     m_filesystem->info(fs_info);
