@@ -113,7 +113,7 @@ void setup() {
     server.setFsInfoCallback([](fsInfo_t* fsInfo) {
         fsInfo->totalBytes = LittleFS.totalBytes();
         fsInfo->usedBytes = LittleFS.usedBytes();
-        strcpy(fsInfo->fsName, "LittleFS");
+        fsInfo->fsName = "LittleFS";
     });
     #endif
 
