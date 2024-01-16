@@ -4,15 +4,18 @@ var currentFile = "";
 
 // Fetch the list of files and fill the filelist
 function listFiles() {
-  fetch('/list?dir=/' + dataFolder)    // Do the request
+  var url = '/list?dir=' + dataFolder;
+  if (url.charAt(url.length - 1) === '/')
+    url = url.slice(0, -1);             // Remove the last character
+  fetch(url)                            // Do the request
   .then(response => response.json())    // Parse the response
   .then(obj => {                        // DO something with response
     fileList.innerHTML = '';
     obj.forEach(function(entry, i) {
       addEntry(entry.name);
     });
-    // Load first file
-    loadCsv(dataFolder + obj[0].name);    
+    // Load last file
+    loadCsv(dataFolder + obj[obj.length -1].name);    
   });
 }
 

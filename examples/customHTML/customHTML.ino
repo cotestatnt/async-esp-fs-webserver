@@ -52,7 +52,6 @@ uint16_t tb_port = 80;
 //n.u. #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
 //n.u. struct tm Time;
 
-
 /*
 * Include the custom HTML, CSS and Javascript to be injected in /setup webpage.
 * HTML code will be injected according to the order of options declaration.

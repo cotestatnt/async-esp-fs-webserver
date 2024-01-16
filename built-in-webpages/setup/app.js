@@ -11,7 +11,7 @@ const svgNoEye = '<path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 4.5C7 4.5 
 const svgMenu = '<path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>';
 
 var closeCallback = function(){};
-var esp = new URL("http://" + `${window.location.hostname}`);
+var esp = `${window.location.protocol}//${window.location.hostname}:${window.location.port}/`;
 var options = {};
 var configFile;
 var lastBox;
