@@ -18,25 +18,49 @@
   #error Platform not supported
 #endif
 
-#define INCLUDE_EDIT_HTM
-#ifdef INCLUDE_EDIT_HTM
-#include "edit_htm.h"
-#endif
-
-#define ARDUINOJSON_USE_LONG_LONG 1
-#include <ArduinoJson.h>
-#include "setup_htm.h"
-#define CONFIG_FOLDER "/config"
-#define CONFIG_FILE "/config.json"
-
 #define DBG_OUTPUT_PORT     Serial
 #define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
+
+#ifndef ESP_FS_WS_EDIT
+    #define ESP_FS_WS_EDIT              1   //has edit methods
+    #ifndef ESP_FS_WS_EDIT_HTM
+        #define ESP_FS_WS_EDIT_HTM      1   //included from progmem
+    #endif
+#endif
+
+#ifndef ESP_FS_WS_SETUP
+    #define ESP_FS_WS_SETUP             1   //has setup methods
+    #ifndef ESP_FS_WS_SETUP_HTM
+        #define ESP_FS_WS_SETUP_HTM     1   //included from progmem
+    #endif
+#endif
+
+#if ESP_FS_WS_EDIT_HTM
+    #include "edit_htm.h"
+#endif
+
+#if ESP_FS_WS_SETUP_HTM
+    #define ARDUINOJSON_USE_LONG_LONG 1
+    #include <ArduinoJson.h>
+#if ARDUINOJSON_VERSION_MAJOR > 6
+    #define JSON_DOC(x) JsonDocument doc
+#else
+    #define JSON_DOC(x) DynamicJsonDocument doc((size_t)x)
+#endif
+    #define ESP_FS_WS_CONFIG_FOLDER "/config"
+    #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
+    #define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
+
+    #include "setup_htm.h"
+    #include "SetupConfig.hpp"
+#endif
+
 #include "SerialLog.h"
 #include "CaptivePortal.hpp"
-#include "SetupConfig.hpp"
 
-#define MIN_F -3.4028235E+38
-#define MAX_F 3.4028235E+38
+
+// #define MIN_F -3.4028235E+38
+// #define MAX_F 3.4028235E+38
 
 typedef struct {
   size_t totalBytes;
@@ -71,7 +95,7 @@ class AsyncFsWebServer : public AsyncWebServer
     void update_second(AsyncWebServerRequest *request);
 
         // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
-#ifdef INCLUDE_EDIT_HTM
+#ifdef ESP_FS_WS_EDIT_HTM
     void deleteContent(String& path) ;
     void handleFileDelete(AsyncWebServerRequest *request);
     void handleFileCreate(AsyncWebServerRequest *request);
@@ -98,7 +122,7 @@ class AsyncFsWebServer : public AsyncWebServer
 
     char m_version[16] = {__TIME__};
     bool m_filesystem_ok = false;
-  
+
     fs::FS* m_filesystem = nullptr;
     FsInfoCallbackF getFsInfo = nullptr;
 
@@ -201,7 +225,7 @@ class AsyncFsWebServer : public AsyncWebServer
     * Get reference to current config.json file
     */
     File getConfigFile(const char* mode) {
-      File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, mode);
+      File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, mode);
       return file;
     }
 
@@ -209,7 +233,7 @@ class AsyncFsWebServer : public AsyncWebServer
     * Get complete path of config.json file
     */
     const char* getConfiFileName() {
-      return CONFIG_FOLDER CONFIG_FILE;
+      return ESP_FS_WS_CONFIG_FILE;
     }
 
     /*
@@ -220,7 +244,14 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
-    * Set current library version
+    * Set hostmane
+    */
+    void setHostname(const char * host) {
+      m_host = host;
+    }
+
+    /*
+    * Get current library version
     */
     const char* getVersion();
 

@@ -36,11 +36,10 @@ module.exports = {
 
     var dataLength = data.byteLength;
     console.log('actualDataLength: ' + dataLength);
-	
-	// Changed array name to match SEGGER Bin2C output
-    var resultString = 'static const unsigned char _acall_htm[';
-	resultString += dataLength;
-	resultString += ' + 1] = {\n  ';
+
+    var resultString = '#define SETUP_HTML_SIZE ';
+    resultString += dataLength + '\n'
+    resultString += 'static const unsigned char SETUP_HTML[] PROGMEM = {\n  ';
     resultString += stringConverter.convert(dataLength, 1, true, 16, data);
     resultString += '\n};';
     return resultString;

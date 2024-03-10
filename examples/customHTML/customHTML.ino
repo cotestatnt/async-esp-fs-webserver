@@ -2,7 +2,6 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
 
-
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(80, FILESYSTEM, hostname);
@@ -97,7 +96,11 @@ void getFsInfo(fsInfo_t* fsInfo) {
 bool loadOptions() {
   if (FILESYSTEM.exists(server.getConfiFileName())) {
     File file = server.getConfigFile("r");
+#if ARDUINOJSON_VERSION_MAJOR > 6
+    JsonDocument doc;
+#else
     DynamicJsonDocument doc(file.size() * 1.33);
+#endif
     if (!file)
       return false;
 

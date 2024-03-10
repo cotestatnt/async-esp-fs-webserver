@@ -10,8 +10,9 @@ const svgEye = '<path d="M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,
 const svgNoEye = '<path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>';
 const svgMenu = '<path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>';
 
-var closeCallback = function(){};
-var esp = `${window.location.protocol}//${window.location.hostname}:${window.location.port}/`;
+var closeCb = function(){};
+var port = location.port || (window.location.protocol === 'https:' ? '443' : '80');
+var esp = `${window.location.protocol}//${window.location.hostname}:${port}/`;
 var options = {};
 var configFile;
 var lastBox;
@@ -31,94 +32,22 @@ function newEl(element, attribute) {
   return el;
 }
 
-function showHidePassword() {
-  var inp = $("password");
-  if (inp.type === "password") {
-    inp.type = "text";
-    $('show-pass').classList.remove("hide");
-    $('hide-pass').classList.add("hide");
-  }
-  else {
-    inp.type = "password";
-    $('show-pass').classList.add("hide");
-    $('hide-pass').classList.remove("hide");
-  }
-}
-
-function getWiFiList() {
+function getParameters() {
+  var logo;
   $('loader').classList.remove('hide');
-  fetch(esp + "scan")
-  .then(response => response.json())
-  .then(data => {
-    listWifiNetworks(data);
-    $('loader').classList.add('hide');
-  });
-}
-
-function selectWifi(row) {
-  try {
-    $('select-' + row.target.parentNode.id).checked = true;
-  }
-  catch(err) {
-    $(row.target.id).checked = true;
-  }
-  $('ssid').value = this.cells[1].innerHTML;
-  $('ssid-name').innerHTML = this.cells[1].innerHTML;
-  $('password').focus();
-}
-
-
-function listWifiNetworks(elems) {
-  const list = document.querySelector('#wifi-list');
-  list.innerHTML = "";
-	elems.forEach((elem, idx) => {
-    // Create a single row with all columns
-    var row = newEl('tr');
-    var id = 'wifi-' + idx;
-    row.id = id;
-    row.addEventListener('click', selectWifi);
-	  row.innerHTML  = `<td><input type="radio" name="select" id="select-${id}"></td>`;
-    row.innerHTML += `<td id="ssid-${id}">${elem.ssid}</td>`;
-    row.innerHTML += '<td class="hide-tiny">' + elem.strength + ' dBm</td>';
-    row.innerHTML += (elem.security) ? '<td>' + svgLock + '</td>' : '<td>' + svgUnlock + '</td>';
-    // Add row to list
-    list.appendChild(row);
-  });
-  $("wifi-table").classList.remove("hide");
-}
-
-function getEspStatus() {
-  fetch(esp + "wifistatus")
-  .then(response => response.json())
+  
+  // Fetch actual status and config info
+  fetch(esp + "getStatus")
+  .then(res => res.json())
   .then(data => {
     $('esp-mode').innerHTML = data.mode;
-    $('esp-ip').innerHTML = data.ip;
+    $('esp-ip').innerHTML = `<a href="${esp}">${esp}</a>`;
     $('firmware').innerHTML = data.firmware;
-  });
-}
-
-async function fetchFromFile(f, m) {
-  const response = await fetch(f, { method: m });
-  const data = await response.text();
-  return data;
-}
-
-function setLogoBase64(data, key, base64) {
-  var size = data[key].replace(/[^\d_]/g, '').split('_');
-  var img = newEl('img', {'class': 'logo', 'src': 'data:image/png;base64, '+ base64, 'style': `width:${size[0]}px;height:${size[1]}px`});
-  $('img-logo').innerHTML = "";
-  $('img-logo').append(img);
-  $('img-logo').setAttribute('type', 'number');
-  $('img-logo').setAttribute('title', '');
-  delete data[key];
-}
-
-function getParameters() {
-  $('loader').classList.remove('hide');
-  fetch(esp + "get_config")
-  .then(res => res.text())
-  .then(config => {
-    configFile = config;
+    $('about').innerHTML = 'Created with ' + data.liburl;
+    $('about').setAttribute('href', data.liburl);
+    configFile = data.path;
+    
+    // Fetch 'config.json'
     fetch(esp + configFile)
     .then(response => response.json())
     .then(data => {
@@ -131,23 +60,35 @@ function getParameters() {
             continue;
           }
           if (key == 'img-logo') {
-            fetch(data[key])
-              .then((response) => response.text())
-              .then(base64 => setLogoBase64(data, key, base64));
+            logo = data[key];
+            delete data[key];
             continue;
           }
         }
       }
+      
+      // Custom logo (base 64)
+      if (logo){
+        fetch(logo)
+        .then((response) => response.text())
+        .then(base64 => setLogoBase64(logo, base64));
+      }
+        
       options = data;
       createOptionsBox(options);
       $('loader').classList.add('hide');
-    })
-    .then( () => {
-      getEspStatus();
     });
   });
 }
 
+function setLogoBase64(s, base64) {
+  var size = s.replace(/[^\d_]/g, '').split('_');
+  var img = newEl('img', {'class': 'logo', 'src': 'data:image/png;base64, '+ base64, 'style': `width:${size[0]}px;height:${size[1]}px`});
+  $('img-logo').innerHTML = "";
+  $('img-logo').append(img);
+  $('img-logo').setAttribute('type', 'number');
+  $('img-logo').setAttribute('title', '');
+}
 
 function addOptionsElement(opt) {
   const bools = Object.keys(opt)
@@ -271,28 +212,23 @@ async function createOptionsBox(raw) {
         hidden = true;
       }
       else if(key.startsWith('raw-css')) {
-        fetchFromFile(value, 'HEAD')
-        .then(() => {
-          var css = newEl("link", {'rel': 'stylesheet', 'href': value});
-          document.head.appendChild(css);
-        });
+        var css = newEl("link", {'rel': 'stylesheet', 'href': value});
+        document.head.appendChild(css);
         hidden = true;
       }
       // Inject runtime JS source file
       else if(key.startsWith('raw-javascript')) {
-        fetchFromFile(value, 'HEAD')
-        .then(() => {
-          var js = newEl("script", {'src': value});
-          document.body.appendChild(js);
-        });
+        var js = newEl("script", {'src': value});
+        document.body.appendChild(js);
         hidden = true;
       }
       // Inject runtime HTML source file
       else if(key.startsWith('raw-html')) {
         var el = newEl('div', {'class': 'tf-wrapper raw-html', 'id': value, 'data-box': lastBox.id});
         lastBox.appendChild(el);
-        fetchFromFile(value, 'GET')
-        .then((res) => { $(value).innerHTML = res; });
+        fetch(value)
+        .then((res) => res.text())
+        .then((data) => $(value).innerHTML = data);
         hidden = true;
       }
       if (!hidden) {
@@ -392,13 +328,77 @@ function saveParameters() {
   // Handle the server response
   .then(response => response.text())
   .then(text => {
-    openModalMessage('Save options','<br><b>"' + configFile +'"</b> saved successfully on flash memory!<br><br>');
+    openModal('Save options','<br><b>"' + configFile +'"</b> saved successfully on flash memory!<br><br>');
   });
+}
+
+
+function showHidePassword() {
+  var inp = $("password");
+  if (inp.type === "password") {
+    inp.type = "text";
+    $('show-pass').classList.remove("hide");
+    $('hide-pass').classList.add("hide");
+  }
+  else {
+    inp.type = "password";
+    $('show-pass').classList.add("hide");
+    $('hide-pass').classList.remove("hide");
+  }
+}
+
+function getWiFiList() {
+  $('loader').classList.remove('hide');
+  fetch(esp + "scan")
+  .then(response => response.json())
+  .then(data => {
+    listWifi(data);
+    $('loader').classList.add('hide');
+  });
+}
+
+function selectWifi(row) {
+  try {
+    $('select-' + row.target.parentNode.id).checked = true;
+  }
+  catch(err) {
+    $(row.target.id).checked = true;
+  }
+  $('ssid').value = this.cells[1].innerHTML;
+  $('ssid-name').innerHTML = this.cells[1].innerHTML;
+  $('password').focus();
+}
+
+
+function listWifi(obj) {
+  if (obj.hasOwnProperty("reload"))
+    setTimeout(getWiFiList, 2000); 
+    
+  obj.sort((a, b) => {
+    return b.strength - a.strength;
+  });
+  
+  const list = document.querySelector('#wifi-list');
+  list.innerHTML = "";
+	obj.forEach((net, i) => {
+    // Create a single row with all columns
+    var row = newEl('tr');
+    var id = 'wifi-' + i;
+    row.id = id;
+    row.addEventListener('click', selectWifi);
+	  row.innerHTML  = `<td><input type="radio" name="select" id="select-${id}"></td>`;
+    row.innerHTML += `<td id="ssid-${id}">${net.ssid}</td>`;
+    row.innerHTML += '<td class="hide-tiny">' + net.strength + ' dBm</td>';
+    row.innerHTML += (net.security) ? '<td>' + svgLock + '</td>' : '<td>' + svgUnlock + '</td>';
+    // Add row to list
+    list.appendChild(row);
+  });
+  $("wifi-table").classList.remove("hide");
 }
 
 function doConnection(e, f) {
   if ($('ssid').value === '' ||  $('password').value === ''){
-    openModalMessage('Connect to WiFi','Please insert a SSID and a Password');
+    openModal('Connect to WiFi','Please insert a SSID and a Password');
     return;
   }
   var formdata = new FormData();
@@ -428,24 +428,25 @@ function doConnection(e, f) {
   .then(function(data) {
     if (s === 200) {
       if (data.includes("already")) {
-        openModalMessage('Connect to WiFi', data, () => {doConnection(e, true)});
+        openModal('Connect to WiFi', data, () => {doConnection(e, true)});
         $('loader').classList.add('hide');
       }
       else
-        openModalMessage('Connect to WiFi', data, restartESP);
+        openModal('Connect to WiFi', data, restartESP);
     }
     else 
-      openModalMessage('Error!', data);
+      openModal('Error!', data);
     $('loader').classList.add('hide');
   })
   .catch((error) => {
-    openModalMessage('Connect to WiFi', error);
+    openModal('Connect to WiFi', error);
     $('loader').classList.add('hide'); 
   });
 }
 
 
 function switchPage(el) {
+  console.log(el);
   $('top-nav').classList.remove('responsive');
 
   // Menu items
@@ -486,32 +487,32 @@ function showMenu() {
   $('top-nav').classList.add('responsive');
 }
 
-function openModalMessage(title, msg, fn, args) {
+function openModal(title, msg, fn, args) {
   $('message-title').innerHTML = title;
   $('message-body').innerHTML = msg;
   $('modal-message').open = true;
   $('main-box').style.filter = "blur(3px)";
   if (typeof fn != 'undefined') {
-    closeCallback = fn;
+    closeCb = fn;
     $('ok-modal').classList.remove('hide');
   }
   else
     $('ok-modal').classList.add('hide');
 }
 
-function closeModalMessage(do_cb) {
+function closeModal(do_cb) {
   $('modal-message').open = false;
   $('main-box').style.filter = "";
-  if (typeof closeCallback != 'undefined' && do_cb)
-    closeCallback();
+  if (typeof closeCb != 'undefined' && do_cb)
+    closeCb();
 }
 
 function restartESP() {
   fetch(esp + "reset")
   .then(response => response.text())
   .then(data => {
-    closeModalMessage();
-    openModalMessage('Restart!', '<br>ESP restarted!');
+    closeModal();
+    openModal('Restart!', '<br>ESP restarted!');
   });
 }
 
