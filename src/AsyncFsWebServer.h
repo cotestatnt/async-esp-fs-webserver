@@ -126,6 +126,11 @@ class AsyncFsWebServer : public AsyncWebServer
     fs::FS* m_filesystem = nullptr;
     FsInfoCallbackF getFsInfo = nullptr;
 
+    String m_apSSID = "";
+    String m_apPsk = "";
+    bool m_captiveRun = false;
+    IPAddress m_captiveIp = IPAddress(8, 8, 8, 8);
+
   public:
     SetupConfigurator* setup = nullptr;
 
@@ -178,14 +183,17 @@ class AsyncFsWebServer : public AsyncWebServer
     void sendOK(AsyncWebServerRequest *request);
 
     /*
-      Start WiFi connection, if fails to in AP mode
-    */
-    IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr);
-
-    /*
       Start WiFi connection, NO AP mode on fail
     */
-    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr) ;
+    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr, bool skipAP = false) ;
+
+    /*
+      Start WiFi connection, if fails to in AP mode (backward compatibility)
+    */
+    IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr) {
+      setAP(apSSID, apPsw, m_captiveIp);
+      startWiFi(timeout, fn);
+    }
 
     /*
      * Redirect to captive portal if we got a request for another domain.
@@ -255,11 +263,26 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     const char* getVersion();
 
+    /*
+    * Get status of captive portal
+    */
+    bool getCaptivePortal() {
+      return m_captiveRun;
+    }
+
+    /*
+    * Set Access Point SSID and password
+    */
+    void setAP(const char *ssid, const char *psk, IPAddress ip = IPAddress(8,8,8,8)) {
+      m_apSSID = ssid;
+      m_apPsk = psk;
+      m_captiveIp = ip;
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////   SETUP PAGE CONFIGURATION /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
-      void setSetupPageTitle(const char* title) { setup->addOption("name-logo", title); }
+    void setSetupPageTitle(const char* title) { setup->addOption("name-logo", title); }
     void addHTML(const char* html, const char* id, bool ow = false) {setup->addHTML(html, id, ow);}
     void addCSS(const char* css, const char* id, bool ow = false){setup->addCSS(css, id, ow);}
     void addJavascript(const char* script, const char* id, bool ow = false) {setup->addJavascript(script, id, ow);}
