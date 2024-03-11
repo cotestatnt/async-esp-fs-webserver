@@ -3,7 +3,7 @@ If you like this work, please consider [sponsoring this project!](https://paypal
 # async-esp-fs-webserver
 ESP32/ESP8266 WebServer, WiFi manager and ACE web editor Arduino library. Based on [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer) from @me-no-dev
 
-This is the equivalent to **esp-fs-webserver** Arduino library, but working with the very good **ESPAsyncWebServer** library instead default webserver library.
+This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/esp-fs-webserver/) Arduino library, but working with the very good **ESPAsyncWebServer** library instead default webserver library.
 From some tests I have done, I have been able to observe that a webserver created with this library is much faster and more responsive, which is why I decided to develop this variant of the library.
 
 **Note**:
