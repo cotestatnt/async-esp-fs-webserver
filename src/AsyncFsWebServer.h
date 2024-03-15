@@ -19,7 +19,7 @@
 #endif
 
 #define DBG_OUTPUT_PORT     Serial
-#define LOG_LEVEL           2         // (0 disable, 1 error, 2 info, 3 debug)
+#define LOG_LEVEL           3         // (0 disable, 1 error, 2 info, 3 debug)
 
 #ifndef ESP_FS_WS_EDIT
     #define ESP_FS_WS_EDIT              1   //has edit methods
@@ -129,7 +129,7 @@ class AsyncFsWebServer : public AsyncWebServer
     String m_apSSID = "";
     String m_apPsk = "";
     bool m_captiveRun = false;
-    IPAddress m_captiveIp = IPAddress(8, 8, 8, 8);
+    IPAddress m_captiveIp = IPAddress(192, 168, 4, 1);
 
   public:
     SetupConfigurator* setup = nullptr;
@@ -192,7 +192,7 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr) {
       setAP(apSSID, apPsw, m_captiveIp);
-      startWiFi(timeout, fn);
+      return startWiFi(timeout, fn);
     }
 
     /*
@@ -273,7 +273,7 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
     * Set Access Point SSID and password
     */
-    void setAP(const char *ssid, const char *psk, IPAddress ip = IPAddress(8,8,8,8)) {
+    void setAP(const char *ssid, const char *psk, IPAddress ip = IPAddress(192,168,4,1)) {
       m_apSSID = ssid;
       m_apPsk = psk;
       m_captiveIp = ip;

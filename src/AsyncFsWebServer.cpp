@@ -119,8 +119,6 @@ void AsyncFsWebServer::enableFsCodeEditor() {
   }
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
-
-
 	WiFi.mode(WIFI_AP);
 	delay(250);
 
@@ -302,23 +300,46 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     request->send(200, "application/json", "{\"reload\" : 1}");
 }
 
-bool AsyncFsWebServer::createDirFromPath(const String& filePath) {
-    log_debug("Check path: %s", filePath.c_str());
-    int lastSlashIndex = filePath.lastIndexOf('/');
-    if (lastSlashIndex != -1) {
-        String folderPath = filePath.substring(0, lastSlashIndex);
-        if (!m_filesystem->exists(folderPath)) {
-            if (m_filesystem->mkdir(folderPath)) {
-                log_debug("Folder %s created", folderPath.c_str());
-                return true;
-            }
-            else {
-                log_debug("Error. Folder %s not created", folderPath.c_str());
-                return false;
+// bool AsyncFsWebServer::createDirFromPath(const String& filePath) {
+//     log_debug("Check path: %s", filePath.c_str());
+//     int lastSlashIndex = filePath.lastIndexOf('/');
+//     if (lastSlashIndex != -1) {
+//         String folderPath = filePath.substring(0, lastSlashIndex + 1);
+//         if (!m_filesystem->exists(folderPath)) {
+//             if (m_filesystem->mkdir(folderPath)) {
+//                 log_debug("Folder %s created", folderPath.c_str());
+//                 return true;
+//             }
+//             else {
+//                 log_debug("Error. Folder %s not created", folderPath.c_str());
+//                 return false;
+//             }
+//         }
+//     }
+//     return false;
+// }
+
+
+bool AsyncFsWebServer::createDirFromPath(const String& path) {
+    String dir;
+    int p1 = 0;  int p2 = 0;
+    while (p2 != -1) {
+        p2 = path.indexOf("/", p1 + 1);
+        dir += path.substring(p1, p2);
+        // Check if its a valid dir
+        if (dir.indexOf(".") == -1) {
+            if (!m_filesystem->exists(dir)) {
+                if (m_filesystem->mkdir(dir)) {
+                    log_info("Folder %s created\n", dir.c_str());
+                } else {
+                    log_info("Error. Folder %s not created\n", dir.c_str());
+                    return false;
+                }
             }
         }
+        p1 = p2;
     }
-    return false;
+    return true;
 }
 
 void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
