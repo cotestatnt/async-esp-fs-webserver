@@ -102,7 +102,6 @@ void setup() {
     IPAddress myIP = server.startWiFi(15000);
     if (!myIP) {
         Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
-        server.startCaptivePortal("ESP_AP", "123456789", "/setup");
         myIP = WiFi.softAPIP();
         captiveRun = true;
     }
@@ -133,8 +132,14 @@ void setup() {
     #elif defined(ESP32)
     configTzTime(MYTZ, "time.google.com", "time.windows.com", "pool.ntp.org");
     #endif
-    // Wait for NTP sync
+
+    // Wait for NTP sync (with timeout)
     getUpdatedtime(5000);
+
+    // Create csv logs folder if not exists
+    if (!LittleFS.exists(basePath)) {
+      LittleFS.mkdir(basePath);
+    }
 }
 
 void loop() {

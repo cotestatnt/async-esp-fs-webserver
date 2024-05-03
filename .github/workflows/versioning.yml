@@ -27,7 +27,7 @@ jobs:
       - name: Overwrite version.h
         uses: "DamianReeves/write-file-action@master"
         with:
-          path: src/version.cpp
+          path: src/Version.cpp
           write-mode: overwrite
           contents: |
             #include "AsyncFsWebServer.h" 

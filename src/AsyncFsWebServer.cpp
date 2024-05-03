@@ -1,18 +1,18 @@
 #include "AsyncFsWebServer.h"
 
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
-    File file = m_filesystem->open(CONFIG_FOLDER, "r");
+    File file = m_filesystem->open(ESP_FS_WS_CONFIG_FOLDER, "r");
     if (!file) {
         log_error("Failed to open /setup directory. Create new folder\n");
-        m_filesystem->mkdir(CONFIG_FOLDER);
+        m_filesystem->mkdir(ESP_FS_WS_CONFIG_FOLDER);
         ESP.restart();
     }
     m_filesystem_ok = true;
 
     // Check if config file exist, and create if necessary
-    file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
+    file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
     if (!file) {
-        file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "w");
+        file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
         file.print("{\"wifi-box\": \"\"}");
         file.close();
     } else
@@ -24,9 +24,11 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     //on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
-    on("/wifistatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
+    on("/getStatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
     on("/clear_config", HTTP_GET, std::bind(&AsyncFsWebServer::clearConfig, this, _1));
+#ifdef    ESP_FS_WS_SETUP_HTM
     on("/setup", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
+#endif
     on("*", HTTP_HEAD, std::bind(&AsyncFsWebServer::handleFileName, this, _1));
 
     on("/upload", HTTP_POST,
@@ -52,12 +54,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         reply += WiFi.RSSI();
         reply += "}";
         request->send(200, "application/json", reply);
-    });
-
-    on("/get_config", HTTP_GET, [](AsyncWebServerRequest *request) {
-        // We need top remove the first "/" char
-        String name = CONFIG_FOLDER CONFIG_FILE;
-        request->send(200, "text/plain", name.substring(1));
     });
 
     onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
@@ -108,7 +104,7 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
 }
 
 void AsyncFsWebServer::enableFsCodeEditor() {
-#ifdef INCLUDE_EDIT_HTM
+#ifdef ESP_FS_WS_EDIT
     using namespace std::placeholders;
     on("/status", HTTP_GET, std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
     on("/list", HTTP_GET, std::bind(&AsyncFsWebServer::handleFileList, this, _1));
@@ -123,20 +119,21 @@ void AsyncFsWebServer::enableFsCodeEditor() {
   }
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
+	WiFi.mode(WIFI_AP);
+	delay(250);
 
-    bool ap = false;
+    m_captiveRun = false;
     if (strlen(pass))
-		ap = WiFi.softAP(ssid, pass);	
+		m_captiveRun = WiFi.softAP(ssid, pass);
 	else
-		ap = WiFi.softAP(ssid);
+		m_captiveRun = WiFi.softAP(ssid);
 
-    if (!ap) {
+    if (!m_captiveRun) {
         log_error("Captive portal failed to start: WiFi.softAP failed!");
         return false;
     }
-
-    // Set AP IP 8.8.8.8 and subnet 255.255.255.0
-    if (! WiFi.softAPConfig(0x08080808, 0x08080808, 0x00FFFFFF)) {
+    // Set AP IP and subnet 255.255.255.0
+    if (! WiFi.softAPConfig(m_captiveIp, m_captiveIp, 0x00FFFFFF)) {
         log_error("Captive portal failed to start: WiFi.softAPConfig failed!");
         WiFi.enableAP(false);
         return false;
@@ -145,13 +142,14 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
     m_dnsServer = new DNSServer();
     if (! m_dnsServer->start(53, "*", WiFi.softAPIP())) {
         log_error("Captive portal failed to start: no sockets for DNS server available!");
-        WiFi.enableAP(false);
-        return false;
+        // WiFi.enableAP(false);
+        // return false;
     }
     m_captive = new CaptiveRequestHandler(redirectTargetURL);
     addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
     log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
-    return true;
+
+    return m_captiveRun;
 }
 
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
@@ -210,19 +208,20 @@ void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
     strcpy(m_pagePswd, pswd);
 }
 
+#ifdef    ESP_FS_WS_SETUP_HTM
 void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
     if (m_pageUser != nullptr) {
         if(!request->authenticate(m_pageUser, m_pagePswd))
             return request->requestAuthentication();
     }
 
-    // AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)SETUP_HTML, SETUP_HTML_SIZE);
     // Changed array name to match SEGGER Bin2C output
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acall_htm, sizeof(_acall_htm));
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acsetup_min_htm, sizeof(_acsetup_min_htm));
     response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("X-Config-File", CONFIG_FOLDER CONFIG_FILE);
+    response->addHeader("X-Config-File", ESP_FS_WS_CONFIG_FILE);
     request->send(response);
 }
+#endif
 
 void AsyncFsWebServer::handleFileName(AsyncWebServerRequest *request) {
     if (m_filesystem->exists(request->url()))
@@ -235,53 +234,48 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
-    // String pathWithGz = request->url() + ".gz";
-    // if (m_filesystem->exists(pathWithGz)) {
-    //     AsyncWebServerResponse *response = request->beginResponse(302, F("text/html"), "");
-    //     response->addHeader("Location", pathWithGz);
-    //     request->send(response);
-    // }
     request->send(404, "text/plain", "Not found");
     log_debug("Resource %s not found\n", request->url().c_str());
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
-    IPAddress ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
-    String reply = "{\"firmware\": \"";
-    reply += m_version;
-    reply += "\", \"mode\":\"";
-    reply += WiFi.status() == WL_CONNECTED ? "Station " + WiFi.SSID() : "Access Point";
-    reply += "\", \"ip\":\"";
-    reply += ip.toString();
-    reply += "\"}";
+    JSON_DOC(256);
+    doc["firmware"] = m_version;
+    doc["mode"] =  WiFi.status() == WL_CONNECTED ? ("Station (" + WiFi.SSID()) +')' : "Access Point";
+    doc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+    doc["path"] = String(ESP_FS_WS_CONFIG_FILE).substring(1);   // remove first '/'
+    doc["liburl"] = LIB_URL;
+    String reply;
+    serializeJson(doc, reply);
     request->send(200, "application/json", reply);
 }
 
+
 void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
-    if (m_filesystem->remove(CONFIG_FOLDER CONFIG_FILE))
+    if (m_filesystem->remove(ESP_FS_WS_CONFIG_FILE))
         request->send(200, "text/plain", "Clear config OK");
     else
         request->send(200, "text/plain", "Clear config not done");
 }
 
+
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
-    setTaskWdt(15000);      // Increase task WDT timeout
     log_info("Start scan WiFi networks");
-    #if defined (ESP8266)
-    wdt_disable();
-    int res = WiFi.scanNetworks();
-    wdt_enable(4000);
-    #else
-    int res = WiFi.scanNetworks(false, false, false, 50);
-    #endif
+    int res = WiFi.scanComplete();
 
-    log_info(" done!\nNumber of networks: %d", res);
-    DynamicJsonDocument doc(res*96);
-    JsonArray array = doc.to<JsonArray>();
-
-    if (res > 0) {
+    if (res == -2){
+        WiFi.scanNetworks(true);
+    }
+    else if (res) {
+        log_info(" done!\nNumber of networks: %d", res);
+        JSON_DOC(res*96);
+        JsonArray array = doc.to<JsonArray>();
         for (int i = 0; i < res; ++i) {
-            JsonObject obj = array.createNestedObject();
+            #if ARDUINOJSON_VERSION_MAJOR > 6
+                JsonObject obj = array.add<JsonObject>();
+            #else
+                JsonObject obj = array.createNestedObject();
+            #endif
             obj["strength"] = WiFi.RSSI(i);
             obj["ssid"] = WiFi.SSID(i);
             #if defined(ESP8266)
@@ -290,30 +284,55 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
             obj["security"] = WIFI_AUTH_OPEN ? "none" : "enabled";
             #endif
         }
+
+        String json;
+        serializeJson(doc, json);
+        request->send(200, "application/json", json);
+        log_debug("%s", json.c_str());
+
         WiFi.scanDelete();
+        if(WiFi.scanComplete() == -2){
+            WiFi.scanNetworks(true);
+        }
     }
-    String json;
-    serializeJson(doc, json);
-    request->send(200, "application/json", json);
-    log_info("%s", json.c_str());
+
+    // The very first request will be empty, reload /scan endpoint
+    request->send(200, "application/json", "{\"reload\" : 1}");
 }
+
+// bool AsyncFsWebServer::createDirFromPath(const String& filePath) {
+//     log_debug("Check path: %s", filePath.c_str());
+//     int lastSlashIndex = filePath.lastIndexOf('/');
+//     if (lastSlashIndex != -1) {
+//         String folderPath = filePath.substring(0, lastSlashIndex + 1);
+//         if (!m_filesystem->exists(folderPath)) {
+//             if (m_filesystem->mkdir(folderPath)) {
+//                 log_debug("Folder %s created", folderPath.c_str());
+//                 return true;
+//             }
+//             else {
+//                 log_debug("Error. Folder %s not created", folderPath.c_str());
+//                 return false;
+//             }
+//         }
+//     }
+//     return false;
+// }
+
 
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
     String dir;
-    int p1 = 0;
-    int p2 = 0;
+    int p1 = 0;  int p2 = 0;
     while (p2 != -1) {
-        p2 = path.indexOf("/", p1+1);
+        p2 = path.indexOf("/", p1 + 1);
         dir += path.substring(p1, p2);
-
         // Check if its a valid dir
         if (dir.indexOf(".") == -1) {
             if (!m_filesystem->exists(dir)) {
                 if (m_filesystem->mkdir(dir)) {
-                    log_info("Folder %s created", dir.c_str());
-                }
-                else {
-                    log_info("Error. Folder %s not created", dir.c_str());
+                    log_info("Folder %s created\n", dir.c_str());
+                } else {
+                    log_info("Error. Folder %s not created\n", dir.c_str());
                     return false;
                 }
             }
@@ -430,11 +449,14 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             #elif defined(ESP32)
                 wifi_config_t stationConf;
                 esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-                // Clear previous configuration
+                // Clear previuos configuration
                 memset(&stationConf, 0, sizeof(stationConf));
                 memcpy(&stationConf.sta.ssid, ssid.c_str(), ssid.length());
                 memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
-                esp_wifi_set_config(WIFI_IF_STA, &stationConf);
+                esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &stationConf);
+                if (err) {
+                    log_error("Set WiFi config: %s", esp_err_to_name(err));
+                }
             #endif
         }
     }
@@ -447,8 +469,9 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         // Manual connection setup
         if (config) {
             log_info("Manual config WiFi connection with IP: %s", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet))
+            if (!WiFi.config(local_ip, gateway, subnet)) {
                 log_error("STA Failed to configure");
+            }
         }
 
         Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
@@ -528,8 +551,6 @@ void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
 }
 
 void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-    static uint8_t otaDone = 0;
-
     if (!m_contentLen) {
         AsyncWebHeader* h = request->getHeader("Content-Length");
         if (h->value().length()) {
@@ -558,12 +579,6 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         if (Update.write(data, len) != len) {
             return request->send(500, "text/plain", "OTA could not begin");
         }
-        static uint32_t pTime = millis();
-        if (millis() - pTime > 500) {
-            pTime = millis();
-            otaDone = 100 * Update.progress() / Update.size();
-            log_info("OTA progress: %d%%", otaDone);
-        }
     }
 
     if (final) { // if the final flag is set then this is the last frame of data
@@ -573,7 +588,6 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
             #elif defined(ESP32)
             Serial.printf("%s\n", Update.errorString());
             #endif
-            otaDone = 0;
             return request->send(500, "text/plain", "Could not end OTA");
         }
         log_info("Update Success.\nRebooting...\n");
@@ -582,14 +596,13 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     }
 }
 
-IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
+IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipAP ) {
     // Check if we need to config wifi connection
     IPAddress local_ip, subnet, gateway;
 
-    File file = m_filesystem->open(CONFIG_FOLDER CONFIG_FILE, "r");
-    int sz = file.size() * 1.33;
-    int docSize = max(sz, 2048);
-    DynamicJsonDocument doc((size_t)docSize);
+    File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
+    JSON_DOC( max((int)(file.size() * 1.33), 2048));
+
     if (file) {
         // If file is present, load actual configuration
         DeserializationError error = deserializeJson(doc, file);
@@ -603,8 +616,9 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
             subnet.fromString(doc["subnet"].as<String>());
             local_ip.fromString(doc["ip_address"].as<String>());
             log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet))
+            if (!WiFi.config(local_ip, gateway, subnet)) {
                 log_error("STA Failed to configure");
+            }
             delay(100);
         }
     }
@@ -612,20 +626,22 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
         log_error("File not found, will be created new configuration file");
     }
 
-
     IPAddress ip (0, 0, 0, 0);
     m_timeout = timeout;
     WiFi.mode(WIFI_STA);
 #if defined(ESP8266)
     struct station_config conf;
     wifi_station_get_config_default(&conf);
-    const char *_ssid = reinterpret_cast<const char *>(conf.ssid);
-    const char *_pass = reinterpret_cast<const char *>(conf.password);
+    const char* _ssid = reinterpret_cast<const char*>(conf.ssid);
+    const char* _pass = reinterpret_cast<const char*>(conf.password);
 #elif defined(ESP32)
     wifi_config_t conf;
-    esp_wifi_get_config(WIFI_IF_STA, &conf);
-    const char *_ssid = reinterpret_cast<const char *>(conf.sta.ssid);
-    const char *_pass = reinterpret_cast<const char *>(conf.sta.password);
+    esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &conf);
+    if (err) {
+        log_error("Get WiFi config: %s", esp_err_to_name(err));
+    }
+    const char* _ssid = reinterpret_cast<const char*>(conf.sta.ssid);
+    const char* _pass = reinterpret_cast<const char*>(conf.sta.password);
 #endif
 
     if (strlen(_ssid) && strlen(_pass)) {
@@ -644,9 +660,12 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
                 ip = WiFi.localIP();
                 return ip;
             }
-            // If no connection after a while go in Access Point mode
+            // If no connection after a while go in Access Point mode (if skipAP == false)
             if (millis() - startTime > m_timeout) {
                 Serial.println("Timeout!");
+
+                // If AP not needed in case of timeout
+                if (skipAP) return IPAddress(0, 0, 0, 0);
                 break;
             }
         }
@@ -654,31 +673,27 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn ) {
 
     // No connection, start AP and then run captive portal
     if (!ip) {
-        char ssid[21];
-        #ifdef ESP8266
-        snprintf(ssid, sizeof(ssid), "ESP-%lX", ESP.getChipId());
-        #elif defined(ESP32)
-        snprintf(ssid, sizeof(ssid), "ESP-%llX", ESP.getEfuseMac());
-        #endif
-        startCaptivePortal((const char*)ssid, "", "/setup");
+        if (!m_apSSID.length()) {
+            char _ssid[21];
+            #ifdef ESP8266
+            snprintf(ssid, sizeof(ssid), "ESP-%dX", ESP.getChipId());
+            #elif defined(ESP32)
+            snprintf(_ssid, sizeof(_ssid), "ESP-%llX", ESP.getEfuseMac());
+            #endif
+            m_apSSID = _ssid;
+        }
+
+        // No connection, start AP and then captive portal
+        startCaptivePortal(m_apSSID.c_str(), m_apPsk.c_str(), "/setup");
+        ip = m_captiveIp;
     }
     return ip;
 }
 
-IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn) {
-    IPAddress ip (0, 0, 0, 0);
-    ip = startWiFi(timeout, fn);
-    if (!ip) {
-        // No connection, start AP and then captive portal
-        startCaptivePortal(apSSID, apPsw, "/setup");
-        ip.fromString("8.8.8.8");
-    }
-    return ip;
-}
 
 
 // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
-#ifdef INCLUDE_EDIT_HTM
+#if ESP_FS_WS_EDIT
 
 void AsyncFsWebServer::handleFileEdit(AsyncWebServerRequest *request) {
     if (m_pageUser != nullptr) {
@@ -707,12 +722,16 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
     }
 
     File root = m_filesystem->open(path, "r");
-    DynamicJsonDocument doc(1024);
+    JSON_DOC(1024);
     JsonArray array = doc.to<JsonArray>();
     if (root.isDirectory()) {
         File file = root.openNextFile();
         while (file) {
+            #if ARDUINOJSON_VERSION_MAJOR > 6
+            JsonObject obj = array.add<JsonObject>();
+            #else
             JsonObject obj = array.createNestedObject();
+            #endif
             String filename = file.name();
             if (filename.lastIndexOf("/") > -1) {
                 filename.remove(0, filename.lastIndexOf("/") + 1);
@@ -823,7 +842,7 @@ void AsyncFsWebServer::deleteContent(String& path) {
     if (entry.isDirectory()) {
       entry.close();
       deleteContent(entryPath);
-    } 
+    }
     else {
       entry.close();
       m_filesystem->remove(entryPath.c_str());
@@ -890,5 +909,5 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     json += PSTR(",\"unsupportedFiles\":\"\"}");
     request->send(200, "application/json", json);
 }
-#endif // INCLUDE_EDIT_HTM
+#endif // ESP_FS_WS_EDIT
 

@@ -2,7 +2,6 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
 
-
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(80, FILESYSTEM, hostname);
@@ -52,7 +51,6 @@ uint16_t tb_port = 80;
 //n.u. #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
 //n.u. struct tm Time;
 
-
 /*
 * Include the custom HTML, CSS and Javascript to be injected in /setup webpage.
 * HTML code will be injected according to the order of options declaration.
@@ -98,7 +96,11 @@ void getFsInfo(fsInfo_t* fsInfo) {
 bool loadOptions() {
   if (FILESYSTEM.exists(server.getConfiFileName())) {
     File file = server.getConfigFile("r");
+#if ARDUINOJSON_VERSION_MAJOR > 6
+    JsonDocument doc;
+#else
     DynamicJsonDocument doc(file.size() * 1.33);
+#endif
     if (!file)
       return false;
 
