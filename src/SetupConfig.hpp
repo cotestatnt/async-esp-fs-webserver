@@ -30,7 +30,7 @@ class SetupConfigurator
                     log_error("Error. File %s not created", ESP_FS_WS_CONFIG_FILE);
                     return false;
                 }
-                file.print("{\"wifi-box\": \"\"}");
+                file.print("{\"wifi-box\": \"\",\"dhcp\":false}");
                 file.close();
             }
             return true;

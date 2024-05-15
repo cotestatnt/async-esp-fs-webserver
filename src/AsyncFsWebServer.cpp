@@ -13,7 +13,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
     if (!file) {
         file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
-        file.print("{\"wifi-box\": \"\"}");
+        file.print("{\"wifi-box\": \"\",\n\t\"dhcp\": false}");
         file.close();
     } else
         file.close();
