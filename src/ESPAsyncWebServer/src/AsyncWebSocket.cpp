@@ -23,10 +23,20 @@
 
 #include <libb64/cencode.h>
 
-#ifndef ESP8266
-#include "mbedtls/sha1.h"
+// #ifndef ESP8266
+// #include "mbedtls/sha1.h"
+// #else
+// #include <Hash.h>
+// #endif
+
+#ifdef ESP8266
+  #include "mbedtls/sha1.h"
 #else
-#include <Hash.h>
+  #if ESP_ARDUINO_VERSION_MAJOR > 2
+    #include "SHA1Builder.h"
+  #else
+    #include <Hash.h>
+  #endif
 #endif
 
 #define MAX_PRINTF_LEN 64
@@ -619,7 +629,7 @@ void AsyncWebSocketClient::_queueMessage(AsyncWebSocketMessage *dataMessage){
     return;
   }
   if(_messageQueue.length() >= WS_MAX_QUEUED_MESSAGES){
-      ets_printf(String(F("ERROR: Too many messages queued\n")).c_str());
+      log_e("ERROR: Too many messages queued");
       // Serial.printf("%u Q3\n", _clientId);
       delete dataMessage;
   } else {
@@ -1349,6 +1359,15 @@ AsyncWebSocketResponse::AsyncWebSocketResponse(const String& key, AsyncWebSocket
 #ifdef ESP8266
   sha1(key + WS_STR_UUID, hash);
 #else
+  #if ESP_ARDUINO_VERSION_MAJOR > 2
+    SHA1Builder  sha1;
+    String input = key + WS_STR_UUID;
+    sha1.begin();
+    sha1.add(input);
+    sha1.calculate();
+    sha1.getBytes(hash);
+  #else
+  
   (String&)key += WS_STR_UUID;
   mbedtls_sha1_context ctx;
   mbedtls_sha1_init(&ctx);
@@ -1356,6 +1375,7 @@ AsyncWebSocketResponse::AsyncWebSocketResponse(const String& key, AsyncWebSocket
   mbedtls_sha1_update_ret(&ctx, (const unsigned char*)key.c_str(), key.length());
   mbedtls_sha1_finish_ret(&ctx, hash);
   mbedtls_sha1_free(&ctx);
+  #endif
 #endif
   base64_encodestate _state;
   base64_init_encodestate(&_state);

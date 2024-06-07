@@ -20,10 +20,16 @@
 */
 #include "WebAuthentication.h"
 #include <libb64/cencode.h>
-#ifdef ESP32
-#include "mbedtls/md5.h"
+
+
+#ifdef ESP8266
+  #include "md5.h"
 #else
-#include "md5.h"
+  #if ESP_ARDUINO_VERSION_MAJOR > 2
+    #include "MD5Builder.h"
+  #else
+    #include "mbedtls/md5.h"
+  #endif
 #endif
 
 
@@ -64,6 +70,16 @@ bool checkBasicAuthentication(const char * hash, const char * username, const ch
   return false;
 }
 
+#if ESP_ARDUINO_VERSION_MAJOR > 2
+static bool getMD5(uint8_t * data, uint16_t len, char * output){
+  MD5Builder md5;
+  md5.begin();
+  md5.add(data, len);
+  md5.calculate();
+  md5.getChars(output);
+  return true;
+}
+#else
 static bool getMD5(uint8_t * data, uint16_t len, char * output){//33 bytes or more
 #ifdef ESP32
     mbedtls_md5_context _ctx;
@@ -91,6 +107,7 @@ static bool getMD5(uint8_t * data, uint16_t len, char * output){//33 bytes or mo
   free(_buf);
   return true;
 }
+#endif
 
 static String genRandomMD5(){
 #ifdef ESP8266
