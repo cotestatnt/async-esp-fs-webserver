@@ -20,23 +20,16 @@
 */
 #include "Arduino.h"
 #include "AsyncWebSocket.h"
-
 #include <libb64/cencode.h>
 
-// #ifndef ESP8266
-// #include "mbedtls/sha1.h"
-// #else
-// #include <Hash.h>
-// #endif
-
-#ifdef ESP8266
-  #include "mbedtls/sha1.h"
-#else
-  #if ESP_ARDUINO_VERSION_MAJOR > 2
-    #include "SHA1Builder.h"
-  #else
-    #include <Hash.h>
-  #endif
+#ifdef ESP8266 
+  #include <Hash.h> 
+#else 
+  #if ESP_ARDUINO_VERSION_MAJOR > 2 
+    #include "SHA1Builder.h" 
+  #else 
+    #include "mbedtls/sha1.h" 
+  #endif 
 #endif
 
 #define MAX_PRINTF_LEN 64
