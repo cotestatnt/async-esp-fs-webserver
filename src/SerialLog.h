@@ -9,11 +9,11 @@ extern "C"
 {
 #endif
 
-#define __FILE_NAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
-#define _LOG_FORMAT(letter, format)  "\n["#letter"][%s:%u] %s():\t" format, __FILE_NAME__, __LINE__, __FUNCTION__
+#define __SOURCE_FILE_NAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#define _LOG_FORMAT(letter, format)  "\n["#letter"][%s:%u] %s():\t" format, __SOURCE_FILE_NAME__, __LINE__, __FUNCTION__
 
 #if LOG_LEVEL == 0
-#define log_error(format, ...) 
+#define log_error(format, ...)
 #define log_info(format, ...)
 #define log_debug(format, ...)
 #endif

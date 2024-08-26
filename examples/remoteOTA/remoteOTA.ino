@@ -27,9 +27,9 @@ uint8_t ledPin = LED_BUILTIN;
 bool apMode = false;
 
 #ifdef ESP8266
-String fimwareInfo = "https://github.com/cotestatnt/async-esp-fs-webserver/raw/main/examples/remoteOTA/version-esp8266.json";
+String fimwareInfo = "https://raw.githubusercontent.com/cotestatnt/async-esp-fs-webserver/master/examples/remoteOTA/version-esp8266.json";
 #elif defined(ESP32)
-String fimwareInfo = "https://github.com/cotestatnt/async-esp-fs-webserver/raw/main/examples/remoteOTA/version-esp32.json";
+String fimwareInfo = "https://raw.githubusercontent.com/cotestatnt/async-esp-fs-webserver/master/examples/remoteOTA/version-esp32.json";
 #endif
 
 char fw_version[10] = {"0.0.0"};
@@ -41,7 +41,16 @@ void doUpdate(const char* url, const char* version) {
   #define UPDATER ESPhttpUpdate
   #elif defined(ESP32)
   #define UPDATER httpUpdate
-  esp_task_wdt_init(30, 1);
+  #if ESP_ARDUINO_VERSION_MAJOR > 2
+  esp_task_wdt_config_t twdt_config = {
+      .timeout_ms = 15*1000,
+      .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,    // Bitmask of all cores
+      .trigger_panic = false,
+  };
+  ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
+  #else
+  ESP_ERROR_CHECK(esp_task_wdt_init(15, 0));
+  #endif
   #endif
 
   // onProgress handling is missing with ESP32 library
@@ -174,21 +183,10 @@ void setup(){
   EEPROM.begin(128);
 
   // Try to connect to flash stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(30000, "ESP_AP", "123456789" );
-  (void) myIP; // return value is not used
-  // WiFi.persistent(true);
-  // WiFi.begin("PuccosNET", "Tole76tnt");
-  // uint32_t beginTime = millis();
-  // while (WiFi.status() != WL_CONNECTED && millis() - beginTime < 30000) {
-  //   delay(500);
-  //   Serial.print(".");
-  // }
+  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789" );
 
   // FILESYSTEM INIT
   startFilesystem();
-
-  // Enable ACE FS file web editor and add FS info callback function
-  server.enableFsCodeEditor();
 
   /*
   * Getting FS info (total and free bytes) is strictly related to
@@ -196,11 +194,14 @@ void setup(){
   */
   #ifdef ESP32
   server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-	fsInfo->fsName = "LittleFS";
-	fsInfo->totalBytes = LittleFS.totalBytes();
-	fsInfo->usedBytes = LittleFS.usedBytes();  
+    fsInfo->fsName = "LittleFS";
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
   });
   #endif
+
+  // Enable ACE FS file web editor and add FS info callback function
+  server.enableFsCodeEditor();
 
   // Add custom handlers to webserver
   server.on("/led", HTTP_GET, handleLed);
@@ -208,6 +209,8 @@ void setup(){
 
   // Add handler as lambda function (just to show a different method)
   server.on("/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.getOptionValue("New firmware JSON", fimwareInfo);
+
     EEPROM.get(0, fw_version);
     if (fw_version[0] == 0xFF) // Still not stored in EEPROM (first run)
       strcpy(fw_version, "0.0.0");
@@ -237,5 +240,5 @@ void setup(){
 
 ///////////////////////////////////  LOOP  ///////////////////////////////////////
 void loop() {
-
+  delay(10);
 }
