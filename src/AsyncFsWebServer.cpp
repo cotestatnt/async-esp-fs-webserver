@@ -676,7 +676,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
         if (!m_apSSID.length()) {
             char _ssid[21];
             #ifdef ESP8266
-            snprintf(ssid, sizeof(ssid), "ESP-%dX", ESP.getChipId());
+            snprintf(_ssid, sizeof(_ssid), "ESP-%dX", ESP.getChipId());
             #elif defined(ESP32)
             snprintf(_ssid, sizeof(_ssid), "ESP-%llX", ESP.getEfuseMac());
             #endif

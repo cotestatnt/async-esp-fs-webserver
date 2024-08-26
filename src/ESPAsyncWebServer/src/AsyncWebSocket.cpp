@@ -20,16 +20,17 @@
 */
 #include "Arduino.h"
 #include "AsyncWebSocket.h"
+#include "../../SerialLog.h"
 #include <libb64/cencode.h>
 
-#ifdef ESP8266 
-  #include <Hash.h> 
-#else 
-  #if ESP_ARDUINO_VERSION_MAJOR > 2 
-    #include "SHA1Builder.h" 
-  #else 
-    #include "mbedtls/sha1.h" 
-  #endif 
+#ifdef ESP8266
+  #include <Hash.h>
+#else
+  #if ESP_ARDUINO_VERSION_MAJOR > 2
+    #include "SHA1Builder.h"
+  #else
+    #include "mbedtls/sha1.h"
+  #endif
 #endif
 
 #define MAX_PRINTF_LEN 64
@@ -622,7 +623,7 @@ void AsyncWebSocketClient::_queueMessage(AsyncWebSocketMessage *dataMessage){
     return;
   }
   if(_messageQueue.length() >= WS_MAX_QUEUED_MESSAGES){
-      log_e("ERROR: Too many messages queued");
+      log_error("ERROR: Too many messages queued");
       // Serial.printf("%u Q3\n", _clientId);
       delete dataMessage;
   } else {
@@ -769,7 +770,7 @@ void AsyncWebSocketClient::_onData(void *pbuf, size_t plen){
       } else if(_pinfo.opcode < 8){//continuation or text/binary frame
         _server->_handleEvent(this, WS_EVT_DATA, (void *)&_pinfo, data, datalen);
         if (_pinfo.final) _pinfo.num = 0;
-        else _pinfo.num += 1;   
+        else _pinfo.num += 1;
       }
     } else {
       //os_printf("frame error: len: %u, index: %llu, total: %llu\n", datalen, _pinfo.index, _pinfo.len);
@@ -1265,14 +1266,14 @@ void AsyncWebSocket::handleRequest(AsyncWebServerRequest *request){
   if((_username.length() && _password.length()) && !request->authenticate(_username.c_str(), _password.c_str())){
     return request->requestAuthentication();
   }
-//////////////////////////////////////////  
+//////////////////////////////////////////
   if(_handshakeHandler != nullptr){
     if(!_handshakeHandler(request)){
       request->send(401);
       return;
     }
   }
-//////////////////////////////////////////  
+//////////////////////////////////////////
   AsyncWebHeader* version = request->getHeader(WS_STR_VERSION);
   if(version->value().toInt() != 13){
     AsyncWebServerResponse *response = request->beginResponse(400);
@@ -1360,7 +1361,7 @@ AsyncWebSocketResponse::AsyncWebSocketResponse(const String& key, AsyncWebSocket
     sha1.calculate();
     sha1.getBytes(hash);
   #else
-  
+
   (String&)key += WS_STR_UUID;
   mbedtls_sha1_context ctx;
   mbedtls_sha1_init(&ctx);
