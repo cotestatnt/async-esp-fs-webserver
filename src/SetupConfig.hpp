@@ -231,7 +231,7 @@ class SetupConfigurator
                 key += numOptions ;
 
             // If key is present and value is the same, we don't need to create/update it.
-            if (doc.containsKey(key.c_str()) && doc[key] != val)
+            if (doc.containsKey(key.c_str()) && doc[key] == val)
                 return;
 
             // if min, max, step != from default, treat this as object in order to set other properties
