@@ -155,7 +155,7 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
         case WS_EVT_CONNECT:
-            client->printf("{\"Websocket connected\": true, \"clients\": %u}", client->id());
+            client->printf("{\"Websocket connected\": true, \"clients\": %lu}", client->id());
             break;
         case WS_EVT_DISCONNECT:
             client->printf("{\"Websocket connected\": false, \"clients\": 0}");
@@ -165,7 +165,7 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
             String msg = "";
             if(info->final && info->index == 0 && info->len == len){
                 //the whole message is in a single frame and we got all of it's data
-                Serial.printf("ws[%s][%u] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+                Serial.printf("ws[%s][%lu] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
                 if (info->opcode == WS_TEXT){
                     for(size_t i=0; i < info->len; i++) {
                         msg += (char) data[i];
@@ -676,7 +676,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
         if (!m_apSSID.length()) {
             char _ssid[21];
             #ifdef ESP8266
-            snprintf(ssid, sizeof(ssid), "ESP-%dX", ESP.getChipId());
+            snprintf(_ssid, sizeof(_ssid), "ESP-%dX", ESP.getChipId());
             #elif defined(ESP32)
             snprintf(_ssid, sizeof(_ssid), "ESP-%llX", ESP.getEfuseMac());
             #endif
@@ -886,7 +886,6 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
         getFsInfo(&info);
     }
     String json;
-    json.reserve(128);
     json = "{\"type\":\"";
     json += info.fsName;
     json += "\", \"isOk\":";

@@ -78,15 +78,18 @@
     function checkNewFirmware () {
       document.getElementById('check-fw').setAttribute('aria-busy', true);
       document.getElementById('current-fw').setAttribute('aria-busy', true);
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(firmware_info);
-
-      fetch(url)
+      console.log(firmware_info);
+      fetch(firmware_info)
       .then(response => response.json())
       .then(obj => {
         if (compareVersion(obj.version, actual_version) === 1) {
           // Prompt the user for confirmation
           if (confirm(`Firmware version ${obj.version} available.\n Are you sure you want to proceed with firmware update?`)) {
             updateFirmware(obj);
+          }
+          else {
+            document.getElementById('check-fw').setAttribute('aria-busy', false);
+            document.getElementById('current-fw').setAttribute('aria-busy', false);
           }
         }
         else {
