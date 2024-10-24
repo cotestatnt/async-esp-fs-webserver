@@ -45,7 +45,6 @@
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
     #include "setup_htm.h"
     #include "SetupConfig.hpp"
-    #include "CaptivePortal.hpp"
 #endif
 
 #define ARDUINOJSON_USE_LONG_LONG 1
@@ -55,6 +54,7 @@
 #else
     #define JSON_DOC(x) DynamicJsonDocument doc((size_t)x)
 #endif
+#include "CaptivePortal.hpp"
 
 #define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
 #define MIN_F -3.4028235E+38
@@ -113,6 +113,7 @@ class AsyncFsWebServer : public AsyncWebServer
     char* m_pageUser = nullptr;
     char* m_pagePswd = nullptr;
     String m_host = "esphost";
+    String m_captiveUrl = "/setup";
 
     uint16_t m_port;
     uint32_t m_timeout = 10000;
@@ -192,10 +193,17 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
       Start WiFi connection, if fails to in AP mode (backward compatibility)
     */
-    IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr) {
+    inline IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr) {
       setAP(apSSID, apPsw, m_captiveIp);
       return startWiFi(timeout, fn);
     }
+
+    /*
+    * Set captive portal endpoint
+    */
+   inline void setCaptiveUrl(const String& url) {
+    m_captiveUrl = url;
+   }
 
     /*
      * Redirect to captive portal if we got a request for another domain.
@@ -217,7 +225,7 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
     * Need to be run in loop to handle DNS requests
     */
-    void updateDNS() {
+    inline void updateDNS() {
       m_dnsServer->processNextRequest();
     }
 
@@ -226,21 +234,21 @@ class AsyncFsWebServer : public AsyncWebServer
     * This it is necessary due to the different implementation of
     * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
     */
-    void setFsInfoCallback(FsInfoCallbackF fsCallback) {
+    inline void setFsInfoCallback(FsInfoCallbackF fsCallback) {
       getFsInfo = fsCallback;
     }
 
     /*
     * Set current firmware version (shown in /setup webpage)
     */
-    void setFirmwareVersion(char* version) {
+    inline void setFirmwareVersion(char* version) {
       strlcpy(m_version, version, sizeof(m_version));
     }
 
     /*
     * Set hostmane
     */
-    void setHostname(const char * host) {
+    inline void setHostname(const char * host) {
       m_host = host;
     }
 
@@ -252,14 +260,14 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
     * Get status of captive portal
     */
-    bool getCaptivePortal() {
+    inline bool getCaptivePortal() {
       return m_captiveRun;
     }
 
     /*
     * Set Access Point SSID and password
     */
-    void setAP(const char *ssid, const char *psk, IPAddress ip = IPAddress(192,168,4,1)) {
+    inline void setAP(const char *ssid, const char *psk, IPAddress ip = IPAddress(192,168,4,1)) {
       m_apSSID = ssid;
       m_apPsk = psk;
       m_captiveIp = ip;
@@ -272,7 +280,7 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
     * Get reference to current config.json file
     */
-    File getConfigFile(const char* mode) {
+    inline File getConfigFile(const char* mode) {
       File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, mode);
       return file;
     }
@@ -280,7 +288,7 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
     * Get complete path of config.json file
     */
-    const char* getConfiFileName() {
+    inline const char* getConfiFileName() {
       return ESP_FS_WS_CONFIG_FILE;
     }
 

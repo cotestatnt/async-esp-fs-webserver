@@ -130,7 +130,6 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
 	else
 		m_captiveRun = WiFi.softAP(ssid);
 
-#if ESP_FS_WS_SETUP_HTM
     if (!m_captiveRun) {
         log_error("Captive portal failed to start: WiFi.softAP failed!");
         return false;
@@ -151,7 +150,7 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
     m_captive = new CaptiveRequestHandler(redirectTargetURL);
     addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
     log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
-#endif
+
     return m_captiveRun;
 }
 
@@ -584,7 +583,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     }
 }
 
-IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipAP ) {
+IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipAP) {
     // Check if we need to config wifi connection
     IPAddress local_ip, subnet, gateway;
 
@@ -674,7 +673,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
         }
 
         // No connection, start AP and then captive portal
-        startCaptivePortal(m_apSSID.c_str(), m_apPsk.c_str(), "/setup");
+        startCaptivePortal(m_apSSID.c_str(), m_apPsk.c_str(), m_captiveUrl.c_str());
         ip = m_captiveIp;
     }
     return ip;
