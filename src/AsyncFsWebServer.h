@@ -3,6 +3,7 @@
 
 #include <FS.h>
 #include <DNSServer.h>
+#include "SerialLog.h"
 #include "ESPAsyncWebServer/src/ESPAsyncWebServer.h"
 
 #ifdef ESP32
@@ -40,27 +41,24 @@
 #endif
 
 #if ESP_FS_WS_SETUP_HTM
-    #define ARDUINOJSON_USE_LONG_LONG 1
+    #define ESP_FS_WS_CONFIG_FOLDER "/config"
+    #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
+    #include "setup_htm.h"
+    #include "SetupConfig.hpp"
+    #include "CaptivePortal.hpp"
+#endif
+
+#define ARDUINOJSON_USE_LONG_LONG 1
     #include <ArduinoJson.h>
 #if ARDUINOJSON_VERSION_MAJOR > 6
     #define JSON_DOC(x) JsonDocument doc
 #else
     #define JSON_DOC(x) DynamicJsonDocument doc((size_t)x)
 #endif
-    #define ESP_FS_WS_CONFIG_FOLDER "/config"
-    #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
-    #define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
 
-    #include "setup_htm.h"
-    #include "SetupConfig.hpp"
-#endif
-
-#include "SerialLog.h"
-#include "CaptivePortal.hpp"
-
-
-// #define MIN_F -3.4028235E+38
-// #define MAX_F 3.4028235E+38
+#define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
+#define MIN_F -3.4028235E+38
+#define MAX_F 3.4028235E+38
 
 typedef struct {
   size_t totalBytes;
@@ -95,7 +93,7 @@ class AsyncFsWebServer : public AsyncWebServer
     void update_second(AsyncWebServerRequest *request);
 
         // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
-#ifdef ESP_FS_WS_EDIT_HTM
+#if ESP_FS_WS_EDIT_HTM
     void deleteContent(String& path) ;
     void handleFileDelete(AsyncWebServerRequest *request);
     void handleFileCreate(AsyncWebServerRequest *request);
@@ -131,15 +129,19 @@ class AsyncFsWebServer : public AsyncWebServer
     bool m_captiveRun = false;
     IPAddress m_captiveIp = IPAddress(192, 168, 4, 1);
 
-  public:
+#if ESP_FS_WS_SETUP
     SetupConfigurator* setup = nullptr;
+#endif
 
+  public:
     AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") :
     AsyncWebServer(port),
     m_filesystem(&fs)
     {
       m_port = port;
-      setup = new SetupConfigurator(m_filesystem);
+#if ESP_FS_WS_SETUP
+    setup = new SetupConfigurator(m_filesystem);
+#endif
       m_ws = new AsyncWebSocket("/ws");
       if (strlen(hostname))
         m_host = hostname;
@@ -200,7 +202,6 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
 
-
     /*
      * get instance of current websocket handler
     */
@@ -227,21 +228,6 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     void setFsInfoCallback(FsInfoCallbackF fsCallback) {
       getFsInfo = fsCallback;
-    }
-
-    /*
-    * Get reference to current config.json file
-    */
-    File getConfigFile(const char* mode) {
-      File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, mode);
-      return file;
-    }
-
-    /*
-    * Get complete path of config.json file
-    */
-    const char* getConfiFileName() {
-      return ESP_FS_WS_CONFIG_FILE;
     }
 
     /*
@@ -282,6 +268,22 @@ class AsyncFsWebServer : public AsyncWebServer
     /////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////   SETUP PAGE CONFIGURATION /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
+#if ESP_FS_WS_SETUP
+    /*
+    * Get reference to current config.json file
+    */
+    File getConfigFile(const char* mode) {
+      File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, mode);
+      return file;
+    }
+
+    /*
+    * Get complete path of config.json file
+    */
+    const char* getConfiFileName() {
+      return ESP_FS_WS_CONFIG_FILE;
+    }
+
     void setSetupPageTitle(const char* title) { setup->addOption("name-logo", title); }
     void addHTML(const char* html, const char* id, bool ow = false) {setup->addHTML(html, id, ow);}
     void addCSS(const char* css, const char* id, bool ow = false){setup->addCSS(css, id, ow);}
@@ -305,6 +307,7 @@ class AsyncFsWebServer : public AsyncWebServer
     template <typename T>
     bool saveOptionValue(const char *lbl, T val) { return setup->saveOptionValue(lbl, val);}
     /////////////////////////////////////////////////////////////////////////////////////////////////
+#endif
 
 };
 

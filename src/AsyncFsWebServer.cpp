@@ -1,6 +1,7 @@
 #include "AsyncFsWebServer.h"
 
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
+#if ESP_FS_WS_SETUP_HTM
     File file = m_filesystem->open(ESP_FS_WS_CONFIG_FOLDER, "r");
     if (!file) {
         log_error("Failed to open /setup directory. Create new folder\n");
@@ -17,6 +18,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         file.close();
     } else
         file.close();
+#endif
 
     //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
     using namespace std::placeholders;
@@ -26,7 +28,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
     on("/getStatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
     on("/clear_config", HTTP_GET, std::bind(&AsyncFsWebServer::clearConfig, this, _1));
-#ifdef    ESP_FS_WS_SETUP_HTM
+#if ESP_FS_WS_SETUP_HTM
     on("/setup", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
 #endif
     on("*", HTTP_HEAD, std::bind(&AsyncFsWebServer::handleFileName, this, _1));
@@ -104,7 +106,7 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
 }
 
 void AsyncFsWebServer::enableFsCodeEditor() {
-#ifdef ESP_FS_WS_EDIT
+#if ESP_FS_WS_EDIT
     using namespace std::placeholders;
     on("/status", HTTP_GET, std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
     on("/list", HTTP_GET, std::bind(&AsyncFsWebServer::handleFileList, this, _1));
@@ -119,15 +121,16 @@ void AsyncFsWebServer::enableFsCodeEditor() {
   }
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
+    m_captiveRun = false;
 	WiFi.mode(WIFI_AP);
 	delay(250);
 
-    m_captiveRun = false;
     if (strlen(pass))
 		m_captiveRun = WiFi.softAP(ssid, pass);
 	else
 		m_captiveRun = WiFi.softAP(ssid);
 
+#if ESP_FS_WS_SETUP_HTM
     if (!m_captiveRun) {
         log_error("Captive portal failed to start: WiFi.softAP failed!");
         return false;
@@ -148,7 +151,7 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
     m_captive = new CaptiveRequestHandler(redirectTargetURL);
     addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
     log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
-
+#endif
     return m_captiveRun;
 }
 
@@ -208,7 +211,7 @@ void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
     strcpy(m_pagePswd, pswd);
 }
 
-#ifdef    ESP_FS_WS_SETUP_HTM
+#if    ESP_FS_WS_SETUP_HTM
 void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
     if (m_pageUser != nullptr) {
         if(!request->authenticate(m_pageUser, m_pagePswd))
@@ -243,7 +246,9 @@ void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     doc["firmware"] = m_version;
     doc["mode"] =  WiFi.status() == WL_CONNECTED ? ("Station (" + WiFi.SSID()) +')' : "Access Point";
     doc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+#if ESP_FS_WS_SETUP
     doc["path"] = String(ESP_FS_WS_CONFIG_FILE).substring(1);   // remove first '/'
+#endif
     doc["liburl"] = LIB_URL;
     String reply;
     serializeJson(doc, reply);
@@ -252,10 +257,12 @@ void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
 
 
 void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
+#if ESP_FS_WS_SETUP
     if (m_filesystem->remove(ESP_FS_WS_CONFIG_FILE))
         request->send(200, "text/plain", "Clear config OK");
     else
         request->send(200, "text/plain", "Clear config not done");
+#endif
 }
 
 
@@ -299,25 +306,6 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     // The very first request will be empty, reload /scan endpoint
     request->send(200, "application/json", "{\"reload\" : 1}");
 }
-
-// bool AsyncFsWebServer::createDirFromPath(const String& filePath) {
-//     log_debug("Check path: %s", filePath.c_str());
-//     int lastSlashIndex = filePath.lastIndexOf('/');
-//     if (lastSlashIndex != -1) {
-//         String folderPath = filePath.substring(0, lastSlashIndex + 1);
-//         if (!m_filesystem->exists(folderPath)) {
-//             if (m_filesystem->mkdir(folderPath)) {
-//                 log_debug("Folder %s created", folderPath.c_str());
-//                 return true;
-//             }
-//             else {
-//                 log_debug("Error. Folder %s not created", folderPath.c_str());
-//                 return false;
-//             }
-//         }
-//     }
-//     return false;
-// }
 
 
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
@@ -600,6 +588,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
     // Check if we need to config wifi connection
     IPAddress local_ip, subnet, gateway;
 
+#if ESP_FS_WS_SETUP
     File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
     JSON_DOC( max((int)(file.size() * 1.33), 2048));
 
@@ -625,6 +614,7 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
     else {
         log_error("File not found, will be created new configuration file");
     }
+#endif
 
     IPAddress ip (0, 0, 0, 0);
     m_timeout = timeout;
