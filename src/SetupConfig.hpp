@@ -141,14 +141,14 @@ class SetupConfigurator
             }
             numOptions++ ;
 
-            // If key is present in json, we don't need to create it.
-            if (doc.containsKey(label))
-                return;
-
-
-            #if ARDUINOJSON_VERSION_MAJOR > 6
+            #if ARDUINOJSON_VERSION_MAJOR > 6                
+                if (doc["value"]) 
+                    return;
                 JsonObject obj = doc[label].to<JsonObject>();
             #else
+                // If key is present in json, we don't need to create it
+                if (doc.containsKey(label))
+                    return;
                 JsonObject obj = doc.createNestedObject(label);
             #endif
 
@@ -231,7 +231,7 @@ class SetupConfigurator
                 key += numOptions ;
 
             // If key is present and value is the same, we don't need to create/update it.
-            if (doc.containsKey(key.c_str()) && doc[key] == val)
+            if (doc[key] == val)
                 return;
 
             // if min, max, step != from default, treat this as object in order to set other properties

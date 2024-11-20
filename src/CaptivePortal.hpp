@@ -30,7 +30,7 @@ public:
 
     const String targetURL;
 
-    bool canHandle(AsyncWebServerRequest *request) override
+    bool canHandle( AsyncWebServerRequest *request) override 
     {
         // redirect if not in wifi client mode (through filter)
         // and request for different host (due to DNS * response)

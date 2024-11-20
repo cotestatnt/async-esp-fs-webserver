@@ -539,7 +539,7 @@ void AsyncFsWebServer::update_second(AsyncWebServerRequest *request) {
 
 void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     if (!m_contentLen) {
-        AsyncWebHeader* h = request->getHeader("Content-Length");
+        const AsyncWebHeader* h = request->getHeader("Content-Length");
         if (h->value().length()) {
             m_contentLen = h->value().toInt();
             log_info("Firmware size: %d", m_contentLen);
