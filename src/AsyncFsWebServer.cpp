@@ -157,7 +157,7 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
         case WS_EVT_CONNECT:
-            client->printf("{\"Websocket connected\": true, \"clients\": %lu}", client->id());
+            client->printf("{\"Websocket connected\": true, \"clients\": %"PRIu32"}", client->id());
             break;
         case WS_EVT_DISCONNECT:
             client->printf("{\"Websocket connected\": false, \"clients\": 0}");
@@ -167,7 +167,7 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
             String msg = "";
             if(info->final && info->index == 0 && info->len == len){
                 //the whole message is in a single frame and we got all of it's data
-                Serial.printf("ws[%s][%lu] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+                Serial.printf("ws[%s][%"PRIu32"] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
                 if (info->opcode == WS_TEXT){
                     for(size_t i=0; i < info->len; i++) {
                         msg += (char) data[i];
@@ -200,6 +200,7 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #else
     ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
     #endif
+    (void*)timeout
     #endif
 }
 

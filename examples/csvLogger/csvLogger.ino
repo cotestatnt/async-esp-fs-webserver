@@ -32,7 +32,7 @@ bool appenRow() {
 
   getLocalTime(&ntpTime, 10);
 
-  char filename[24];
+  char filename[32];
   snprintf(filename, sizeof(filename),
     "%s/%04d_%02d_%02d.csv",
     basePath,
@@ -65,7 +65,7 @@ bool appenRow() {
       );
   #elif defined(ESP8266)
       uint32_t free;
-      uint16_t max;
+      uint32_t max;
       ESP.getHeapStats(&free, &max, nullptr);
       snprintf(row, sizeof(row),
         "%s, %d, %d, %s, %d",
