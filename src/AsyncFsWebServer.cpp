@@ -200,7 +200,7 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #else
     ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
     #endif
-    (void*)timeout
+    (void*)timeout;
     #endif
 }
 
