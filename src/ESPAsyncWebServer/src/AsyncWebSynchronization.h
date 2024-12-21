@@ -26,12 +26,21 @@ public:
   }
 
   bool lock() const {
+  #if ESP_ARDUINO_VERSION_MINOR > 0
+    extern void *pxCurrentTCBs;
+    if (_lockedBy != pxCurrentTCBs) {
+      xSemaphoreTake(_lock, portMAX_DELAY);
+      _lockedBy = pxCurrentTCBs;
+      return true;
+    }
+  #else 
     extern void *pxCurrentTCB;
     if (_lockedBy != pxCurrentTCB) {
       xSemaphoreTake(_lock, portMAX_DELAY);
       _lockedBy = pxCurrentTCB;
       return true;
     }
+  #endif
     return false;
   }
 
