@@ -1,4 +1,4 @@
 #include "AsyncFsWebServer.h" 
 const char* AsyncFsWebServer::getVersion() { 
-	return "1.0.9"; 
+	return "2.0.0"; 
 }
