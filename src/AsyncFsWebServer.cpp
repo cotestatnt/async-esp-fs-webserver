@@ -157,7 +157,7 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
         case WS_EVT_CONNECT:
-            client->printf("{\"Websocket connected\": true, \"clients\": %"PRIu32"}", client->id());
+            client->printf("{\"Websocket connected\": true, \"clients\": %" PRIu32 "}", client->id());
             break;
         case WS_EVT_DISCONNECT:
             client->printf("{\"Websocket connected\": false, \"clients\": 0}");
@@ -167,7 +167,7 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
             String msg = "";
             if(info->final && info->index == 0 && info->len == len){
                 //the whole message is in a single frame and we got all of it's data
-                Serial.printf("ws[%s][%"PRIu32"] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+                Serial.printf("ws[%s][%" PRIu32 "] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
                 if (info->opcode == WS_TEXT){
                     for(size_t i=0; i < info->len; i++) {
                         msg += (char) data[i];
@@ -200,7 +200,7 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #else
     ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
     #endif
-    (void*)timeout
+    (void*)timeout;
     #endif
 }
 
@@ -219,7 +219,7 @@ void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
     }
 
     // Changed array name to match SEGGER Bin2C output
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acsetup_min_htm, sizeof(_acsetup_min_htm));
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acsetup_min_htm, sizeof(_acsetup_min_htm));
     response->addHeader("Content-Encoding", "gzip");
     response->addHeader("X-Config-File", ESP_FS_WS_CONFIG_FILE);
     request->send(response);
@@ -690,7 +690,7 @@ void AsyncFsWebServer::handleFileEdit(AsyncWebServerRequest *request) {
         if(!request->authenticate(m_pageUser, m_pagePswd))
             return request->requestAuthentication();
     }
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)_acedit_min_htm, sizeof(_acedit_min_htm));
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acedit_min_htm, sizeof(_acedit_min_htm));
     response->addHeader("Content-Encoding", "gzip");
     request->send(response);
 }

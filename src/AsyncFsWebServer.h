@@ -4,7 +4,7 @@
 #include <FS.h>
 #include <DNSServer.h>
 #include "SerialLog.h"
-#include "ESPAsyncWebServer/src/ESPAsyncWebServer.h"
+#include "ESPAsyncWebServer.h"
 
 #ifdef ESP32
   #include <Update.h>

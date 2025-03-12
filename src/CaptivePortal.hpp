@@ -15,7 +15,8 @@
 #error "Captive portal needs ESP32 or ESP8266 platform"
 #endif
 #include <DNSServer.h>
-#include <AsyncFsWebServer.h>
+#include "ESPAsyncWebServer.h"
+#include "AsyncFsWebServer.h"
 
 
 // Inspiration: https://github.com/andig/vzero/blob/master/src/webserver.cpp
@@ -30,10 +31,7 @@ public:
 
     const String targetURL;
 
-    bool canHandle( AsyncWebServerRequest *request) override 
-    {
-        // redirect if not in wifi client mode (through filter)
-        // and request for different host (due to DNS * response)
+    bool canHandle(AsyncWebServerRequest *request) const override {
         if (request->host() != WiFi.softAPIP().toString())
             return true;
         else
