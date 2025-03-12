@@ -223,6 +223,13 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
+    * Broadcast a binary websocket message to all clients connected
+    */
+    void wsBroadcastBinary(uint8_t * message, size_t len) {
+      m_ws->binaryAll(message, len);
+    }
+
+    /*
     * Need to be run in loop to handle DNS requests
     */
     inline void updateDNS() {
