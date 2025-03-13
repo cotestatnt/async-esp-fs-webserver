@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>
 
-AsyncFsWebServer server(80, LittleFS, "myServer");
+AsyncFsWebServer server(80, LittleFS, "esphost");
 bool captiveRun = false;
 
 // Timezone definition to get properly time from NTP server
@@ -12,17 +12,16 @@ bool captiveRun = false;
 struct tm ntpTime;
 const char* basePath = "/csv";
 
-
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem(){
   if (LittleFS.begin()){
-        server.printFileList(LittleFS, "/", 2);
-        return true;
+    server.printFileList(LittleFS, "/", 2);
+    return true;
   }
   else {
-        Serial.println("ERROR on mounting filesystem. It will be formmatted!");
-        LittleFS.format();
-        ESP.restart();
+    Serial.println("ERROR on mounting filesystem. It will be formmatted!");
+    LittleFS.format();
+    ESP.restart();
   }
   return false;
 }

@@ -70,10 +70,13 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 
     // Configure and start MDNS responder
     if (!MDNS.begin(m_host.c_str())){
-        log_error("MDNS responder started");
+        log_error("MDNS responder not started");
+    } else {
+        log_debug("MDNS responder started %s", m_host.c_str());
+        MDNS.addService("http", "tcp", m_port);
+        MDNS.setInstanceName("async-fs-webserver");
     }
-    MDNS.addService("http", "tcp", m_port);
-    MDNS.setInstanceName("async-fs-webserver");
+
     return true;
 }
 
