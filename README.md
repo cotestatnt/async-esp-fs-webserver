@@ -1,9 +1,19 @@
 If you like this work, please consider [sponsoring this project!](https://paypal.me/cotesta)
 
 # async-esp-fs-webserver
-ESP32/ESP8266 WebServer, WiFi manager and ACE web editor Arduino library. Based on [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer) from @me-no-dev
+ESP32/ESP8266 WebServer, WiFi manager and ACE web editor Arduino library. Based on [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer) from @ESP32Async
 
 This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/esp-fs-webserver/) Arduino library, but working with the very good **ESPAsyncWebServer** library instead default webserver library.
+
+You need to install the following dependencies. Remove any previously installed clones or old versions, as they may cause conflicts.
+
+https://github.com/ESP32Async/ESPAsyncWebServer
+
+#### ESP32
+https://github.com/ESP32Async/AsyncTCP
+#### ESP8266
+https://github.com/ESP32Async/ESPAsyncTCP
+
 
 **Note**:
 Starting from version 2.0.0 ESP32 core for Arduino introduced the LittlsFS library like ESP8266. The examples in this library is written to work with this for both platform by default. Change according to your needs if you prefer other filesystems.
