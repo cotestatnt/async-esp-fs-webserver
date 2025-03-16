@@ -106,8 +106,11 @@ void setup() {
   // FILESYSTEM INIT
   startFilesystem();
 
-  // Try to connect to flash stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789" );
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+	Serial.println("\nWiFi not connected! Starting AP mode...");
+	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+  }
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
@@ -127,7 +130,7 @@ void setup() {
   // Start server with custom websocket event handler
   server.init(onWsEvent);
   Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(myIP);
+  Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"highcharts.ino\" example.\n"
     "Open /setup page to configure optional parameters.\n"

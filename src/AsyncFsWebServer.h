@@ -7,6 +7,8 @@
 #include "ESPAsyncWebServer.h"
 
 #ifdef ESP32
+  #include <WiFi.h>
+  #include <WiFiAP.h>
   #include <Update.h>
   #include <ESPmDNS.h>
   #include "esp_wifi.h"
@@ -18,9 +20,6 @@
 #else
   #error Platform not supported
 #endif
-
-#define DBG_OUTPUT_PORT     Serial
-#define LOG_LEVEL           3         // (0 disable, 1 error, 2 info, 3 debug)
 
 #ifndef ESP_FS_WS_EDIT
     #define ESP_FS_WS_EDIT              1   //has edit methods
@@ -125,10 +124,7 @@ class AsyncFsWebServer : public AsyncWebServer
     fs::FS* m_filesystem = nullptr;
     FsInfoCallbackF getFsInfo = nullptr;
 
-    String m_apSSID = "";
-    String m_apPsk = "";
-    bool m_captiveRun = false;
-    IPAddress m_captiveIp = IPAddress(192, 168, 4, 1);
+    IPAddress m_serverIp = IPAddress(192, 168, 4, 1);
 
 #if ESP_FS_WS_SETUP
     SetupConfigurator* setup = nullptr;
@@ -161,6 +157,12 @@ class AsyncFsWebServer : public AsyncWebServer
   #endif
 
     /*
+      Get the webserver IP address
+    */
+    inline IPAddress getServerIP() {
+      return m_serverIp;
+    }
+    /*
       Start webserver and bind a websocket event handler (optional)
     */
     bool init(AwsEventHandler wsHandle = nullptr);
@@ -186,24 +188,19 @@ class AsyncFsWebServer : public AsyncWebServer
     void sendOK(AsyncWebServerRequest *request);
 
     /*
-      Start WiFi connection, NO AP mode on fail
+      Start WiFi connection, callback function is called when trying to connect
     */
-    IPAddress startWiFi(uint32_t timeout, CallbackF fn=nullptr, bool skipAP = false) ;
+    bool startWiFi(uint32_t timeout, CallbackF fn=nullptr) ;
 
-    /*
-      Start WiFi connection, if fails to in AP mode (backward compatibility)
-    */
-    inline IPAddress startWiFi(uint32_t timeout, const char *apSSID, const char *apPsw, CallbackF fn=nullptr) {
-      setAP(apSSID, apPsw, m_captiveIp);
-      return startWiFi(timeout, fn);
+
+    [[deprecated("Use startWiFi(timeout) and if it fails, use startCaptivePortal(ssid, pswd) instead.")]]
+    IPAddress startWiFi(uint32_t timeout, const char* ssid, const char* pswd, CallbackF fn = nullptr, const char* redirectTargetURL = nullptr) {
+      if (!startWiFi(timeout, fn)) {
+        delay(100);
+        startCaptivePortal(ssid, pswd, redirectTargetURL == nullptr ? "/setup" : redirectTargetURL);
+      }
+      return m_serverIp;
     }
-
-    /*
-    * Set captive portal endpoint
-    */
-   inline void setCaptiveUrl(const String& url) {
-    m_captiveUrl = url;
-   }
 
     /*
      * Redirect to captive portal if we got a request for another domain.
@@ -263,22 +260,6 @@ class AsyncFsWebServer : public AsyncWebServer
     * Get current library version
     */
     const char* getVersion();
-
-    /*
-    * Get status of captive portal
-    */
-    inline bool getCaptivePortal() {
-      return m_captiveRun;
-    }
-
-    /*
-    * Set Access Point SSID and password
-    */
-    inline void setAP(const char *ssid, const char *psk, IPAddress ip = IPAddress(192,168,4,1)) {
-      m_apSSID = ssid;
-      m_apPsk = psk;
-      m_captiveIp = ip;
-    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////   SETUP PAGE CONFIGURATION /////////////////////////////////////////

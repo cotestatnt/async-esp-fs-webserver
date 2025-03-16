@@ -122,41 +122,6 @@ void AsyncFsWebServer::enableFsCodeEditor() {
     );
 #endif
   }
-
-bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
-    m_captiveRun = false;
-	WiFi.mode(WIFI_AP);
-	delay(250);
-
-    if (strlen(pass))
-		m_captiveRun = WiFi.softAP(ssid, pass);
-	else
-		m_captiveRun = WiFi.softAP(ssid);
-
-    if (!m_captiveRun) {
-        log_error("Captive portal failed to start: WiFi.softAP failed!");
-        return false;
-    }
-    // Set AP IP and subnet 255.255.255.0
-    if (! WiFi.softAPConfig(m_captiveIp, m_captiveIp, 0x00FFFFFF)) {
-        log_error("Captive portal failed to start: WiFi.softAPConfig failed!");
-        WiFi.enableAP(false);
-        return false;
-    }
-
-    m_dnsServer = new DNSServer();
-    if (! m_dnsServer->start(53, "*", WiFi.softAPIP())) {
-        log_error("Captive portal failed to start: no sockets for DNS server available!");
-        // WiFi.enableAP(false);
-        // return false;
-    }
-    m_captive = new CaptiveRequestHandler(redirectTargetURL);
-    addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
-    log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
-
-    return m_captiveRun;
-}
-
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
         case WS_EVT_CONNECT:
@@ -203,7 +168,7 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     #else
     ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
     #endif
-    (void*)timeout;
+    (void)timeout;
     #endif
 }
 
@@ -390,10 +355,11 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     /*
     *  If we are already connected and a new SSID is needed, once the ESP will join the new network,
     *  /setup web page will no longer be able to communicate with ESP and therefore
-    *  it will not be possible to inform the user about the new IP address.
+    *  it will not be possible to inform the user about the new IP address.\
     *  Inform and prompt the user for a confirmation (if OK, the next request will force disconnect variable)
     */
-    if (WiFi.status() == WL_CONNECTED && !newSSID) {
+    if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_MODE_AP) {
+        log_debug("WiFi status %d", WiFi.status());
         char resp[512];
         snprintf(resp, sizeof(resp),
             "ESP is already connected to <b>%s</b> WiFi!<br>"
@@ -419,42 +385,53 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
                 wifi_station_set_config(&stationConf);
             #elif defined(ESP32)
                 wifi_config_t stationConf;
-                esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-                // Clear previous configuration
-                memset(&stationConf, 0, sizeof(stationConf));
-                esp_wifi_set_config(WIFI_IF_STA, &stationConf);
+                esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &stationConf);
+                if (err == ESP_OK) {
+                    // Clear previuos configuration
+                    memset(&stationConf, 0, sizeof(stationConf));
+                    // Store actual configuration
+                    memcpy(&stationConf.sta.ssid, ssid.c_str(), ssid.length());
+                    memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
+                    err = esp_wifi_set_config(WIFI_IF_STA, &stationConf);
+                    if (err) {
+                        log_error("Set WiFi config: %s", esp_err_to_name(err));
+                    }
+                } 
             #endif
         }
         else {
             // Store current WiFi configuration in flash
             WiFi.persistent(true);
-            #if defined(ESP8266)
-                struct station_config stationConf;
-                wifi_station_get_config_default(&stationConf);
-                // Clear previous configuration
-                memset(&stationConf, 0, sizeof(stationConf));
-                os_memcpy(&stationConf.ssid, ssid.c_str(), ssid.length());
-                os_memcpy(&stationConf.password, pass.c_str(), pass.length());
-                wifi_set_opmode(STATION_MODE);
-                wifi_station_set_config(&stationConf);
-            #elif defined(ESP32)
-                wifi_config_t stationConf;
-                esp_wifi_get_config(WIFI_IF_STA, &stationConf);
+#if defined(ESP8266)
+            struct station_config stationConf;
+            wifi_station_get_config_default(&stationConf);
+            // Clear previous configuration
+            memset(&stationConf, 0, sizeof(stationConf));
+            os_memcpy(&stationConf.ssid, ssid.c_str(), ssid.length());
+            os_memcpy(&stationConf.password, pass.c_str(), pass.length());
+            wifi_set_opmode(STATION_MODE);
+            wifi_station_set_config(&stationConf);
+#elif defined(ESP32)
+            wifi_config_t stationConf;
+            esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &stationConf);
+            if (err == ESP_OK) {
                 // Clear previuos configuration
                 memset(&stationConf, 0, sizeof(stationConf));
+                // Store actual configuration
                 memcpy(&stationConf.sta.ssid, ssid.c_str(), ssid.length());
                 memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
-                esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &stationConf);
+                err = esp_wifi_set_config(WIFI_IF_STA, &stationConf);
                 if (err) {
                     log_error("Set WiFi config: %s", esp_err_to_name(err));
                 }
-            #endif
+            }
+#endif
         }
     }
 
     // Connect to the provided SSID
     if (ssid.length() && pass.length()) {
-        setTaskWdt(m_timeout + 1000);
+        setTaskWdt(m_timeout + 5000);
         WiFi.mode(WIFI_AP_STA);
 
         // Manual connection setup
@@ -478,11 +455,11 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         while (WiFi.status() != WL_CONNECTED) {
             delay(250);
             Serial.print("*");
-            #if defined(ESP8266)
+#if defined(ESP8266)
             ESP.wdtFeed();
-            #else
+#else
             esp_task_wdt_reset();
-            #endif
+#endif
             if (millis() - beginTime > m_timeout) {
                 request->send(408, "text/plain", "<br><br>Connection timeout!<br>Check password or try to restart ESP.");
                 delay(100);
@@ -509,6 +486,8 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             );
             log_debug("%s", resp);
             request->send(200, "application/json", resp);
+            setTaskWdt(8000);
+            return;
         }
     }
     setTaskWdt(8000);
@@ -587,7 +566,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     }
 }
 
-IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipAP) {
+bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
     // Check if we need to config wifi connection
     IPAddress local_ip, subnet, gateway;
 
@@ -619,9 +598,8 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
     }
 #endif
 
-    IPAddress ip (0, 0, 0, 0);
     m_timeout = timeout;
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_MODE_STA);
 #if defined(ESP8266)
     struct station_config conf;
     wifi_station_get_config_default(&conf);
@@ -632,57 +610,93 @@ IPAddress AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn, bool skipA
     esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &conf);
     if (err) {
         log_error("Get WiFi config: %s", esp_err_to_name(err));
-    }
+        return false;
+    } 
     const char* _ssid = reinterpret_cast<const char*>(conf.sta.ssid);
     const char* _pass = reinterpret_cast<const char*>(conf.sta.password);
 #endif
 
     if (strlen(_ssid) && strlen(_pass)) {
         WiFi.begin(_ssid, _pass);
-        Serial.print(F("Connecting to "));
-        Serial.println(_ssid);
-        uint32_t startTime = millis();
-        while (WiFi.status() != WL_CONNECTED) {
-            // execute callback function during wifi connection
-            if (fn != nullptr)
-                fn();
+        log_debug("Connecting to %s, %s", _ssid, _pass);
 
-            delay(250);
-            Serial.print(".");
-            if (WiFi.status() == WL_CONNECTED) {
-                ip = WiFi.localIP();
-                return ip;
-            }
-            // If no connection after a while go in Access Point mode (if skipAP == false)
-            if (millis() - startTime > m_timeout) {
-                Serial.println("Timeout!");
+        // uint32_t startTime = millis();
+        // while (WiFi.status() != WL_CONNECTED) {
+        //     // execute callback function during wifi connection
+        //     if (fn != nullptr) fn();
 
-                // If AP not needed in case of timeout
-                if (skipAP) return IPAddress(0, 0, 0, 0);
+        //     Serial.print(".");
+
+        //     if (WiFi.status() == WL_CONNECTED) {
+        //         m_serverIp = WiFi.localIP();
+        //         return m_serverIp;
+        //     }
+
+        //     // If no connection after a while go in Access Point mode (if skipAP == false)
+        //     if (millis() - startTime > m_timeout) {
+        //         log_debug(" timeout!");
+        //         return false;
+        //     }
+        // }
+
+        // Will try for some time
+        int tryDelay = timeout / 10;
+        int numberOfTries = 10;
+
+        // Wait for the WiFi event
+        while (true) {
+            switch (WiFi.status()) {
+            case WL_NO_SSID_AVAIL:   log_debug("[WiFi] SSID not found"); break;
+            case WL_CONNECTION_LOST: log_debug("[WiFi] Connection was lost"); break;
+            case WL_SCAN_COMPLETED:  log_debug("[WiFi] Scan is completed"); break;
+            case WL_DISCONNECTED:    log_debug("[WiFi] WiFi is disconnected"); break;            
+            case WL_CONNECT_FAILED:
+                log_debug("[WiFi] Failed - WiFi not connected!");
+                return false;          
+            case WL_CONNECTED:
+                log_debug("[WiFi] WiFi is connected!  IP address: %s", WiFi.localIP().toString().c_str());
+                return true;
+            default:
+                log_debug("[WiFi] WiFi Status: %d", WiFi.status());
                 break;
             }
+            delay(tryDelay);
+            if (numberOfTries <= 0) {
+                log_debug("[WiFi] Failed to connect to WiFi!");
+                WiFi.disconnect();  // Use disconnect function to force stop trying to connect
+                return false;
+            } 
+            else {
+                numberOfTries--;
+            }
         }
     }
-
-    // No connection, start AP and then run captive portal
-    if (!ip) {
-        if (!m_apSSID.length()) {
-            char _ssid[21];
-            #ifdef ESP8266
-            snprintf(_ssid, sizeof(_ssid), "ESP-%dX", ESP.getChipId());
-            #elif defined(ESP32)
-            snprintf(_ssid, sizeof(_ssid), "ESP-%llX", ESP.getEfuseMac());
-            #endif
-            m_apSSID = _ssid;
-        }
-
-        // No connection, start AP and then captive portal
-        startCaptivePortal(m_apSSID.c_str(), m_apPsk.c_str(), m_captiveUrl.c_str());
-        ip = m_captiveIp;
-    }
-    return ip;
+    return false;
 }
 
+
+
+bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
+    // Start AP mode
+    delay(100);
+    WiFi.mode(WIFI_AP);
+    if (!WiFi.softAP(ssid, pass)) {
+        log_error("Captive portal failed to start: WiFi.softAP() failed!");
+        return false;
+    }
+    m_serverIp = WiFi.softAPIP();
+
+    m_dnsServer = new DNSServer();
+    if (! m_dnsServer->start(53, "*", WiFi.softAPIP())) {
+        log_error("Captive portal failed to start: no sockets for DNS server available!");
+        return false;
+    }
+    m_captive = new CaptiveRequestHandler(redirectTargetURL);
+    addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
+    log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
+
+    return true;
+}
 
 
 // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable

@@ -88,12 +88,12 @@ void setup() {
     delay(1000);
     startFilesystem();
 
-    IPAddress myIP = server.startWiFi(15000);
-    if (!myIP) {
-        Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
-        myIP = WiFi.softAPIP();
-        captiveRun = true;
-    }
+	// Try to connect to WiFi (will start AP if not connected after timeout)
+	if (!server.startWiFi(10000)) {
+		Serial.println("\nWiFi not connected! Starting AP mode...");
+		server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+		captiveRun = true;
+	}
 
     // Enable ACE FS file web editor and add FS info callback fucntion
     server.enableFsCodeEditor();
@@ -108,7 +108,7 @@ void setup() {
     // Start server
     server.init();
     Serial.print(F("Async ESP Web Server started on IP Address: "));
-    Serial.println(myIP);
+    Serial.println(server.getServerIP());
     Serial.println(F(
         "This is \"scvLogger.ino\" example.\n"
         "Open /setup page to configure optional parameters.\n"

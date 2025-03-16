@@ -61,21 +61,14 @@ void setup() {
 
     // Init and start LittleFS file system
     startFilesystem();
+	
+	// Try to connect to WiFi (will start AP if not connected after timeout)
+	if (!server.startWiFi(10000)) {
+		Serial.println("\nWiFi not connected! Starting AP mode...");
+		server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+		captiveRun = true;
+	}
    
-    // Try to connect to stored SSID, start AP with captive portal if fails after timeout
-    IPAddress myIP = server.startWiFi(15000);
-    if (!myIP) {
-        Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
-        myIP = WiFi.softAPIP();
-        Serial.print("My IP 1 ");
-        Serial.println(myIP.toString());
-        server.startCaptivePortal("ESP_AP", "123456789", "/setup");
-        myIP = WiFi.softAPIP();
-        Serial.print("\nMy IP 2 ");
-        Serial.println(myIP.toString());
-        captiveRun = true;
-    }
-
     // Set a custom /setup page title
     server.setSetupPageTitle("Simple Async FS Captive Web Server");
 
@@ -91,7 +84,7 @@ void setup() {
     // Start server
     server.init();
     Serial.print(F("Async ESP Web Server started on IP Address: "));
-    Serial.println(myIP);
+    Serial.println(server.getServerIP());
     Serial.println(F(
         "This is \"simpleServerCaptive.ino\" example.\n"
         "Open /setup page to configure optional parameters.\n"

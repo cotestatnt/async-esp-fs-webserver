@@ -214,8 +214,23 @@ void setup() {
   // FILESYSTEM INIT
   startFilesystem();
 
-  // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789");
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+    Serial.println("\nWiFi not connected! Starting AP mode...");
+    char ssid[21];
+#ifdef defined(ESP8266)
+    snprintf(ssid, sizeof(ssid), "ESP-%dX", ESP.getChipId());
+#elif defined(ESP32)
+    snprintf(ssid, sizeof(ssid), "ESP-%llX", ESP.getEfuseMac());
+#endif
+    server.startCaptivePortal(ssid, "123456789", "/setup");
+  }
+  
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+	Serial.println("\nWiFi not connected! Starting AP mode...");
+	server.startCaptivePortal("ESP_AP", "12345678", "/setup");
+  }
 
   // Add custom page handlers
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -237,7 +252,7 @@ void setup() {
   server.init(onWsEvent);
 
   Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(WiFi.localIP());
+  Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"BinaryWebSocket.ino\" example.\n"
     "Open /setup page to configure optional parameters.\n"

@@ -85,12 +85,15 @@ bool startFilesystem() {
 
 void setup(){
   Serial.begin(115200);
-
-  // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789" );
-
+  
   // FILESYSTEM INIT
   startFilesystem();
+
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+	Serial.println("\nWiFi not connected! Starting AP mode...");
+	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+  }
 
   // Add custom page handlers to webserver
   server.on("/getDefault", HTTP_GET, getDefaultValue);
@@ -115,7 +118,7 @@ void setup(){
   // Start server
   server.init();
   Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(myIP);
+  Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"handleFormData.ino\" example.\n"
     "Open /setup page to configure optional parameters.\n"

@@ -42,8 +42,12 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
 
-  // Try to connect to flash stored SSID, start AP if fails after timeout
-  server.startWiFi(15000, "ESP32CAM", "123456789");
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+	Serial.println("\nWiFi not connected! Starting AP mode...");
+	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+  }
+  
   // Sync time with NTP
   configTzTime(MYTZ, "time.google.com", "time.windows.com", "pool.ntp.org");
 
@@ -78,7 +82,7 @@ void setup() {
   // Start server with built-in websocket event handler
   server.init();
   Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(WiFi.localIP());
+  Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"remoteOTA.ino\" example.\n"
     "Open /setup page to configure optional parameters.\n"

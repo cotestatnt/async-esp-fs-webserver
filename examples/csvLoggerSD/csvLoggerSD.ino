@@ -12,6 +12,7 @@
 
 
 AsyncFsWebServer server(80, SD, "myServer");
+bool captiveRun = false;
 struct tm ntpTime;
 const char* basePath = "/csv";
 
@@ -107,8 +108,12 @@ void setup() {
     SD.mkdir(basePath);
   }
 
-  server.setAP("ESP32_CSVLOGGER", "123456789");
-  IPAddress myIP = server.startWiFi(15000);
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+	Serial.println("\nWiFi not connected! Starting AP mode...");
+	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+	captiveRun = true;
+  }
 
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
@@ -123,7 +128,7 @@ void setup() {
   // Start server
   server.init();
   Serial.print(F("\nAsync ESP Web Server started on IP Address: "));
-  Serial.println(myIP);
+  Serial.println(server.getServerIP());
   Serial.println(F(
       "This is \"scvLoggerSdFat.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"
@@ -144,7 +149,7 @@ void setup() {
 }
 
 void loop() {
-  if (server.getCaptivePortal())
+  if (captiveRun)
     server.updateDNS();
 
   static uint32_t updateTime;
