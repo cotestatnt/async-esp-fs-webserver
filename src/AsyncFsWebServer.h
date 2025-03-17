@@ -116,6 +116,11 @@ class AsyncFsWebServer : public AsyncWebServer
 
     uint16_t m_port;
     uint32_t m_timeout = 10000;
+#if defined(ESP32)
+    uint32_t m_watchdogTime = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
+#else
+    uint32_t m_watchdogTime = 10000;
+#endif
     size_t m_contentLen = 0;
 
     char m_version[16] = {__TIME__};

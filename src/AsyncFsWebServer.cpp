@@ -214,6 +214,7 @@ void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     doc["firmware"] = m_version;
     doc["mode"] =  WiFi.status() == WL_CONNECTED ? ("Station (" + WiFi.SSID()) +')' : "Access Point";
     doc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+    doc["hostname"] = m_host;
 #if ESP_FS_WS_SETUP
     doc["path"] = String(ESP_FS_WS_CONFIG_FILE).substring(1);   // remove first '/'
 #endif
@@ -269,6 +270,8 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
         if(WiFi.scanComplete() == -2){
             WiFi.scanNetworks(true);
         }
+
+        return;
     }
 
     // The very first request will be empty, reload /scan endpoint
@@ -323,7 +326,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 
     if (final) {
         // Restore task WDT timeout
-        setTaskWdt(8000);
+        setTaskWdt(m_watchdogTime);
         // close the file handle as the upload is now done
         request->_tempFile.close();
         log_debug("Upload complete: %s, size: %d", filename.c_str(), index + len);
@@ -396,7 +399,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
                     if (err) {
                         log_error("Set WiFi config: %s", esp_err_to_name(err));
                     }
-                } 
+                }
             #endif
         }
         else {
@@ -470,27 +473,30 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         // reply to client
         if (WiFi.status() == WL_CONNECTED) {
             // WiFi.softAPdisconnect();
-            IPAddress ip = WiFi.localIP();
+
+            m_serverIp = WiFi.localIP();
             Serial.print(F("\nConnected to Wifi! IP address: "));
-            Serial.println(ip);
+            Serial.println(m_serverIp);
             String serverLoc = F("http://");
             for (int i = 0; i < 4; i++)
-                serverLoc += i ? "." + String(ip[i]) : String(ip[i]);
+                serverLoc += i ? "." + String(m_serverIp[i]) : String(m_serverIp[i]);
             serverLoc += "/setup";
 
             char resp[256];
             snprintf(resp, sizeof(resp),
                 "ESP successfully connected to %s WiFi network. <br><b>Restart ESP now?</b>"
-                "<br><br><i>Note: disconnect your browser from ESP AP and then reload <a href='%s'>%s</a></i>",
-                ssid.c_str(), serverLoc.c_str(), serverLoc.c_str()
+                "<br><br><i>Note: disconnect your browser from ESP AP and then reload "
+                "<a href='%s'>%s</a> or <a href='http://%s.local'>http://%s.local</a></i>",
+                ssid.c_str(), serverLoc.c_str(), serverLoc.c_str(), m_host.c_str(), m_host.c_str()
             );
+
             log_debug("%s", resp);
             request->send(200, "application/json", resp);
-            setTaskWdt(8000);
+            setTaskWdt(m_watchdogTime);
             return;
         }
     }
-    setTaskWdt(8000);
+    setTaskWdt(m_watchdogTime);
     request->send(401, "text/plain", "Wrong credentials provided");
 }
 
@@ -562,7 +568,7 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
         }
         log_info("Update Success.\nRebooting...\n");
         // restore task WDT timeout
-        setTaskWdt(8000);
+        setTaskWdt(m_watchdogTime);
     }
 }
 
@@ -611,7 +617,7 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
     if (err) {
         log_error("Get WiFi config: %s", esp_err_to_name(err));
         return false;
-    } 
+    }
     const char* _ssid = reinterpret_cast<const char*>(conf.sta.ssid);
     const char* _pass = reinterpret_cast<const char*>(conf.sta.password);
 #endif
@@ -649,12 +655,13 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
             case WL_NO_SSID_AVAIL:   log_debug("[WiFi] SSID not found"); break;
             case WL_CONNECTION_LOST: log_debug("[WiFi] Connection was lost"); break;
             case WL_SCAN_COMPLETED:  log_debug("[WiFi] Scan is completed"); break;
-            case WL_DISCONNECTED:    log_debug("[WiFi] WiFi is disconnected"); break;            
+            case WL_DISCONNECTED:    log_debug("[WiFi] WiFi is disconnected"); break;
             case WL_CONNECT_FAILED:
                 log_debug("[WiFi] Failed - WiFi not connected!");
-                return false;          
+                return false;
             case WL_CONNECTED:
                 log_debug("[WiFi] WiFi is connected!  IP address: %s", WiFi.localIP().toString().c_str());
+                m_serverIp = WiFi.localIP();
                 return true;
             default:
                 log_debug("[WiFi] WiFi Status: %d", WiFi.status());
@@ -665,7 +672,7 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
                 log_debug("[WiFi] Failed to connect to WiFi!");
                 WiFi.disconnect();  // Use disconnect function to force stop trying to connect
                 return false;
-            } 
+            }
             else {
                 numberOfTries--;
             }
