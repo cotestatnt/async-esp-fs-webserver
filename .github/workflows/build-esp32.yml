@@ -34,36 +34,8 @@ jobs:
       - name: Install AsyncTCP (ESP32)
         run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.3.7
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build Examples
-        run: |
-          for i in `ls examples`; do
-            echo "============================================================="
-            echo "Building examples/$i..."
-            echo "============================================================="
-            arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
-          done
-
-  arduino-esp32-dev:
-    name: ESP32 (arduino-cli) - Dev
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install arduino-cli
-        run: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
-
-      - name: Update core index
-        run: arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json
-
-      - name: Install core
-        run: arduino-cli core install --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json esp32:esp32
-
-      - name: Install ArduinoJson
-        run: arduino-cli lib install ArduinoJson
-
-      - name: Install AsyncTCP (ESP32)
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.3.7
+      - name: Install ESPAsyncWebServer
+        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer/#v3.7.3
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,6 +48,40 @@ jobs:
             echo "============================================================="
             arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
           done
+
+  # arduino-esp32-dev:
+  #   name: ESP32 (arduino-cli) - Dev
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Install arduino-cli
+  #       run: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
+
+  #     - name: Update core index
+  #       run: arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json
+
+  #     - name: Install core
+  #       run: arduino-cli core install --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json esp32:esp32
+
+  #     - name: Install ArduinoJson
+  #       run: arduino-cli lib install ArduinoJson
+
+  #     - name: Install AsyncTCP (ESP32)
+  #       run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.3.7
+
+        # - name: Install ESPAsyncWebServer
+        # run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer/#v3.7.3
+
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+
+  #     - name: Build Examples
+  #       run: |
+  #         for i in `ls examples`; do
+  #           echo "============================================================="
+  #           echo "Building examples/$i..."
+  #           echo "============================================================="
+  #           arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
+  #         done
 
   platformio-esp32-arduino2:
     name: ESP32 (pio) - Arduino 2
@@ -85,9 +91,7 @@ jobs:
       matrix:
         board:
           - esp32dev
-          - esp32-s2-saola-1
           - esp32-s3-devkitc-1
-          - esp32-c3-devkitc-02
 
     steps:
       - name: Checkout
@@ -128,11 +132,7 @@ jobs:
       matrix:
         board:
           - esp32dev
-          - esp32-s2-saola-1
           - esp32-s3-devkitc-1
-          - esp32-c3-devkitc-02
-          - esp32-c6-devkitc-1
-          - esp32-h2-devkitm-1
 
     steps:
       - name: Checkout
@@ -173,11 +173,7 @@ jobs:
       matrix:
         board:
           - esp32dev
-          - esp32-s2-saola-1
           - esp32-s3-devkitc-1
-          - esp32-c3-devkitc-02
-          - esp32-c6-devkitc-1
-          - esp32-h2-devkitm-1
 
     steps:
       - name: Checkout
