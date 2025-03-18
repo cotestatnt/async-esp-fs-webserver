@@ -6,6 +6,10 @@
 #include "soc/soc.h"          // Brownout error fix
 #include "soc/rtc_cntl_reg.h" // Brownout error fix
 
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  #include "soc/soc_caps.h"
+#endif
+
 #define FILESYSTEM SD_MMC
 AsyncFsWebServer server(80, FILESYSTEM);
 
@@ -35,19 +39,23 @@ void setup() {
 
   // Flash LED setup
   pinMode(LAMP_PIN, OUTPUT);                      // set the lamp pin as output
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcAttach(LAMP_PIN, 1000, 8);
+#else
   ledcSetup(lampChannel, pwmfreq, pwmresolution); // configure LED PWM channel
+  ledcAttachPin(LAMP_PIN, lampChannel);
+#endif
   setLamp(0);                                     // set default value
-  ledcAttachPin(LAMP_PIN, lampChannel);           // attach the GPIO pin to the channel
 
   Serial.begin(115200);
   Serial.println();
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
-	Serial.println("\nWiFi not connected! Starting AP mode...");
-	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+    Serial.println("\nWiFi not connected! Starting AP mode...");
+    server.startCaptivePortal("ESP32CAM_AP", "123456789", "/setup");
   }
-  
+
   // Sync time with NTP
   configTzTime(MYTZ, "time.google.com", "time.windows.com", "pool.ntp.org");
 
@@ -81,7 +89,7 @@ void setup() {
 
   // Start server with built-in websocket event handler
   server.init();
-  Serial.print(F("ESP Web Server started on IP Address: "));
+  Serial.print(F("\nESP Web Server started on IP Address: "));
   Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"remoteOTA.ino\" example.\n"
