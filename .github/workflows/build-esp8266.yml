@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
-name: Build (8266)
+name: Build (ESP8266)
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Examples
         run: |          
-          EXCLUDE_EXAMPLES="esp32-cam"
+          EXCLUDE_EXAMPLES="esp32-cam binaryWebSocket"
           
           for i in `ls examples`; do
             # skip excluded examples
@@ -91,7 +91,7 @@ jobs:
 
       - name: Build Examples
         run: |          
-          EXCLUDE_EXAMPLES="esp32-cam"
+          EXCLUDE_EXAMPLES="esp32-cam binaryWebSocket"
           
           for i in `ls examples`; do
             # skip excluded examples
