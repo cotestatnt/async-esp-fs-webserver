@@ -337,6 +337,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     String ssid, pass;
     IPAddress gateway, subnet, local_ip;
     bool config = false,  newSSID = false;
+    char resp[512] = {0};
 
     if (request->hasArg("ip_address") && request->hasArg("subnet") && request->hasArg("gateway")) {
         gateway.fromString(request->arg("gateway"));
@@ -363,7 +364,6 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     */
     if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_MODE_AP) {
         log_debug("WiFi status %d", WiFi.status());
-        char resp[512];
         snprintf(resp, sizeof(resp),
             "ESP is already connected to <b>%s</b> WiFi!<br>"
             "Do you want close this connection and attempt to connect to <b>%s</b>?"
@@ -481,8 +481,6 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             for (int i = 0; i < 4; i++)
                 serverLoc += i ? "." + String(m_serverIp[i]) : String(m_serverIp[i]);
             serverLoc += "/setup";
-
-            char resp[256];
             snprintf(resp, sizeof(resp),
                 "ESP successfully connected to %s WiFi network. <br><b>Restart ESP now?</b>"
                 "<br><br><i>Note: disconnect your browser from ESP AP and then reload "
