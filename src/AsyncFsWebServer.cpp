@@ -362,7 +362,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     *  it will not be possible to inform the user about the new IP address.\
     *  Inform and prompt the user for a confirmation (if OK, the next request will force disconnect variable)
     */
-    if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_MODE_AP) {
+    if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_AP) {
         log_debug("WiFi status %d", WiFi.status());
         snprintf(resp, sizeof(resp),
             "ESP is already connected to <b>%s</b> WiFi!<br>"
@@ -603,7 +603,7 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
 #endif
 
     m_timeout = timeout;
-    WiFi.mode(WIFI_MODE_STA);
+    WiFi.mode(WIFI_STA);
 #if defined(ESP8266)
     struct station_config conf;
     wifi_station_get_config_default(&conf);
@@ -623,25 +623,6 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
     if (strlen(_ssid) && strlen(_pass)) {
         WiFi.begin(_ssid, _pass);
         log_debug("Connecting to %s, %s", _ssid, _pass);
-
-        // uint32_t startTime = millis();
-        // while (WiFi.status() != WL_CONNECTED) {
-        //     // execute callback function during wifi connection
-        //     if (fn != nullptr) fn();
-
-        //     Serial.print(".");
-
-        //     if (WiFi.status() == WL_CONNECTED) {
-        //         m_serverIp = WiFi.localIP();
-        //         return m_serverIp;
-        //     }
-
-        //     // If no connection after a while go in Access Point mode (if skipAP == false)
-        //     if (millis() - startTime > m_timeout) {
-        //         log_debug(" timeout!");
-        //         return false;
-        //     }
-        // }
 
         // Will try for some time
         int tryDelay = timeout / 10;
