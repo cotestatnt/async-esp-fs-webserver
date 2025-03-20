@@ -1,11 +1,5 @@
 #include "AsyncFsWebServer.h"
 
-// Watchdog timeout utility
-#if defined(ESP32)
-    #define AWS_WDT_TIMEOUT (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000)
-#else
-  #define AWS_WDT_TIMEOUT 10000
-#endif
 
 void setTaskWdt(uint32_t timeout) {
   #if defined(ESP32)
@@ -79,7 +73,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         request->send(200, "application/json", reply);
     });
 
-    onUpdate(m_contentLen);
+    onUpdate();
     onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
     serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
 
@@ -314,7 +308,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
     // DebugPrintln("Handle upload POST");
     if (!index) {
         // Increase task WDT timeout
-        setTaskWdt(m_timeout);
+        setTaskWdt(AWS_LONG_WDT_TIMEOUT);
 
         // Create folder if necessary (up to max 5 sublevels)
         int len = filename.length();
@@ -442,7 +436,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
 
     // Connect to the provided SSID
     if (ssid.length() && pass.length()) {
-        setTaskWdt(m_timeout + 5000);
+        setTaskWdt(AWS_LONG_WDT_TIMEOUT);
         WiFi.mode(WIFI_AP_STA);
 
         // Manual connection setup
@@ -506,12 +500,12 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     request->send(401, "text/plain", "Wrong credentials provided");
 }
 
-void AsyncFsWebServer::onUpdate(size_t& contentLen) {
+void AsyncFsWebServer::onUpdate() {
 #if defined(ESP8266)
     on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
         // the request handler is triggered after the upload has finished... 
         // create the response, add header, and send response
-        String txt = Update.hasError() ?  Update.getErrorString() : "Update Success. Rebooting MCU!\n";
+        String txt = Update.hasError() ?  Update.errorString() : "Update Success. Restart ESP to load new firmware!\n";
         AsyncWebServerResponse *response = request->beginResponse((Update.hasError()) ? 500 : 200, "text/plain", txt);
         response->addHeader("Connection", "close");
         response->addHeader("Access-Control-Allow-Origin", "*");   
@@ -543,7 +537,7 @@ void AsyncFsWebServer::onUpdate(size_t& contentLen) {
         // if the final flag is set then this is the last frame of data
         if(final){ 
             if(Update.end(true)){ //true to set the size to the current progress
-                DBG_OUTPUT_PORT.printf("Update Success: %u bytes written.\nRebooting MCU!\n", index + len);
+                DBG_OUTPUT_PORT.printf("Update Success: %u bytes written.\nRestart ESP!\n", index + len);
             } 
             else {
                 Update.printError(DBG_OUTPUT_PORT);
@@ -558,33 +552,22 @@ void AsyncFsWebServer::onUpdate(size_t& contentLen) {
         // the request handler is triggered after the upload has finished... 
         // create the response, add header, and send response
 
-        String txt = Update.hasError() ?  Update.errorString() : "Update Success. Rebooting MCU...\n";
+        String txt = Update.hasError() ?  Update.errorString() : "Update Success. Restart ESP to load new firmware!\n";
         AsyncWebServerResponse *response = request->beginResponse((Update.hasError()) ? 500 : 200, "text/plain", txt);
         response->addHeader("Connection", "close");
         response->addHeader("Access-Control-Allow-Origin", "*");   
-        request->send(response);
-
-        if (!Update.hasError()) {
-            delay(500);
-            ESP.restart();
-        }
+        request->send(response);        
     },
 
     //Upload handler chunks in data
     [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-        
-        if (!contentLen) {
-            const AsyncWebHeader* h = request->getHeader("Content-Length");
-            if (h->value().length()) {
-                contentLen = h->value().toInt();
-                log_info("Firmware size: %d", contentLen);
-            }
-        }
 
-        if (!index) {
+        if (!index) {                
+            log_info("Firmware size: %d", request->getHeader("Content-Length")->value().length());
+                    
             // Increase task WDT timeout
-            setTaskWdt(15000);
-            if (!Update.begin(contentLen, (filename == "filesystem") ? U_SPIFFS : U_FLASH)) {
+            setTaskWdt(AWS_LONG_WDT_TIMEOUT);
+            if (!Update.begin()) {
                 log_error("Update begin failed");
                 Update.printError(DBG_OUTPUT_PORT);
                 return request->send(500, "text/plain", "OTA could not begin");
@@ -592,7 +575,8 @@ void AsyncFsWebServer::onUpdate(size_t& contentLen) {
         }
 
         // Write chunked data to the free sketch space
-        if (len){            
+        if (len){   
+            esp_task_wdt_reset();                 
             if (Update.write(data, len) != len) {
                 log_error("Update write failed");
                 return request->send(500, "text/plain", "OTA write failed");
@@ -604,11 +588,11 @@ void AsyncFsWebServer::onUpdate(size_t& contentLen) {
             log_info("Update End.");
             if (!Update.end(true)) { //true to set the size to the current progress
                 log_error("%s\n", Update.errorString());    
-                setTaskWdt(m_watchdogTime);
+                setTaskWdt(AWS_WDT_TIMEOUT);
                 return request->send(500, "text/plain", "Could not end OTA");
             }
-            log_info("Update Success.\nRebooting...\n");
-            setTaskWdt(m_watchdogTime);
+            log_info("Update Success.\nRestart ESP!\n");
+            setTaskWdt(AWS_WDT_TIMEOUT);
         }
     });
 #endif
@@ -648,7 +632,6 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
     }
 #endif
 
-    m_timeout = timeout;
     WiFi.mode(WIFI_STA);
 #if defined(ESP8266)
     struct station_config conf;

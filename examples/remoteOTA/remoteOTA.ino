@@ -243,5 +243,7 @@ void setup(){
 
 ///////////////////////////////////  LOOP  ///////////////////////////////////////
 void loop() {
-  delay(10);
+  
+  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+  delay(1);  
 }

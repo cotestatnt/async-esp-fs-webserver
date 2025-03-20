@@ -151,7 +151,7 @@ void setup() {
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
-    server.startCaptivePortal("ESP32_AP", "123456789", "/setup");
+    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
     captiveRun = true;
   }
 
@@ -201,5 +201,6 @@ void loop() {
     delay(1000);
   }
 
-  delay(1);
+  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+  delay(1);  
 }

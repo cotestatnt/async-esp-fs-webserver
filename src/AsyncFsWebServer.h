@@ -59,6 +59,15 @@
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
 
+// Watchdog timeout utility
+#if defined(ESP32)
+    #define AWS_WDT_TIMEOUT (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000)
+    #define AWS_LONG_WDT_TIMEOUT (AWS_WDT_TIMEOUT * 4)
+#else
+  #define AWS_WDT_TIMEOUT 5000
+  #define AWS_LONG_WDT_TIMEOUT 15000
+#endif
+
 typedef struct {
   size_t totalBytes;
   size_t usedBytes;
@@ -87,7 +96,7 @@ class AsyncFsWebServer : public AsyncWebServer
     void handleFileName(AsyncWebServerRequest *request);
 
     // Get data and then do update
-    void onUpdate(size_t& contentLen);
+    void onUpdate();
 
     // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
 #if ESP_FS_WS_EDIT_HTM
@@ -111,8 +120,7 @@ class AsyncFsWebServer : public AsyncWebServer
     String m_captiveUrl = "/setup";
 
     uint16_t m_port;
-    uint32_t m_timeout = 10000;
-    size_t m_contentLen = 0;
+    uint32_t m_timeout = AWS_LONG_WDT_TIMEOUT;
 
     char m_version[16] = {__TIME__};
     bool m_filesystem_ok = false;

@@ -96,4 +96,7 @@ void setup() {
 void loop() {
     if (captiveRun)
         server.updateDNS();
+    
+    // This delay is required in order to avoid loopTask() WDT reset on ESP32
+    delay(1);  
 }

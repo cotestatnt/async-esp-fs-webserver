@@ -169,9 +169,9 @@ void setup() {
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
-	Serial.println("\nWiFi not connected! Starting AP mode...");
-	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
-	captiveRun = true;
+    Serial.println("\nWiFi not connected! Starting AP mode...");
+    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+    captiveRun = true;
   }
 
   // Add custom page handlers to webserver
@@ -243,4 +243,7 @@ void setup() {
 void loop() {
   if (captiveRun)
     server.updateDNS();
+  
+  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+  delay(1);  
 }
