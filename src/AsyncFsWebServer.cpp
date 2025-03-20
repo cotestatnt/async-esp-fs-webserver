@@ -505,7 +505,7 @@ void AsyncFsWebServer::onUpdate() {
     on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
         // the request handler is triggered after the upload has finished... 
         // create the response, add header, and send response
-        String txt = Update.hasError() ?  Update.errorString() : "Update Success. Restart ESP to load new firmware!\n";
+        String txt = Update.hasError() ?  Update.getErrorString() : "Update Success. Restart ESP to load new firmware!\n";
         AsyncWebServerResponse *response = request->beginResponse((Update.hasError()) ? 500 : 200, "text/plain", txt);
         response->addHeader("Connection", "close");
         response->addHeader("Access-Control-Allow-Origin", "*");   
