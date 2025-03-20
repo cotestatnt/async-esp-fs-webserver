@@ -65,7 +65,6 @@ typedef struct {
   String fsName;
 } fsInfo_t;
 
-
 using FsInfoCallbackF = std::function<void(fsInfo_t*)>;
 using CallbackF = std::function<void(void)>;
 
@@ -88,10 +87,9 @@ class AsyncFsWebServer : public AsyncWebServer
     void handleFileName(AsyncWebServerRequest *request);
 
     // Get data and then do update
-    void update_first(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
-    void update_second(AsyncWebServerRequest *request);
+    void onUpdate(size_t& contentLen);
 
-        // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
+    // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
 #if ESP_FS_WS_EDIT_HTM
     void deleteContent(String& path) ;
     void handleFileDelete(AsyncWebServerRequest *request);
@@ -100,8 +98,6 @@ class AsyncFsWebServer : public AsyncWebServer
     void handleFileList(AsyncWebServerRequest *request);
     void handleFileEdit(AsyncWebServerRequest *request);
 #endif
-
-  void setTaskWdt(uint32_t timeout);
 
   /*
     Create a dir if not exist on uploading files
@@ -116,11 +112,6 @@ class AsyncFsWebServer : public AsyncWebServer
 
     uint16_t m_port;
     uint32_t m_timeout = 10000;
-#if defined(ESP32)
-    uint32_t m_watchdogTime = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-#else
-    uint32_t m_watchdogTime = 10000;
-#endif
     size_t m_contentLen = 0;
 
     char m_version[16] = {__TIME__};
