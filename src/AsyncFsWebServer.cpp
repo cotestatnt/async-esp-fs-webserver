@@ -157,7 +157,7 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
 }
 
 void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
-    #if defined(ESP32)
+#if defined(ESP32)
     #if ESP_ARDUINO_VERSION_MAJOR > 2
     esp_task_wdt_config_t twdt_config = {
         .timeout_ms = timeout,
@@ -166,10 +166,12 @@ void AsyncFsWebServer::setTaskWdt(uint32_t timeout) {
     };
     ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
     #else
-    ESP_ERROR_CHECK(esp_task_wdt_init(timeout/1000, 0));
+    ESP_ERROR_CHECK(esp_task_wdt_init(timeout / 1000, 0));
     #endif
-    (void)timeout;
-    #endif
+#elif defined(ESP8266)
+    ESP.wdtDisable();
+    ESP.wdtEnable(timeout);
+#endif
 }
 
 void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
@@ -337,6 +339,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     String ssid, pass;
     IPAddress gateway, subnet, local_ip;
     bool config = false,  newSSID = false;
+    char resp[512] = {0};
 
     if (request->hasArg("ip_address") && request->hasArg("subnet") && request->hasArg("gateway")) {
         gateway.fromString(request->arg("gateway"));
@@ -363,7 +366,6 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     */
     if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_AP) {
         log_debug("WiFi status %d", WiFi.status());
-        char resp[512];
         snprintf(resp, sizeof(resp),
             "ESP is already connected to <b>%s</b> WiFi!<br>"
             "Do you want close this connection and attempt to connect to <b>%s</b>?"
@@ -481,8 +483,6 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             for (int i = 0; i < 4; i++)
                 serverLoc += i ? "." + String(m_serverIp[i]) : String(m_serverIp[i]);
             serverLoc += "/setup";
-
-            char resp[256];
             snprintf(resp, sizeof(resp),
                 "ESP successfully connected to %s WiFi network. <br><b>Restart ESP now?</b>"
                 "<br><br><i>Note: disconnect your browser from ESP AP and then reload "
@@ -538,38 +538,49 @@ void  AsyncFsWebServer::update_first(AsyncWebServerRequest *request, String file
     if (!index) {
         // Increase task WDT timeout
         setTaskWdt(15000);
-
-    #if defined(ESP8266)
-        int cmd = (filename == "filesystem") ? U_FS : U_FLASH;
-    #elif defined(ESP32)
-        int cmd = (filename == "filesystem") ? U_SPIFFS : U_FLASH;
-    #endif
-        if (!Update.begin(m_contentLen, cmd)) {
-            Update.printError(Serial);
+#if defined(ESP8266)
+        DBG_OUTPUT_PORT.setDebugOutput(true);
+        WiFiUDP::stopAll();
+        log_info("Update: %s\n", filename.c_str());
+        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+        if (!Update.begin(maxSketchSpace)) {
+#elif defined(ESP32)
+        if (!Update.begin(m_contentLen, (filename == "filesystem") ? U_SPIFFS : U_FLASH)) {
+#endif
+            log_error("Update begin failed");
+            Update.printError(DBG_OUTPUT_PORT);
             return request->send(500, "text/plain", "OTA could not begin");
         }
+        log_info("Update Begin.");
+        Update.runAsync(true); // tell the updaterClass to run in async mode
     }
 
     // Write chunked data to the free sketch space
     if (len){
+        log_info("data block: %d", len);
         if (Update.write(data, len) != len) {
-            return request->send(500, "text/plain", "OTA could not begin");
+            log_error("Update write failed");
+            return request->send(500, "text/plain", "OTA write failed");
         }
     }
 
-    if (final) { // if the final flag is set then this is the last frame of data
+     // if the final flag is set then this is the last frame of data
+    if (final) {
+        log_info("Update End.");
         if (!Update.end(true)) { //true to set the size to the current progress
-            #if defined(ESP8266)
-            Serial.printf("%s\n", Update.getErrorString().c_str());
-            #elif defined(ESP32)
-            Serial.printf("%s\n", Update.errorString());
-            #endif
+#if defined(ESP8266)
+            log_error("%s\n", Update.getErrorString().c_str());
+#elif defined(ESP32)
+            log_error("%s\n", Update.errorString());
+#endif
+            setTaskWdt(m_watchdogTime);
             return request->send(500, "text/plain", "Could not end OTA");
         }
         log_info("Update Success.\nRebooting...\n");
-        // restore task WDT timeout
         setTaskWdt(m_watchdogTime);
     }
+
+    yield();
 }
 
 bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {

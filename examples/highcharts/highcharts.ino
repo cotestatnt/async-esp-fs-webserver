@@ -108,8 +108,8 @@ void setup() {
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
-	Serial.println("\nWiFi not connected! Starting AP mode...");
-	server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
+    Serial.println("\nWiFi not connected! Starting AP mode...");
+    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
   }
 
   // Enable ACE FS file web editor and add FS info callback function
@@ -121,9 +121,9 @@ void setup() {
   */
   #ifdef ESP32
   server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-	fsInfo->fsName = "LittleFS";
-	fsInfo->totalBytes = LittleFS.totalBytes();
-	fsInfo->usedBytes = LittleFS.usedBytes();  
+    fsInfo->fsName = "LittleFS";
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();  
   });
   #endif
 
