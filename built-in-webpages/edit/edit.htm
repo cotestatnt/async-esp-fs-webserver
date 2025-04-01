@@ -384,19 +384,9 @@ function createTree(e, a) {
    }
 
    function s(e) {
-      if (void 0 !== (e = /(?:\.([^.]+))?$/.exec(e)[1])) switch (e.toLowerCase()) {
-         case "txt":
-         case "htm":
-         case "html":
-         case "js":
-         case "json":
-         case "cpp":
-         case "css":
-         case "xml":
-         case "yaml":
-         case "csv":
-            return 1
-      }
+      const xt = e.split('.').pop().toLowerCase();
+      const xts = ['txt', 'htm', 'html', 'js', 'json', 'cpp', 'css', 'xml', 'yaml', 'csv'];
+      return xts.includes(xt) || xt === e
    }
 
    function i(e) {
