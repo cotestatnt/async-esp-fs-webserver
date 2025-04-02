@@ -21,38 +21,34 @@ void setTaskWdt(uint32_t timeout) {
 
 
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
-#if ESP_FS_WS_SETUP_HTM
-    File file = m_filesystem->open(ESP_FS_WS_CONFIG_FOLDER, "r");
-    if (!file) {
-        log_error("Failed to open /setup directory. Create new folder\n");
-        m_filesystem->mkdir(ESP_FS_WS_CONFIG_FOLDER);
-        ESP.restart();
+
+//////////////////////    BUILT-IN HANDLERS    ////////////////////////////
+using namespace std::placeholders;
+
+#if ESP_FS_WS_SETUP
+    m_filesystem_ok = setup->checkConfigFile();
+    if (setup->isOpened()) {
+        setup->closeConfiguration();
     }
-    m_filesystem_ok = true;
+    onUpdate();
 
-    // Check if config file exist, and create if necessary
-    file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-    if (!file) {
-        file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
-        file.print("{\"wifi-box\": \"\",\n\t\"dhcp\": false}");
-        file.close();
-    } else
-        file.close();
-#endif
-
-    //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
-    using namespace std::placeholders;
-
-    //on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
+    on("/setup", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
+    // on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
     on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
     on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
     on("/getStatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
     on("/clear_config", HTTP_GET, std::bind(&AsyncFsWebServer::clearConfig, this, _1));
-#if ESP_FS_WS_SETUP_HTM
-    on("/setup", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
-#endif
     on("*", HTTP_HEAD, std::bind(&AsyncFsWebServer::handleFileName, this, _1));
-
+    
+    on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String reply = "{\"ssid\":\"";
+        reply += WiFi.SSID();
+        reply += "\", \"rssi\":";
+        reply += WiFi.RSSI();
+        reply += "}";
+        request->send(200, "application/json", reply);
+    });
+#endif
     on("/upload", HTTP_POST,
         std::bind(&AsyncFsWebServer::sendOK, this, _1),
         std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
@@ -63,17 +59,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         delay(500);
         ESP.restart();
     });
-
-    on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-        String reply = "{\"ssid\":\"";
-        reply += WiFi.SSID();
-        reply += "\", \"rssi\":";
-        reply += WiFi.RSSI();
-        reply += "}";
-        request->send(200, "application/json", reply);
-    });
-
-    onUpdate();
+    
     onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
     serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
 
@@ -92,7 +78,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         MDNS.addService("http", "tcp", m_port);
         MDNS.setInstanceName("async-fs-webserver");
     }
-
     return true;
 }
 
