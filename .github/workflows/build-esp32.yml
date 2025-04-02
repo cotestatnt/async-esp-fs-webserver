@@ -40,6 +40,9 @@ jobs:
       - name: Install Arduino-MySQL
         run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/cotestatnt/Arduino-MySQL
 
+      - name: Install Arduino_MFRC522v2
+        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/OSSLibraries/Arduino_MFRC522v2        
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -173,45 +176,4 @@ jobs:
             echo "Building examples/$i..."
             echo "============================================================="
             PLATFORMIO_SRC_DIR=examples/$i PIO_BOARD=${{ matrix.board }} pio run -e ci-arduino-3-latest
-          done
-
-  # platformio-specific-envs:
-  #   name: ESP32 (pio) - Specific Envs
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       env:
-  #         - ci-arduino-3-latest-asynctcp
-  #         - ci-arduino-3-no-json
-
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-
-  #     - name: Cache PlatformIO
-  #       uses: actions/cache@v4
-  #       with:
-  #         key: ${{ runner.os }}-pio
-  #         path: |
-  #           ~/.cache/pip
-  #           ~/.platformio
-
-  #     - name: Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.x"
-
-  #     - name: Install PIO
-  #       run: |
-  #         python -m pip install --upgrade pip
-  #         pip install --upgrade platformio
-
-  #     - name: Build Examples
-  #       run: |
-  #         for i in `ls examples`; do
-  #           echo "============================================================="
-  #           echo "Building examples/$i..."
-  #           echo "============================================================="
-  #           PLATFORMIO_SRC_DIR=examples/$i PIO_BOARD=esp32dev pio run -e ${{ matrix.env }}
-  #         done
+          done        
