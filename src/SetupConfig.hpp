@@ -67,6 +67,7 @@ class SetupConfigurator
                 file.println("{\"wifi-box\": \"\", \"dhcp\": false}");
                 file.close();
             }
+            log_debug("Config file %s OK", ESP_FS_WS_CONFIG_FILE);
             return true;
         }
 
@@ -89,6 +90,8 @@ class SetupConfigurator
                     log_error("Failed to write to file");
                 }
                 file.close();
+                serializeJsonPretty(*m_doc, DBG_OUTPUT_PORT);
+
                 m_doc->clear();
                 delete (m_doc);
                 m_doc = nullptr;
@@ -242,6 +245,8 @@ class SetupConfigurator
                 }
             }
 
+            log_debug("Adding option \"%s\"", label);
+
             String key = label;
             if (hidden)
                 key += "-hidden";
@@ -251,14 +256,12 @@ class SetupConfigurator
             if (key.equals("raw-javascript"))
                 key += numOptions ;
 
-            // If key is present and value is the same, we don't need to create/update it.
-            JsonVariant foundObject = (*m_doc)[key];
-            if (foundObject.isNull())
+            // If key is present and value is the same, we don't need to create/update it.            
+            if ((*m_doc)[key] == static_cast<T>(val)) {
+                log_debug("Key \"%s\" value present", key.c_str());
                 return;
+            }
             
-            // if (m_doc->containsKey(key.c_str()))
-            //     return;
-
             // if min, max, step != from default, treat this as object in order to set other properties
             if (d_min != MIN_F || d_max != MAX_F || step != 1.0) {
                 #if ARDUINOJSON_VERSION_MAJOR > 6
@@ -275,6 +278,7 @@ class SetupConfigurator
                 (*m_doc)[key] = static_cast<T>(val);
             }
 
+            serializeJsonPretty(*m_doc, DBG_OUTPUT_PORT);
             numOptions++;
         }
 

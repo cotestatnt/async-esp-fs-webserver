@@ -28,6 +28,7 @@ using namespace std::placeholders;
 #if ESP_FS_WS_SETUP
     m_filesystem_ok = setup->checkConfigFile();
     if (setup->isOpened()) {
+        log_debug("Config file %s closed", ESP_FS_WS_CONFIG_FILE);
         setup->closeConfiguration();
     }
     onUpdate();
