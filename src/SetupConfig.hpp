@@ -41,6 +41,7 @@ class SetupConfigurator
                     return false;
                 }
                 file.close();
+                // serializeJsonPretty(*m_doc, Serial);
                 m_opened = true;
                 return true;
             }
@@ -89,7 +90,9 @@ class SetupConfigurator
                 if (serializeJsonPretty(*m_doc, file) == 0) {
                     log_error("Failed to write to file");
                 }
-                file.close();                
+                file.close();               
+
+                // serializeJsonPretty(*m_doc, Serial);
                 m_doc->clear();
                 delete (m_doc);
                 m_doc = nullptr;
@@ -190,8 +193,13 @@ class SetupConfigurator
         */
         void addDropdownList(const char *label, const char** array, size_t size) {
 
-            // If key is present in json, we don't need to create it.
         #if ARDUINOJSON_VERSION_MAJOR > 6
+            // If key is present we don't need to create it.          
+            JsonVariant variant = (*m_doc)[label];
+            if (!variant.isNull()) {
+                log_debug("Key \"%s\" value present", label);
+                return;
+            }
             JsonObject obj = (*m_doc)[label].to<JsonObject>();
         #else
             JsonObject obj = (*m_doc).createNestedObject(label);
@@ -242,7 +250,6 @@ class SetupConfigurator
                     log_error("Error! /setup configuration not possible");
                 }
             }
-
             log_debug("Adding option \"%s\"", label);
 
             String key = label;
@@ -254,8 +261,9 @@ class SetupConfigurator
             if (key.equals("raw-javascript"))
                 key += numOptions ;
 
-            // If key is present and value is the same, we don't need to create/update it.            
-            if ((*m_doc)[key] == static_cast<T>(val)) {
+            // If key is present we don't need to create it.          
+            JsonVariant obj = (*m_doc)[key];
+            if (!obj.isNull()) {
                 log_debug("Key \"%s\" value present", key.c_str());
                 return;
             }
@@ -274,8 +282,9 @@ class SetupConfigurator
             }
             else {
                 (*m_doc)[key] = static_cast<T>(val);
-            }
+            }        
             
+            log_debug("Value updated");
             numOptions++;
         }
 
