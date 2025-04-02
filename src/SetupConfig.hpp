@@ -89,9 +89,7 @@ class SetupConfigurator
                 if (serializeJsonPretty(*m_doc, file) == 0) {
                     log_error("Failed to write to file");
                 }
-                file.close();
-                serializeJsonPretty(*m_doc, DBG_OUTPUT_PORT);
-
+                file.close();                
                 m_doc->clear();
                 delete (m_doc);
                 m_doc = nullptr;
@@ -277,8 +275,7 @@ class SetupConfigurator
             else {
                 (*m_doc)[key] = static_cast<T>(val);
             }
-
-            serializeJsonPretty(*m_doc, DBG_OUTPUT_PORT);
+            
             numOptions++;
         }
 
