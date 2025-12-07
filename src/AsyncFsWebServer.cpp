@@ -33,13 +33,13 @@ using namespace std::placeholders;
     }
     onUpdate();
 
-    on("/setup", HTTP_GET, std::bind(&AsyncFsWebServer::handleSetup, this, _1));
+    on("/setup", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleSetup, this, _1));
     // on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
-    on("/connect", HTTP_POST, std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
-    on("/scan", HTTP_GET, std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
-    on("/getStatus", HTTP_GET, std::bind(&AsyncFsWebServer::getStatus, this, _1));
-    on("/clear_config", HTTP_GET, std::bind(&AsyncFsWebServer::clearConfig, this, _1));
-    on("*", HTTP_HEAD, std::bind(&AsyncFsWebServer::handleFileName, this, _1));
+    on("/connect", HTTP_POST, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
+    on("/scan", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
+    on("/getStatus", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::getStatus, this, _1));
+    on("/clear_config", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::clearConfig, this, _1));
+    on("*", HTTP_HEAD, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileName, this, _1));
     
     on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
         String reply = "{\"ssid\":\"";
@@ -114,11 +114,11 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
 void AsyncFsWebServer::enableFsCodeEditor() {
 #if ESP_FS_WS_EDIT
     using namespace std::placeholders;
-    on("/status", HTTP_GET, std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
-    on("/list", HTTP_GET, std::bind(&AsyncFsWebServer::handleFileList, this, _1));
-    on("/edit", HTTP_PUT, std::bind(&AsyncFsWebServer::handleFileCreate, this, _1));
-    on("/edit", HTTP_DELETE, std::bind(&AsyncFsWebServer::handleFileDelete, this, _1));
-    on("/edit", HTTP_GET, std::bind(&AsyncFsWebServer::handleFileEdit, this, _1));
+    on("/status", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
+    on("/list", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileList, this, _1));
+    on("/edit", HTTP_PUT, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileCreate, this, _1));
+    on("/edit", HTTP_DELETE, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileDelete, this, _1));
+    on("/edit", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileEdit, this, _1));
     on("/edit", HTTP_POST,
         std::bind(&AsyncFsWebServer::sendOK, this, _1),
         std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
