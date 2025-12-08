@@ -28,7 +28,7 @@ With **/setup** webpage it is also possible to perform remote firmware update (O
 
 This web page can be injected also with custom HTML and Javascript code in order to create very smart and powerful web application.
 
-In the image below, for example, the HTML and Javascript code to provision the devices in the well-known [ThingsBoard IoT platform](https://thingsboard.io/) has been added at runtime starting from the Arduino sketch (check example [customHTML.ino](https://github.com/cotestatnt/async-esp-fs-webserver/tree/main/examples/customHTML)).
+In the image below, for example, the HTML and Javascript code to provision the devices in the well-known [ThingsBoard IoT platform](https://thingsboard.io/) has been added at runtime starting from the Arduino sketch (check example [customHTML.ino](https://github.com/cotestatnt/async-esp-fs-webserver/tree/master/examples/customHTML)).
 
 ![image](https://github.com/cotestatnt/async-esp-fs-webserver/assets/27758688/d728c315-7271-454d-8c34-fb9db0b7a333)
 
