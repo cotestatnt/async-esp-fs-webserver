@@ -147,7 +147,11 @@ const addOptionsElement = (opt) => {
         el.setAttribute('step', value.step);
         el.setAttribute('min', value.min);
         el.setAttribute('max', value.max);
-        el.value = Number(num).toFixed(3);
+        
+        // Calculate decimal places from step value
+        const stepStr = String(value.step);
+        const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+        el.value = Number(num).toFixed(decimalPlaces);
       }
     }
     addInputListener(el);
@@ -177,22 +181,21 @@ const createNewBox = (cont, lbl) => {
 
 // Create options box
 const createOptionsBox = async (raw) => {
+  // Initialize WiFi settings
+  $('no-dhcp').checked = raw.dhcp;
+  $('ip').value = raw.ip_address;
+  $('gateway').value = raw.gateway;
+  $('subnet').value = raw.subnet;
+  if (raw.dhcp) {
+    show('conf-wifi');
+    show('save-wifi');
+  }
+
   let nest = {};
   let boxId = 'wifi-box';
   lastBox = $(boxId);
 
   Object.entries(raw).forEach(([key, value], index) => {
-    if (boxId === 'wifi-box') {
-      $('no-dhcp').checked = raw.dhcp;
-      $('ip').value = raw.ip_address;
-      $('gateway').value = raw.gateway;
-      $('subnet').value = raw.subnet;
-      if ($('no-dhcp').checked) {
-        show('conf-wifi');
-        show('save-wifi');
-      }
-    }
-
     if (key.startsWith('param-box')) {
       addOptionsElement(nest);
       lastBox = createNewBox(index, value);
@@ -226,30 +229,23 @@ const createOptionsBox = async (raw) => {
 };
 
 function addInputListener(item) {
-  const updateNumberOption = (target, isStep) => {
-    if (isStep) {
-      options[target.id] = {
-        value: Math.round(target.value * (1/target.step)) / (1/target.step),
-        step: target.getAttribute("step"),
-        min: target.getAttribute("min"),
-        max: target.getAttribute("max")
-      };
-    } else {
-      options[target.id] = parseInt(target.value);
-    }
-  };
-
   const handlers = {
-    number: (e) => updateNumberOption(e.target, e.target.getAttribute("step")),
+    number: (e) => {
+      const { id, value, step } = e.target;
+      options[id] = step ? {
+        value: Math.round(value * (1/step)) / (1/step),
+        step,
+        min: e.target.getAttribute("min"),
+        max: e.target.getAttribute("max")
+      } : parseInt(value);
+    },
     text: (e) => options[e.target.id] = e.target.value,
     checkbox: (e) => options[e.target.id] = e.target.checked,
     'select-one': (e) => options[e.target.id].selected = e.target.value
   };
 
   const handler = handlers[item.type];
-  if (handler) {
-    item.addEventListener('change', handler);
-  }
+  if (handler) item.addEventListener('change', handler);
 }
 
 function insertKey(key, value, obj, pos) {
@@ -347,6 +343,10 @@ function selectWifi(event) {
   $('ssid').value = ssid;
   $('ssid-name').textContent = ssid;
   $('password').focus();
+  
+  // Collapse wifi list and show chevron
+  $('wifi-table').classList.add('hide');
+  show('show-networks');
 }
 
 function listWifi(obj) {
@@ -355,6 +355,8 @@ function listWifi(obj) {
   obj.sort((a, b) => b.strength - a.strength);
 
   const list = document.querySelector('#wifi-list');
+  const wifiTable = $('wifi-table');
+  
   list.innerHTML = "";
   obj.forEach((net, i) => {
     const row = newEl('tr', { id: `wifi-${i}` });
@@ -421,27 +423,30 @@ function doConnection(e, f) {
 }
 
 function switchPage(el) {
+  const target = el.target;
+  const boxId = target.getAttribute("data-box");
+  
   $('top-nav').classList.remove('resp');
   
   // Update active menu item
   document.querySelectorAll("a").forEach(item => item.classList.remove('active'));
-  el.target.classList.add('active');
+  target.classList.add('active');
 
   // Hide all option boxes and show the selected one
   document.querySelectorAll(".opt-box").forEach(e => e.classList.add('hide'));
-  show(el.target.getAttribute("data-box"));
+  show(boxId);
 
-  const isWifiPage = el.target.id === 'set-wifi';
+  const isWifiPage = target.id === 'set-wifi';
   if (!isWifiPage) {
+    const box = $(boxId);
     const fragment = document.createDocumentFragment();
     fragment.appendChild($('btn-hr'));
     fragment.appendChild($('btn-box'));
-    const box = $(el.target.getAttribute("data-box"));
     box.appendChild(fragment);
 
-    document.querySelectorAll('.raw-html').forEach(el => {
-      if (el.getAttribute("data-box") === box.id) {
-        box.insertBefore(el, $('btn-hr'));
+    document.querySelectorAll('.raw-html').forEach(elem => {
+      if (elem.getAttribute("data-box") === box.id) {
+        box.insertBefore(elem, $('btn-hr'));
       }
     });
 
@@ -486,9 +491,7 @@ function restartESP() {
       closeModal();
       openModal('Restart!', '<br>ESP restarted!');
     })
-    .catch(error => {
-      openModal('Error!', `Failed to restart ESP: ${error}`);
-    });
+    .catch(error => openModal('Error!', `Failed to restart ESP: ${error}`));
 }
 function handleSubmit() {
   const fileElement = $('file-input');
@@ -532,34 +535,25 @@ function handleSubmit() {
 }
 async function uploadFolder(e) {
   const list = $('listing');
-  const files = Array.from(e.target.files);
-
-  for (const file of files) {
-    // Remove "data/" prefix if present
-    const path = file.webkitRelativePath.replace(/^data\//, '');
-    
-    // Add to visual list
+  const uploadFile = async (file, path) => {
     const item = newEl('li');
     item.textContent = path;
     list.appendChild(item);
 
     try {
-      // Read file and upload
       const formData = new FormData();
       formData.set("data", file, '/' + path);
-      
-      const response = await fetch('/edit', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to upload ${path}`);
-      }
+      const response = await fetch('/edit', { method: 'POST', body: formData });
+      if (!response.ok) throw new Error(`Upload failed`);
     } catch (err) {
       console.error(`Error uploading ${path}:`, err);
-      item.style.color = 'red'; // Visual error indicator
+      item.style.color = 'red';
     }
+  };
+
+  for (const file of e.target.files) {
+    const path = file.webkitRelativePath.replace(/^data\//, '');
+    await uploadFile(file, path);
   }
 }
 // Initialize SVG icons
@@ -612,6 +606,14 @@ $('no-dhcp').addEventListener('change', function() {
   const method = this.checked ? 'remove' : 'add';
   ['conf-wifi', 'save-wifi'].forEach(id => $(id).classList[method]('hide'));
 });
+
+// WiFi list chevron handler - toggle visibility
+if ($('show-networks')) {
+  $('show-networks').addEventListener('click', () => {
+    $('wifi-table').classList.toggle('hide');
+    $('show-networks').classList.toggle('hide');
+  });
+}
 
 // Initialize on page load
 window.addEventListener('load', getParameters);

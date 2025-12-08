@@ -116,7 +116,7 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
     }
 }
 
-void AsyncFsWebServer::enableFsCodeEditor() {
+void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
 #if ESP_FS_WS_EDIT
     using namespace std::placeholders;
     on("/status", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
@@ -128,8 +128,11 @@ void AsyncFsWebServer::enableFsCodeEditor() {
         std::bind(&AsyncFsWebServer::sendOK, this, _1),
         std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
     );
+
+    getFsInfo = fsCallback;
 #endif
-  }
+}
+
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
         case WS_EVT_CONNECT:
@@ -166,10 +169,46 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
 
 
 void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
-    m_pageUser = (char*) malloc(strlen(user)*sizeof(char));
-    m_pagePswd = (char*) malloc(strlen(pswd)*sizeof(char));
-    strcpy(m_pageUser, user);
-    strcpy(m_pagePswd, pswd);
+    // Free previous allocations if they exist
+    if (m_pageUser) {
+        free(m_pageUser);
+        m_pageUser = nullptr;
+    }
+    if (m_pagePswd) {
+        free(m_pagePswd);
+        m_pagePswd = nullptr;
+    }
+    
+    // Validate input parameters
+    if (!user || !pswd || strlen(user) == 0 || strlen(pswd) == 0) {
+        log_error("Invalid authentication credentials");
+        return;
+    }
+    
+    // Allocate with proper size (+1 for null terminator)
+    size_t userLen = strlen(user) + 1;
+    size_t pswnLen = strlen(pswd) + 1;
+    
+    m_pageUser = (char*) malloc(userLen);
+    m_pagePswd = (char*) malloc(pswnLen);
+    
+    if (m_pageUser && m_pagePswd) {
+        strncpy(m_pageUser, user, userLen - 1);
+        strncpy(m_pagePswd, pswd, pswnLen - 1);
+        m_pageUser[userLen - 1] = '\0';
+        m_pagePswd[pswnLen - 1] = '\0';
+        log_debug("Authentication credentials set successfully");
+    } else {
+        log_error("Failed to allocate memory for authentication credentials");
+        if (m_pageUser) {
+            free(m_pageUser);
+            m_pageUser = nullptr;
+        }
+        if (m_pagePswd) {
+            free(m_pagePswd);
+            m_pagePswd = nullptr;
+        }
+    }
 }
 
 #if    ESP_FS_WS_SETUP_HTM
@@ -203,17 +242,18 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
-    JSON_DOC(256);
-    doc["firmware"] = m_version;
-    doc["mode"] =  WiFi.status() == WL_CONNECTED ? ("Station (" + WiFi.SSID()) +')' : "Access Point";
-    doc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
-    doc["hostname"] = m_host;
+    AsyncFSWebServer::Json doc;
+    doc.setString("firmware", m_version);
+    String mode = WiFi.status() == WL_CONNECTED ? ("Station (" + WiFi.SSID()) +')' : "Access Point";
+    doc.setString("mode", mode);
+    String ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+    doc.setString("ip", ip);
+    doc.setString("hostname", m_host);
 #if ESP_FS_WS_SETUP
-    doc["path"] = String(ESP_FS_WS_CONFIG_FILE).substring(1);   // remove first '/'
+    doc.setString("path", String(ESP_FS_WS_CONFIG_FILE).substring(1));   // remove first '/'
 #endif
-    doc["liburl"] = LIB_URL;
-    String reply;
-    serializeJson(doc, reply);
+    doc.setString("liburl", LIB_URL);
+    String reply = doc.serialize();
     request->send(200, "application/json", reply);
 }
 
@@ -230,45 +270,71 @@ void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
 
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     log_info("Start scan WiFi networks");
+    
     int res = WiFi.scanComplete();
+    log_debug("WiFi.scanComplete() returned: %d", res);
 
-    if (res == -2){
-        WiFi.scanNetworks(true);
-    }
-    else if (res) {
-        log_info(" done!\nNumber of networks: %d", res);
-        JSON_DOC(res*96);
-        JsonArray array = doc.to<JsonArray>();
-        for (int i = 0; i < res; ++i) {
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-                JsonObject obj = array.add<JsonObject>();
-            #else
-                JsonObject obj = array.createNestedObject();
-            #endif
-            obj["strength"] = WiFi.RSSI(i);
-            obj["ssid"] = WiFi.SSID(i);
-            #if defined(ESP8266)
-            obj["security"] = AUTH_OPEN ? "none" : "enabled";
-            #elif defined(ESP32)
-            obj["security"] = WIFI_AUTH_OPEN ? "none" : "enabled";
-            #endif
+    // Check for scan in progress or failed
+    // ESP32 core 3.3.4+: uses WIFI_SCAN_RUNNING and WIFI_SCAN_FAILED constants
+    // Older cores: use -1 and -2 respectively
+    #ifdef WIFI_SCAN_RUNNING
+        // New core (3.3.4+) - use constants
+        if (res == WIFI_SCAN_RUNNING) {
+            log_info("Scan still in progress...");
+            request->send(200, "application/json", "{\"reload\" : 1}");
+            return;
         }
-
-        String json;
-        serializeJson(doc, json);
+        
+        if (res == WIFI_SCAN_FAILED) {
+            log_info("Scan failed, starting new scan...");
+            WiFi.scanNetworks(true);
+            request->send(200, "application/json", "{\"reload\" : 1}");
+            return;
+        }
+    #else
+        // Old core - use numeric values
+        if (res == -2) {
+            log_info("Scan not initiated, starting new scan...");
+            WiFi.scanNetworks(true);
+            request->send(200, "application/json", "{\"reload\" : 1}");
+            return;
+        }
+        
+        if (res == -1) {
+            log_info("Scan still in progress...");
+            request->send(200, "application/json", "{\"reload\" : 1}");
+            return;
+        }
+    #endif
+    
+    // res >= 0: Scan completed with res networks found
+    if (res >= 0) {
+        log_info("Scan completed! Number of networks: %d", res);
+        // Build JSON array manually
+        String json = "[";
+        for (int i = 0; i < res; ++i) {
+            if (i > 0) json += ",";
+            json += "{\"strength\":";
+            json += WiFi.RSSI(i);
+            json += ",\"ssid\":\"";
+            json += WiFi.SSID(i);
+            json += "\",\"security\":\"";
+            #if defined(ESP8266)
+            json += AUTH_OPEN ? "none" : "enabled";
+            #elif defined(ESP32)
+            json += WIFI_AUTH_OPEN ? "none" : "enabled";
+            #endif
+            json += "\"}";
+        }
+        json += "]";
         request->send(200, "application/json", json);
         log_debug("%s", json.c_str());
 
         WiFi.scanDelete();
-        if(WiFi.scanComplete() == -2){
-            WiFi.scanNetworks(true);
-        }
-
+        // Start a new scan for next request
+        WiFi.scanNetworks(true);
         return;
     }
-
-    // The very first request will be empty, reload /scan endpoint
-    request->send(200, "application/json", "{\"reload\" : 1}");
 }
 
 
@@ -302,8 +368,16 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         setTaskWdt(AWS_LONG_WDT_TIMEOUT);
 
         // Create folder if necessary (up to max 5 sublevels)
-        int len = filename.length();
-        char path[len+1];
+        size_t filenameLen = filename.length();
+        
+        // Protect against excessively long filenames
+        if (filenameLen >= 512) {
+            log_error("Filename too long (max 512 bytes): %s", filename.c_str());
+            request->_tempFile.close();
+            return;
+        }
+        
+        char path[filenameLen + 1];
         strcpy(path, filename.c_str());
         createDirFromPath(path);
 
@@ -322,7 +396,15 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         setTaskWdt(AWS_WDT_TIMEOUT);
         // close the file handle as the upload is now done
         request->_tempFile.close();
-        log_debug("Upload complete: %s, size: %d", filename.c_str(), index + len);
+        log_debug("Upload complete: %s, size: %zu (index: %zu)", filename.c_str(), index + len, index);
+        
+        // Call config saved callback if this is the config file
+#if ESP_FS_WS_SETUP
+        if (filename == ESP_FS_WS_CONFIG_FILE && m_configSavedCallback) {
+            log_debug("Config file saved, calling callback");
+            m_configSavedCallback(filename.c_str());
+        }
+#endif
     }
 }
 
@@ -597,29 +679,30 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
 
 #if ESP_FS_WS_SETUP
     File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-    JSON_DOC( max((int)(file.size() * 1.33), 2048));
-
     if (file) {
         // If file is present, load actual configuration
-        DeserializationError error = deserializeJson(doc, file);
-        if (error) {
-            log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-            file.close();
+        AsyncFSWebServer::Json doc;
+        String content = "";
+        while (file.available()) {
+            content += (char)file.read();
         }
         file.close();
-        if (doc["dhcp"].as<bool>() == true) {
-            gateway.fromString(doc["gateway"].as<String>());
-            subnet.fromString(doc["subnet"].as<String>());
-            local_ip.fromString(doc["ip_address"].as<String>());
-            log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet)) {
-                log_error("STA Failed to configure");
+        if (doc.parse(content)) {
+            bool dhcp = false;
+            if (doc.getBool("dhcp", dhcp) && dhcp == true) {
+                String gw, sn, ip;
+                if (doc.getString("gateway", gw)) gateway.fromString(gw);
+                if (doc.getString("subnet", sn)) subnet.fromString(sn);
+                if (doc.getString("ip_address", ip)) local_ip.fromString(ip);
+                log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
+                if (!WiFi.config(local_ip, gateway, subnet)) {
+                    log_error("STA Failed to configure");
+                }
+                delay(100);
             }
-            delay(100);
+        } else {
+            log_error("Failed to parse WiFi config file");
         }
-    }
-    else {
-        log_error("File not found, will be created new configuration file");
     }
 #endif
 
@@ -735,28 +818,28 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
     }
 
     File root = m_filesystem->open(path, "r");
-    JSON_DOC(1024);
-    JsonArray array = doc.to<JsonArray>();
+    String output = "[";
     if (root.isDirectory()) {
         File file = root.openNextFile();
+        bool first = true;
         while (file) {
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-            JsonObject obj = array.add<JsonObject>();
-            #else
-            JsonObject obj = array.createNestedObject();
-            #endif
+            if (!first) output += ",";
+            first = false;
             String filename = file.name();
             if (filename.lastIndexOf("/") > -1) {
                 filename.remove(0, filename.lastIndexOf("/") + 1);
             }
-            obj["type"] = (file.isDirectory()) ? "dir" : "file";
-            obj["size"] = file.size();
-            obj["name"] = filename;
+            output += "{\"type\":\"";
+            output += (file.isDirectory()) ? "dir" : "file";
+            output += "\",\"size\":";
+            output += file.size();
+            output += ",\"name\":\"";
+            output += filename;
+            output += "\"}";
             file = root.openNextFile();
         }
     }
-    String output;
-    serializeJson(doc, output);
+    output += "]";
     request->send(200, "text/json", output);
 }
 

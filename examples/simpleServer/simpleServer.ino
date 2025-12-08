@@ -67,10 +67,17 @@ void setup() {
         Serial.println("LittleFS filesystem ready!");
         File config = server.getConfigFile("r");
         if (config) {
-            DynamicJsonDocument doc(config.size() * 1.33);
-            deserializeJson(doc, config);
-            testInt = doc["Test int variable"];
-            testFloat = doc["Test float variable"];
+            using namespace AsyncFSWebServer;
+            Json doc;
+            String content = "";
+            while (config.available()) {
+                content += (char)config.read();
+            }
+            if (doc.parse(content)) {
+                double temp;
+                if (doc.getNumber("Test int variable", temp)) testInt = (int)temp;
+                doc.getNumber("Test float variable", testFloat);
+            }
         }
         Serial.printf("Stored \"testInt\" value: %d\n", testInt);
         Serial.printf("Stored \"testFloat\" value: %3.2f\n", testFloat);

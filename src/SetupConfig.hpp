@@ -1,7 +1,9 @@
 #ifndef CONFIGURATOR_HPP
 #define CONFIGURATOR_HPP
-#include <ArduinoJson.h>
+#include <type_traits>
 #include <FS.h>
+
+#include "Json.h"
 #include "SerialLog.h"
 
 #define MIN_F -3.4028235E+38
@@ -12,11 +14,8 @@ class SetupConfigurator
     protected:
         uint8_t numOptions = 0;
         fs::FS* m_filesystem = nullptr;
-        #if ARDUINOJSON_VERSION_MAJOR > 6
-        JsonDocument* m_doc = nullptr;
-        #else
-        DynamicJsonDocument* m_doc = nullptr;
-        #endif
+        AsyncFSWebServer::Json* m_doc = nullptr;
+        AsyncFSWebServer::Json* m_savedDoc = nullptr;  // Temporary storage for saved file values
 
         bool m_opened = false;
 
@@ -26,22 +25,29 @@ class SetupConfigurator
 
         bool openConfiguration() {
             if (checkConfigFile()) {
-                File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-                #if ARDUINOJSON_VERSION_MAJOR > 6
-                    m_doc = new JsonDocument();
-                #else
-                    int sz = file.size() * 1.33;
-                    int docSize = max(sz, 2048);
-                    m_doc = new DynamicJsonDocument((size_t)docSize);
-                #endif
-                DeserializationError error = deserializeJson(*m_doc, file);
-                if (error) {
-                    log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-                    file.close();
-                    return false;
+                // Read existing file into m_savedDoc (background copy for value lookup)
+                if (m_filesystem->exists(ESP_FS_WS_CONFIG_FILE)) {
+                    File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
+                    if (file) {
+                        String content = file.readString();
+                        file.close();
+                        
+                        m_savedDoc = new AsyncFSWebServer::Json();
+                        if (!m_savedDoc->parse(content)) {
+                            log_error("Failed to parse existing configuration");
+                            delete m_savedDoc;
+                            m_savedDoc = nullptr;
+                            // Don't continue if parsing fails
+                            return false;
+                        }
+                    }
                 }
-                file.close();
-                // serializeJsonPretty(*m_doc, Serial);
+                
+                // Create empty m_doc - will be populated in addOption() in the setup order
+                m_doc = new AsyncFSWebServer::Json();
+                m_doc->setString("wifi-box", "");
+                m_doc->setBool("dhcp", false);
+                
                 m_opened = true;
                 return true;
             }
@@ -76,38 +82,64 @@ class SetupConfigurator
         friend class AsyncFsWebServer;
         SetupConfigurator(fs::FS *fs) : m_filesystem(fs) { ; }
 
-        bool closeConfiguration( bool write = true) {
+        bool closeConfiguration() {
             m_opened = false;
-            if (!write) {
-                m_doc->clear();
-                delete (m_doc);
-                m_doc = nullptr;
-                return true;
-            }
 
-            File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
-            if (file) {
-                if (serializeJsonPretty(*m_doc, file) == 0) {
-                    log_error("Failed to write to file");
+            // Serialize the new content
+            String newContent = m_doc->serialize(true);
+            
+            // Read existing file content
+            String oldContent;
+            if (m_filesystem->exists(ESP_FS_WS_CONFIG_FILE)) {
+                File readFile = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
+                if (readFile) {
+                    oldContent = readFile.readString();
+                    readFile.close();
                 }
-                file.close();               
-
-                // serializeJsonPretty(*m_doc, Serial);
-                m_doc->clear();
-                delete (m_doc);
-                m_doc = nullptr;
-                return true;
             }
-            return false;
+            
+            // Write only if content is different
+            if (oldContent != newContent) {
+                File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
+                if (file) {
+                    file.print(newContent);
+                    file.close();
+                    log_debug("Config file written (content changed)");
+                } 
+                else {
+                    log_error("Error opening config file for write");
+                    delete (m_doc);
+                    m_doc = nullptr;
+                    if (m_savedDoc) { 
+                        delete (m_savedDoc); 
+                        m_savedDoc = nullptr; 
+                    }
+                    return false;
+                }
+            } 
+            else {
+                log_debug("Config file unchanged, skipping write");
+            }
+            
+            delete (m_doc);
+            m_doc = nullptr;
+            if (m_savedDoc) { 
+                delete (m_savedDoc); 
+                m_savedDoc = nullptr; 
+            }
+            return true;
         }
 
         void setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
-            char filename[32] = {ESP_FS_WS_CONFIG_FOLDER};
-            strcat(filename, "/img-logo-");
-            strcat(filename, width);
-            strcat(filename, "_");
-            strcat(filename, height);
-            strcat(filename, ".txt");
+            // Use snprintf to safely create the filename with proper bounds checking
+            char filename[128];
+            int written = snprintf(filename, sizeof(filename), "%s/img-logo-%s_%s.txt", 
+                                   ESP_FS_WS_CONFIG_FOLDER, width, height);
+            
+            if (written < 0 || written >= (int)sizeof(filename)) {
+                log_error("Logo filename too long");
+                return;
+            }
 
             optionToFile(filename, logo, overwrite);
             addOption("img-logo", filename);
@@ -158,7 +190,7 @@ class SetupConfigurator
                 path += ".js";
 
             if (optionToFile(path.c_str(), source.c_str(), overWrite)){
-                (*m_doc)[tag] = path;
+                m_doc->setString(tag.c_str(), path.c_str());
             }
             else {
                 log_error("Source option not saved");
@@ -193,31 +225,27 @@ class SetupConfigurator
         */
         void addDropdownList(const char *label, const char** array, size_t size) {
 
-        #if ARDUINOJSON_VERSION_MAJOR > 6
-            // If key is present we don't need to create it.          
-            JsonVariant variant = (*m_doc)[label];
-            if (!variant.isNull()) {
+            // If key is present we don't need to create it.
+            if (m_doc->hasObject(label)) {
                 log_debug("Key \"%s\" value present", label);
                 return;
             }
-            JsonObject obj = (*m_doc)[label].to<JsonObject>();
-        #else
-            JsonObject obj = (*m_doc).createNestedObject(label);
-        #endif
-
-            if (obj.isNull())
-                return;
-
-            obj["selected"] = array[0];     // first element selected as default
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-                JsonArray arr = obj["values"].to<JsonArray>();
-            #else
-                JsonArray arr = obj.createNestedArray("values");
-            #endif
-
-            for (unsigned int i=0; i<size; i++) {
-                arr.add(array[i]);
+            m_doc->ensureObject(label);
+            
+            // Try to get saved "selected" value from m_savedDoc, otherwise use first item
+            String selectedValue = String(array[0]);
+            if (m_savedDoc) {
+                String savedSelected;
+                if (m_savedDoc->getString(label, "selected", savedSelected)) {
+                    selectedValue = savedSelected;
+                    log_debug("Dropdown \"%s\" using saved value: %s", label, selectedValue.c_str());
+                }
             }
+            
+            m_doc->setString(label, "selected", selectedValue);
+            std::vector<String> vals; vals.reserve(size);
+            for (unsigned int i=0; i<size; i++) { vals.emplace_back(String(array[i])); }
+            m_doc->setArray(label, "values", vals);
 
             numOptions++ ;
         }
@@ -261,30 +289,89 @@ class SetupConfigurator
             if (key.equals("raw-javascript"))
                 key += numOptions ;
 
-            // If key is present we don't need to create it.          
-            JsonVariant obj = (*m_doc)[key];
-            if (!obj.isNull()) {
-                log_debug("Key \"%s\" value present", key.c_str());
+            // If key is present we don't need to create it
+            if (m_doc->hasObject(key.c_str())) {
+                log_debug("Key \"%s\" already exists, skipping", key.c_str());
+                numOptions++;
                 return;
             }
             
+            // Try to get saved value from m_savedDoc, otherwise use provided default
+            bool valueFromSaved = false;
+            
             // if min, max, step != from default, treat this as object in order to set other properties
             if (d_min != MIN_F || d_max != MAX_F || step != 1.0) {
-                #if ARDUINOJSON_VERSION_MAJOR > 6
-                    JsonObject obj = (*m_doc)[key].to<JsonObject>();
-                #else
-                    JsonObject obj = (*m_doc).createNestedObject(key);
-                #endif
-                obj["value"] = static_cast<T>(val);
-                obj["min"] = d_min;
-                obj["max"] = d_max;
-                obj["step"] = step;
+                m_doc->ensureObject(key.c_str());
+                
+                if constexpr (std::is_same<T, String>::value) {
+                    String savedVal;
+                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), "value", savedVal)) {
+                        m_doc->setString(key.c_str(), "value", savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setString(key.c_str(), "value", val);
+                    }
+                } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
+                    String savedVal;
+                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), "value", savedVal)) {
+                        m_doc->setString(key.c_str(), "value", savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setString(key.c_str(), "value", String(val));
+                    }
+                } else {
+                    double savedVal;
+                    if (m_savedDoc && m_savedDoc->getNumber(key.c_str(), "value", savedVal)) {
+                        m_doc->setNumber(key.c_str(), "value", savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setNumber(key.c_str(), "value", static_cast<double>(val));
+                    }
+                }
+                
+                // min, max, step always use defaults (not persisted per se)
+                m_doc->setNumber(key.c_str(), "min", d_min);
+                m_doc->setNumber(key.c_str(), "max", d_max);
+                m_doc->setNumber(key.c_str(), "step", step);
             }
             else {
-                (*m_doc)[key] = static_cast<T>(val);
-            }        
+                if constexpr (std::is_same<T, String>::value) {
+                    String savedVal;
+                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), savedVal)) {
+                        m_doc->setString(key.c_str(), savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setString(key.c_str(), val);
+                    }
+                } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
+                    String savedVal;
+                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), savedVal)) {
+                        m_doc->setString(key.c_str(), savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setString(key.c_str(), String(val));
+                    }
+                } else if constexpr (std::is_same<T, bool>::value) {
+                    // Handle bool as boolean JSON type, not number
+                    bool savedVal;
+                    if (m_savedDoc && m_savedDoc->getBool(key.c_str(), savedVal)) {
+                        m_doc->setBool(key.c_str(), savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setBool(key.c_str(), val);
+                    }
+                } else {
+                    double savedVal;
+                    if (m_savedDoc && m_savedDoc->getNumber(key.c_str(), savedVal)) {
+                        m_doc->setNumber(key.c_str(), savedVal);
+                        valueFromSaved = true;
+                    } else {
+                        m_doc->setNumber(key.c_str(), static_cast<double>(val));
+                    }
+                }
+            }
             
-            log_debug("Value updated");
+            log_debug("Value added (saved=%d)", valueFromSaved);
             numOptions++;
         }
 
@@ -300,12 +387,23 @@ class SetupConfigurator
                 }
             }
 
-            if ((*m_doc)[label]["value"])
-                var = (*m_doc)[label]["value"].as<T>();
-            else if ((*m_doc)[label]["selected"])
-                var = (*m_doc)[label]["selected"].as<T>();
-            else
-                var = (*m_doc)[label].as<T>();
+            if constexpr (std::is_same<T, String>::value) {
+                String out;
+                if (m_doc->getString(label, "value", out)) var = out;
+                else if (m_doc->getString(label, "selected", out)) var = out;
+                else if (m_doc->getString(label, out)) var = out;
+            } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
+                // For C-strings, read as string and assign to var via const char*
+                String out;
+                if (m_doc->getString(label, "value", out)) var = out.c_str();
+                else if (m_doc->getString(label, "selected", out)) var = out.c_str();
+                else if (m_doc->getString(label, out)) var = out.c_str();
+            } else {
+                double out;
+                if (m_doc->getNumber(label, "value", out)) var = static_cast<T>(out);
+                else if (m_doc->getNumber(label, "selected", out)) var = static_cast<T>(out);
+                else if (m_doc->getNumber(label, out)) var = static_cast<T>(out);
+            }
             return true;
         }
 
@@ -318,12 +416,22 @@ class SetupConfigurator
                 }
             }
 
-            if ((*m_doc)[label]["value"])
-                (*m_doc)[label]["value"] = val;
-            else if ((*m_doc)[label]["selected"])
-                (*m_doc)[label]["selected"] = val;
-            else
-                (*m_doc)[label] = val;
+            if constexpr (std::is_same<T, String>::value) {
+                String v = val;
+                if (m_doc->hasKey(label, "value")) m_doc->setString(label, "value", v);
+                else if (m_doc->hasKey(label, "selected")) m_doc->setString(label, "selected", v);
+                else m_doc->setString(label, v);
+            } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
+                String v = String(val);
+                if (m_doc->hasKey(label, "value")) m_doc->setString(label, "value", v);
+                else if (m_doc->hasKey(label, "selected")) m_doc->setString(label, "selected", v);
+                else m_doc->setString(label, v);
+            } else {
+                double v = static_cast<double>(val);
+                if (m_doc->hasKey(label, "value")) m_doc->setNumber(label, "value", v);
+                else if (m_doc->hasKey(label, "selected")) m_doc->setNumber(label, "selected", v);
+                else m_doc->setNumber(label, v);
+            }
             return true;
         }
 

@@ -1,5 +1,6 @@
 #include <FS.h>
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
@@ -84,45 +85,58 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
 
 
 void parseMessage(const String json) {
-  DynamicJsonDocument doc(512);
-  DeserializationError error = deserializeJson(doc, json);
-
-  if (!error) {
+  using namespace AsyncFSWebServer;
+  Json doc;
+  
+  if (doc.parse(json)) {
     // If this is a "writeOut" command, set the pin level to value
-    const char* cmd = doc["cmd"];
-    if (strcmp(cmd, "writeOut") == 0) {
-      int pin = doc["pin"];
-      int level = doc["level"];
-      for (gpio_type &gpio : gpios) {
-        if (gpio.pin == pin) {
-          Serial.printf("Set pin %d to %d\n", pin, level);
-          gpio.level = level ;
-          digitalWrite(pin, level);
-          updateGpioList(nullptr);
-          return;
+    String cmd;
+    if (doc.getString("cmd", cmd)) {
+      if (cmd == "writeOut") {
+        double pin_val, level_val;
+        if (doc.getNumber("pin", pin_val) && doc.getNumber("level", level_val)) {
+          int pin = (int)pin_val;
+          int level = (int)level_val;
+          for (gpio_type &gpio : gpios) {
+            if (gpio.pin == pin) {
+              Serial.printf("Set pin %d to %d\n", pin, level);
+              gpio.level = level;
+              digitalWrite(pin, level);
+              updateGpioList(nullptr);
+              return;
+            }
+          }
         }
       }
     }
+  } else {
+    Serial.println(F("Failed to parse JSON message"));
   }
-  Serial.print(F("deserializeJson() failed: "));
-  Serial.println(error.f_str());
 }
 
 void updateGpioList(AsyncWebServerRequest *request) {
-  StaticJsonDocument<512> doc;
-  JsonArray array = doc.to<JsonArray>();
-
-  // Create a JSON message with current GPIO state
+  // Build JSON array manually since we need an array of objects
+  String json = "[";
+  
+  bool first = true;
   for (gpio_type &gpio : gpios) {
-    JsonObject obj = array.createNestedObject();
-    obj["type"] = gpio.type;
-    obj["pin"] = gpio.pin;
-    obj["label"] = gpio.label;
-    obj["level"] = gpio.level;
+    if (!first) json += ",";
+    first = false;
+    
+    json += "{\"type\":\"";
+    json += gpio.type;
+    json += "\",\"pin\":";
+    json += gpio.pin;
+    json += ",\"label\":\"";
+    json += gpio.label;
+    json += "\",\"level\":";
+    json += gpio.level;
+    json += "}";
   }
+  
+  json += "]";
+  
   // Update client via websocket
-  String json;
-  serializeJson(doc, json);
   server.wsBroadcast(json.c_str());
 
   if (request != nullptr)

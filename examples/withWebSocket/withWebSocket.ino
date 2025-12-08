@@ -1,11 +1,7 @@
-#if defined(ESP8266)
-#include <ESP8266mDNS.h>
-#elif defined(ESP32)
-#include <ESPmDNS.h>
-#endif
 #include <FS.h>
 #include <LittleFS.h>
-#include <AsyncFsWebServer.h>  // https://github.com/cotestatnt/async-esp-fs-webserver
+#include "src/async-esp-fs-webserver/src/AsyncFsWebServer.h"
+#include "src/async-esp-fs-webserver/src/Json.hpp"
 
 #include "index_htm.h"
 
@@ -126,33 +122,22 @@ bool startFilesystem() {
 
 
 ////////////////////  Load and save application configuration from filesystem  ////////////////////
-void saveApplicationConfig() {
-  File file = server.getConfigFile("r");
-  DynamicJsonDocument doc(file.size() * 1.33);
-  doc["Option 1"] = option1;
-  doc["Option 2"] = option2;
-  doc["LED Pin"] = ledPin;
-  serializeJsonPretty(doc, file);
-  file.close();
-  delay(1000);
-  ESP.restart();
-}
-
 bool loadApplicationConfig() {
   if (FILESYSTEM.exists(server.getConfiFileName())) {
     File file = server.getConfigFile("r");
-    DynamicJsonDocument doc(file.size() * 1.33);
-    DeserializationError error = deserializeJson(doc, file);
+    String content = file.readString();
     file.close();
-    if (!error) {
-      option1 = doc["Option 1"].as<String>();
-      option2 = doc["Option 2"];
-      ledPin = doc["LED Pin"];
-      return true;
-    } else {
-      Serial.print(F("Failed to deserialize JSON. Error: "));
-      Serial.println(error.c_str());
+    AsyncFSWebServer::Json json;
+    if (!json.parse(content)) {
+      Serial.println(F("Failed to parse JSON configuration."));
+      return false;
     }
+    String str;
+    double num;
+    if (json.getString("Option 1", str)) option1 = str;
+    if (json.getNumber("Option 2", num)) option2 = (uint32_t)num;
+    if (json.getNumber("LED Pin", num)) ledPin = (uint8_t)num;
+    return true;
   }
   return false;
 }
@@ -168,8 +153,12 @@ void setup() {
   // FILESYSTEM INIT
   if (startFilesystem()) {
     // Load configuration (if not present, default will be created when webserver will start)
-    if (loadApplicationConfig())
+    if (loadApplicationConfig()) {
       Serial.println(F("Application option loaded"));
+      Serial.printf("  LED Pin: %d\n", ledPin);
+      Serial.printf("  Option 1: %s\n", option1.c_str());   
+      Serial.printf("  Option 2: %u\n", option2);
+    }
     else
       Serial.println(F("Application options NOT loaded!"));
   }
@@ -218,13 +207,8 @@ void setup() {
   ));
 
   // Set hostname
-#ifdef ESP8266
-  WiFi.hostname(hostname);
-  configTime(MYTZ, "time.google.com", "time.windows.com", "pool.ntp.org");
-#elif defined(ESP32)
   WiFi.setHostname(hostname);
   configTzTime(MYTZ, "time.google.com", "time.windows.com", "pool.ntp.org");
-#endif
 
   // Start MDSN responder
   if (WiFi.status() == WL_CONNECTED) {
@@ -245,12 +229,6 @@ void loop() {
     delay(1000);
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-#ifdef ESP8266
-    MDNS.update();
-#endif
-  }
-
   // Send ESP system time (epoch) to WS client
   static uint32_t sendToClientTime;
   if (millis() - sendToClientTime > 1000) {
@@ -258,4 +236,6 @@ void loop() {
     time_t now = time(nullptr);
     wsLogPrintf(false, "{\"esptime\": %d}", (int)now);
   }
+
+  delay(10);
 }

@@ -46,13 +46,6 @@
     #include "SetupConfig.hpp"
 #endif
 
-#define ARDUINOJSON_USE_LONG_LONG 1
-    #include <ArduinoJson.h>
-#if ARDUINOJSON_VERSION_MAJOR > 6
-    #define JSON_DOC(x) JsonDocument doc
-#else
-    #define JSON_DOC(x) DynamicJsonDocument doc((size_t)x)
-#endif
 #include "CaptivePortal.hpp"
 
 #define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
@@ -76,6 +69,7 @@ typedef struct {
 
 using FsInfoCallbackF = std::function<void(fsInfo_t*)>;
 using CallbackF = std::function<void(void)>;
+using ConfigSavedCallbackF = std::function<void(const char*)>;  // Callback for config file saves
 
 class AsyncFsWebServer : public AsyncWebServer
 {
@@ -127,6 +121,7 @@ class AsyncFsWebServer : public AsyncWebServer
 
     fs::FS* m_filesystem = nullptr;
     FsInfoCallbackF getFsInfo = nullptr;
+    ConfigSavedCallbackF m_configSavedCallback = nullptr;  // Callback for config file saves
 
     IPAddress m_serverIp = IPAddress(192, 168, 4, 1);
 
@@ -152,6 +147,16 @@ class AsyncFsWebServer : public AsyncWebServer
       reset();
       end();
       if(_catchAllHandler) delete _catchAllHandler;
+      
+      // Deallocate all dynamically allocated resources
+      if(m_pageUser) delete[] m_pageUser;
+      if(m_pagePswd) delete[] m_pagePswd;
+      if(m_ws) delete m_ws;
+      if(m_captive) delete m_captive;
+      if(m_dnsServer) delete m_dnsServer;
+#if ESP_FS_WS_SETUP
+      if(setup) delete setup;
+#endif
     }
 
   #ifdef ESP32
@@ -174,7 +179,7 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
       Enable the built-in ACE web file editor
     */
-    void enableFsCodeEditor();
+    void enableFsCodeEditor(FsInfoCallbackF fsCallback = nullptr);
 
     /*
       Enable authenticate for /setup webpage
@@ -244,6 +249,14 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     inline void setFsInfoCallback(FsInfoCallbackF fsCallback) {
       getFsInfo = fsCallback;
+    }
+
+    /*
+    * Set callback function to be called when configuration file is saved via /edit POST
+    * The callback receives the filename path as parameter
+    */
+    inline void setConfigSavedCallback(ConfigSavedCallbackF callback) {
+      m_configSavedCallback = callback;
     }
 
     /*

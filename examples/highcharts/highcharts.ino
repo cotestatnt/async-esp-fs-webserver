@@ -170,21 +170,21 @@ void loop() {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
     time_t now = time(nullptr);
-    StaticJsonDocument<1024> doc;
-    doc["addPoint"] = true;
-    doc["timestamp"] = now;
+    using namespace AsyncFSWebServer;
+    Json doc;
+    doc.setBool("addPoint", true);
+    doc.setNumber("timestamp", (double)now);
 #ifdef ESP32
-    doc["totalHeap"] = heap_caps_get_free_size(0);
-    doc["maxBlock"]  =  heap_caps_get_largest_free_block(0);
+    doc.setNumber("totalHeap", (double)heap_caps_get_free_size(0));
+    doc.setNumber("maxBlock", (double)heap_caps_get_largest_free_block(0));
 #elif defined(ESP8266)
     uint32_t free;
     uint32_t max;
     ESP.getHeapStats(&free, &max, nullptr);
-    doc["totalHeap"] = free;
-    doc["maxBlock"]  =  max;
+    doc.setNumber("totalHeap", (double)free);
+    doc.setNumber("maxBlock", (double)max);
 #endif
-    String msg;
-    serializeJson(doc, msg);
+    String msg = doc.serialize();
     server.wsBroadcast(msg.c_str());
   }
 
