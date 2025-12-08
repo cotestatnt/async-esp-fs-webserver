@@ -153,7 +153,7 @@ void loop() {
 
       Serial.print("Publish message: ");
       Serial.println(payload);
-      mqttClient.publish(outTopic, payload.c_str());
+      mqttClient.publish(outTopic, payload);
     }
   }
 
