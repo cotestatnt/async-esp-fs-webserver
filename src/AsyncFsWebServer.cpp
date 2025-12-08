@@ -69,6 +69,11 @@ using namespace std::placeholders;
     else
         m_ws->onEvent(std::bind(&AsyncFsWebServer::handleWebSocket,this, _1, _2, _3, _4, _5, _6));
     addHandler(m_ws);
+    
+    DefaultHeaders::Instance().addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    DefaultHeaders::Instance().addHeader("Pragma", "no-cache");
+    DefaultHeaders::Instance().addHeader("Expires", "0");
+
     begin();
 
     // Configure and start MDNS responder
