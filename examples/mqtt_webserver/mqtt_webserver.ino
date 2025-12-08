@@ -14,6 +14,11 @@
 #include <FS.h>
 #include <LittleFS.h>
 
+// Add the correct pin number for your board if needed
+#ifndef BUILTIN_LED
+#define BUILTIN_LED 2  // Most ESP32 boards use GPIO2 for the built-in LED
+#endif
+
 AsyncFsWebServer myWebServer(80, LittleFS, "myServer");
 
 // Update these with values suitable for your network.
