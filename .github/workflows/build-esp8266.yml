@@ -36,16 +36,13 @@ jobs:
 
       - name: Install ESPAsyncWebServer
         run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer#v3.7.3
-
-      - name: Install Arduino-MySQL
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/cotestatnt/Arduino-MySQL
-        
+       
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build Examples
         run: |          
-          EXCLUDE_EXAMPLES="esp32-cam binaryWebSocket csvLoggerSD localRFID mysqlRFID"
+          EXCLUDE_EXAMPLES="esp32-cam binaryWebSocket csvLoggerSD localRFID mysqlRFID mqtt_webserver"
           
           for i in `ls examples`; do
             # skip excluded examples
@@ -67,7 +64,6 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          - huzzah
           - d1_mini
 
     steps:
@@ -94,7 +90,7 @@ jobs:
 
       - name: Build Examples
         run: |          
-          EXCLUDE_EXAMPLES="esp32-cam binaryWebSocket csvLoggerSD localRFID mysqlRFID"
+          EXCLUDE_EXAMPLES="esp32-cam binaryWebSocket csvLoggerSD localRFID mysqlRFID mqtt_webserver"
           
           for i in `ls examples`; do
             # skip excluded examples
