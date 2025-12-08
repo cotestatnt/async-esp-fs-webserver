@@ -78,8 +78,12 @@ void setup() {
     else
         Serial.println("LittleFS error!");
 
-    IPAddress myIP = server.startWiFi(15000, "ESP32_AP1234", "123456789");
-    WiFi.setSleep(WIFI_PS_NONE);
+	// Try to connect to WiFi (will start AP if not connected after timeout)
+    if (!server.startWiFi(10000)) {
+        Serial.println("\nWiFi not connected! Starting AP mode...");
+        server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+    }
+
     server.addOptionBox("Custom options");
     server.addOption("Test int variable", testInt);
     server.addOption("Test float variable", testFloat);
@@ -96,7 +100,7 @@ void setup() {
     // Start server
     server.init();
     Serial.print(F("Async ESP Web Server started on IP Address: "));
-    Serial.println(myIP);
+    Serial.println(server.getServerIP());
     Serial.println(F(
         "This is \"simpleServer.ino\" example.\n"
         "Open /setup page to configure optional parameters.\n"
@@ -106,5 +110,7 @@ void setup() {
 }
 
 void loop() {
+  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+    delay(1);  
 
 }

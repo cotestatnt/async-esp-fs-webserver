@@ -1,5 +1,3 @@
-
-
 #include <FS.h>
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>  //https://github.com/cotestatnt/async-esp-fs-webserver
@@ -56,13 +54,13 @@ function reload() {
   fetch('/reload')
   .then((response) => {
     if (response.ok) {
-      openModalMessage('Options loaded', 'Options was reloaded from configuration file');
+      openModal('Options loaded', 'Options was reloaded from configuration file');
       return;
     }
     throw new Error('Something goes wrong with fetch');
   })
   .catch((error) => {
-    openModalMessage('Error', 'Something goes wrong with your request');
+    openModal('Error', 'Something goes wrong with your request');
   });
 }
 )EOF";
@@ -150,12 +148,10 @@ void setup() {
       Serial.println(F("Application options NOT loaded!"));
   }
 
-  // Try to connect to stored SSID, start AP with captive portal if fails after timeout
-  IPAddress myIP = server.startWiFi(15000);
-  if (!myIP) {
-    Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+    Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
-    myIP = WiFi.softAPIP();
     captiveRun = true;
   }
 
@@ -186,8 +182,8 @@ void setup() {
 
   // Start server
   server.init();
-  Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(myIP);
+  Serial.print(F("\nESP Web Server started on IP Address: "));
+  Serial.println(server.getServerIP());
   Serial.println(F(
       "This is \"customOptions.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"
@@ -200,8 +196,11 @@ void loop() {
     server.updateDNS();
 
   // Savew options also on button click
-  if (! digitalRead(BTN_SAVE)) {
+  if (!digitalRead(BTN_SAVE)) {
     saveOptions();
     delay(1000);
   }
+
+  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+  delay(1);  
 }

@@ -167,12 +167,10 @@ void setup() {
       Serial.println(F("Application options NOT loaded!"));
   }
 
-  // Try to connect to stored SSID, start AP with captive portal if fails after timeout
-  IPAddress myIP = server.startWiFi(15000);
-  if (!myIP) {
-    Serial.println("\n\nNo WiFi connection, start AP and Captive Portal\n");
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+    Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
-    myIP = WiFi.softAPIP();
     captiveRun = true;
   }
 
@@ -228,7 +226,7 @@ void setup() {
   // Start server
   if (server.init()) {
     Serial.print(F("\n\nWeb Server started on IP Address: "));
-    Serial.println(myIP);
+    Serial.println(server.getServerIP());
     Serial.println(F(
       "This is \"customHTML.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"
@@ -245,4 +243,7 @@ void setup() {
 void loop() {
   if (captiveRun)
     server.updateDNS();
+  
+  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+  delay(1);  
 }

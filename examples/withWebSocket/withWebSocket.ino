@@ -174,8 +174,11 @@ void setup() {
       Serial.println(F("Application options NOT loaded!"));
   }
 
-  // Try to connect to stored SSID, start AP if fails after timeout
-  IPAddress myIP = server.startWiFi(15000, "ESP_AP", "123456789");
+  // Try to connect to WiFi (will start AP if not connected after timeout)
+  if (!server.startWiFi(10000)) {
+    Serial.println("\nWiFi not connected! Starting AP mode...");
+    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+  }
 
   // Configure /setup page
   server.addOptionBox("My Options");
@@ -197,9 +200,9 @@ void setup() {
   */
 #ifdef ESP32
   server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-	fsInfo->fsName = "LittleFS";
-	fsInfo->totalBytes = LittleFS.totalBytes();
-	fsInfo->usedBytes = LittleFS.usedBytes();  
+    fsInfo->fsName = "LittleFS";
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();  
   });
 #endif
 
@@ -207,7 +210,7 @@ void setup() {
   server.init(onWsEvent);
 
   Serial.print(F("ESP Web Server started on IP Address: "));
-  Serial.println(WiFi.localIP());
+  Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"withWebSocket.ino\" example.\n"
     "Open /setup page to configure optional parameters.\n"

@@ -9,9 +9,44 @@
 
 class SetupConfigurator
 {
-    private:
-        fs::FS* m_filesystem = nullptr;
+    protected:
         uint8_t numOptions = 0;
+        fs::FS* m_filesystem = nullptr;
+        #if ARDUINOJSON_VERSION_MAJOR > 6
+        JsonDocument* m_doc = nullptr;
+        #else
+        DynamicJsonDocument* m_doc = nullptr;
+        #endif
+
+        bool m_opened = false;
+
+        bool isOpened() {
+            return m_opened;
+        }
+
+        bool openConfiguration() {
+            if (checkConfigFile()) {
+                File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
+                #if ARDUINOJSON_VERSION_MAJOR > 6
+                    m_doc = new JsonDocument();
+                #else
+                    int sz = file.size() * 1.33;
+                    int docSize = max(sz, 2048);
+                    m_doc = new DynamicJsonDocument((size_t)docSize);
+                #endif
+                DeserializationError error = deserializeJson(*m_doc, file);
+                if (error) {
+                    log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
+                    file.close();
+                    return false;
+                }
+                file.close();
+                // serializeJsonPretty(*m_doc, Serial);
+                m_opened = true;
+                return true;
+            }
+            return false;
+        }
 
         bool checkConfigFile() {
             File file = m_filesystem->open(ESP_FS_WS_CONFIG_FOLDER, "r");
@@ -30,15 +65,40 @@ class SetupConfigurator
                     log_error("Error. File %s not created", ESP_FS_WS_CONFIG_FILE);
                     return false;
                 }
-                file.print("{\"wifi-box\": \"\",\"dhcp\":false}");
+                file.println("{\"wifi-box\": \"\", \"dhcp\": false}");
                 file.close();
             }
+            log_debug("Config file %s OK", ESP_FS_WS_CONFIG_FILE);
             return true;
         }
 
     public:
-        SetupConfigurator(fs::FS *fs) {
-            m_filesystem = fs;
+        friend class AsyncFsWebServer;
+        SetupConfigurator(fs::FS *fs) : m_filesystem(fs) { ; }
+
+        bool closeConfiguration( bool write = true) {
+            m_opened = false;
+            if (!write) {
+                m_doc->clear();
+                delete (m_doc);
+                m_doc = nullptr;
+                return true;
+            }
+
+            File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
+            if (file) {
+                if (serializeJsonPretty(*m_doc, file) == 0) {
+                    log_error("Failed to write to file");
+                }
+                file.close();               
+
+                // serializeJsonPretty(*m_doc, Serial);
+                m_doc->clear();
+                delete (m_doc);
+                m_doc = nullptr;
+                return true;
+            }
+            return false;
         }
 
         void setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
@@ -79,38 +139,52 @@ class SetupConfigurator
             return false;
         }
 
-        void addSource(const char* source, const char* tag, bool overWrite) {
+        void addSource(const String& source, const String& tag, bool overWrite) {
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
+                }
+            }
+
             String path = ESP_FS_WS_CONFIG_FOLDER;
             path += "/";
             path += tag;
 
-            if (strstr(tag, "html") != NULL)
+            if (tag.indexOf("html") > -1)
                 path += ".htm";
-            else if (strstr(tag, "css") != NULL)
+            else if (tag.indexOf("css") > -1)
                 path += ".css";
-            else if (strstr(tag, "javascript") != NULL)
+            else if (tag.indexOf("javascript") > -1)
                 path += ".js";
 
-            optionToFile(path.c_str(), source, overWrite);
-            addOption(tag, path.c_str(), false);
+            if (optionToFile(path.c_str(), source.c_str(), overWrite)){
+                (*m_doc)[tag] = path;
+            }
+            else {
+                log_error("Source option not saved");
+            }
+
         }
 
         void addHTML(const char* html, const char* id, bool overWrite) {
             String _id = "raw-html-";
             _id  += id;
-            addSource(html, _id.c_str(), overWrite);
+            String source = html;
+            addSource(source, _id, overWrite);
         }
 
         void addCSS(const char* css,  const char* id, bool overWrite) {
             String _id = "raw-css-" ;
             _id  += id;
-            addSource(css, _id.c_str(), overWrite);
+            String source = css;
+            addSource(source, _id, overWrite);
         }
 
         void addJavascript(const char* script,  const char* id, bool overWrite) {
             String _id = "raw-javascript-" ;
             _id  += id;
-            addSource(script, _id.c_str(), overWrite);
+            String source = script;
+            addSource(source, _id, overWrite);
         }
 
 
@@ -118,39 +192,21 @@ class SetupConfigurator
             Add a new dropdown input element
         */
         void addDropdownList(const char *label, const char** array, size_t size) {
-            File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-                JsonDocument doc;
-            #else
-                int sz = file.size() * 1.33;
-                int docSize = max(sz, 2048);
-                DynamicJsonDocument doc((size_t)docSize);
-            #endif
-            if (file) {
-                // If file is present, load actual configuration
-                DeserializationError error = deserializeJson(doc, file);
-                if (error) {
-                    log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-                    file.close();
-                    return;
-                }
-                file.close();
-            }
-            else {
-                log_error("File not found, will be created new configuration file");
-            }
-            numOptions++ ;
 
-            #if ARDUINOJSON_VERSION_MAJOR > 6                
-                if (doc["value"]) 
-                    return;
-                JsonObject obj = doc[label].to<JsonObject>();
-            #else
-                // If key is present in json, we don't need to create it
-                if (doc.containsKey(label))
-                    return;
-                JsonObject obj = doc.createNestedObject(label);
-            #endif
+        #if ARDUINOJSON_VERSION_MAJOR > 6
+            // If key is present we don't need to create it.          
+            JsonVariant variant = (*m_doc)[label];
+            if (!variant.isNull()) {
+                log_debug("Key \"%s\" value present", label);
+                return;
+            }
+            JsonObject obj = (*m_doc)[label].to<JsonObject>();
+        #else
+            JsonObject obj = (*m_doc).createNestedObject(label);
+        #endif
+
+            if (obj.isNull())
+                return;
 
             obj["selected"] = array[0];     // first element selected as default
             #if ARDUINOJSON_VERSION_MAJOR > 6
@@ -163,11 +219,7 @@ class SetupConfigurator
                 arr.add(array[i]);
             }
 
-            file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
-            if (serializeJsonPretty(doc, file) == 0) {
-                log_error("Failed to write to file");
-            }
-            file.close();
+            numOptions++ ;
         }
 
         /*
@@ -186,41 +238,20 @@ class SetupConfigurator
         }
 
         /*
-            Add custom option to config webpage (type of parameter will be deduced from variable itself)
-        */
-        /*
         Add custom option to config webpage (type of parameter will be deduced from variable itself)
         */
         template <typename T>
         void addOption(const char *label, T val, bool hidden = false,
                             double d_min = MIN_F, double d_max = MAX_F, double step = 1.0)
         {
-            if (!checkConfigFile())
-                return;
 
-            File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-                JsonDocument doc;
-            #else
-                int sz = file.size() * 1.33;
-                int docSize = max(sz, 2048);
-                DynamicJsonDocument doc((size_t)docSize);
-            #endif
-            if (file) {
-                // If file is present, load actual configuration
-                DeserializationError error = deserializeJson(doc, file);
-                if (error) {
-                log_error("Failed to deserialize file, may be corrupted\n %s", error.c_str());
-                file.close();
-                return;
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
                 }
-                file.close();
             }
-            else {
-                log_error("File not found, will be created new configuration file");
-            }
+            log_debug("Adding option \"%s\"", label);
 
-            numOptions++ ;
             String key = label;
             if (hidden)
                 key += "-hidden";
@@ -230,16 +261,19 @@ class SetupConfigurator
             if (key.equals("raw-javascript"))
                 key += numOptions ;
 
-            // If key is present and value is the same, we don't need to create/update it.
-            if (doc[key] == val)
+            // If key is present we don't need to create it.          
+            JsonVariant obj = (*m_doc)[key];
+            if (!obj.isNull()) {
+                log_debug("Key \"%s\" value present", key.c_str());
                 return;
-
+            }
+            
             // if min, max, step != from default, treat this as object in order to set other properties
             if (d_min != MIN_F || d_max != MAX_F || step != 1.0) {
                 #if ARDUINOJSON_VERSION_MAJOR > 6
-                    JsonObject obj = doc[key].to<JsonObject>();
+                    JsonObject obj = (*m_doc)[key].to<JsonObject>();
                 #else
-                    JsonObject obj = doc.createNestedObject(key);
+                    JsonObject obj = (*m_doc).createNestedObject(key);
                 #endif
                 obj["value"] = static_cast<T>(val);
                 obj["min"] = d_min;
@@ -247,14 +281,11 @@ class SetupConfigurator
                 obj["step"] = step;
             }
             else {
-                doc[key] = static_cast<T>(val);
-            }
-
-            file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
-            if (serializeJsonPretty(doc, file) == 0) {
-                log_error("Failed to write to file");
-            }
-            file.close();
+                (*m_doc)[key] = static_cast<T>(val);
+            }        
+            
+            log_debug("Value updated");
+            numOptions++;
         }
 
         /*
@@ -262,63 +293,37 @@ class SetupConfigurator
         */
         template <typename T>
         bool getOptionValue(const char *label, T &var) {
-            File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-                JsonDocument doc;
-            #else
-                int sz = file.size() * 1.33;
-                int docSize = max(sz, 2048);
-                DynamicJsonDocument doc((size_t)docSize);
-            #endif
-            if (file) {
-                DeserializationError error = deserializeJson(doc, file);
-                if (error) {
-                    log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-                    file.close();
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
                     return false;
                 }
-                file.close();
             }
-            else
-            return false;
 
-            if (doc[label]["value"])
-                var = doc[label]["value"].as<T>();
-            else if (doc[label]["selected"])
-                var = doc[label]["selected"].as<T>();
+            if ((*m_doc)[label]["value"])
+                var = (*m_doc)[label]["value"].as<T>();
+            else if ((*m_doc)[label]["selected"])
+                var = (*m_doc)[label]["selected"].as<T>();
             else
-                var = doc[label].as<T>();
+                var = (*m_doc)[label].as<T>();
             return true;
         }
 
         template <typename T>
         bool saveOptionValue(const char *label, T val) {
-            File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "w");
-            #if ARDUINOJSON_VERSION_MAJOR > 6
-                JsonDocument doc;
-            #else
-                int sz = file.size() * 1.33;
-                int docSize = max(sz, 2048);
-                DynamicJsonDocument doc((size_t)docSize);
-            #endif
-            if (file) {
-                DeserializationError error = deserializeJson(doc, file);
-                if (error)  {
-                    log_error("Failed to deserialize file, may be corrupted\n %s\n", error.c_str());
-                    file.close();
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
                     return false;
                 }
-                file.close();
             }
-            else
-                return false;
 
-            if (doc[label]["value"])
-                doc[label]["value"] = val;
-            else if (doc[label]["selected"])
-                doc[label]["selected"] = val;
+            if ((*m_doc)[label]["value"])
+                (*m_doc)[label]["value"] = val;
+            else if ((*m_doc)[label]["selected"])
+                (*m_doc)[label]["selected"] = val;
             else
-                doc[label] = val;
+                (*m_doc)[label] = val;
             return true;
         }
 

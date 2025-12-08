@@ -9,6 +9,9 @@ extern "C"
 {
 #endif
 
+#define DBG_OUTPUT_PORT     Serial
+#define LOG_LEVEL           1         // (0 disable, 1 error, 2 info, 3 debug)
+
 #define __SOURCE_FILE_NAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #define _LOG_FORMAT(letter, format)  "\n["#letter"][%s:%u] %s():\t" format, __SOURCE_FILE_NAME__, __LINE__, __FUNCTION__
 
