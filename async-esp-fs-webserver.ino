@@ -11,7 +11,6 @@ AsyncFsWebServer server(80, FILESYSTEM, hostname);
 #endif
 #define BOOT_PIN    0
 
-
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
 bool boolVar = true;
