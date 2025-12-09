@@ -14,6 +14,10 @@
 #include <FS.h>
 #include <LittleFS.h>
 
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
 AsyncFsWebServer myWebServer(80, LittleFS, "myServer");
 
 // Update these with values suitable for your network.

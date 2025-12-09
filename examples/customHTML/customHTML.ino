@@ -1,17 +1,15 @@
 #include <FS.h>
 #include <LittleFS.h>
-#include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
+#include "src/AsyncFsWebServer.h"   // https://github.com/cotestatnt/async-esp-fs-webserver
 
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(80, FILESYSTEM, hostname);
-bool captiveRun = false;
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
-
-#define CLEAR_OPTIONS false
+#define BOOT_PIN    0
 
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
@@ -61,6 +59,11 @@ uint16_t tb_port = 80;
 #include "customElements.h"
 #include "thingsboard.h"
 
+// Callback: notify user when the configuration file is saved
+void onConfigSaved(const char* path) {
+  Serial.printf("\n[Config] File salvato: %s\n", path);
+}
+
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
   if (FILESYSTEM.begin()){
@@ -89,55 +92,6 @@ void getFsInfo(fsInfo_t* fsInfo) {
 
 
 ////////////////////  Load application options from filesystem  ////////////////////
-/*
-* Unlike what was done in customOptions.ino, in this example
-* the variables are read (and written) all at once using the ArduinoJon library
-*/
-// bool loadOptions() {
-//   if (FILESYSTEM.exists(server.getConfiFileName())) {
-//     File file = server.getConfigFile("r");
-// #if ARDUINOJSON_VERSION_MAJOR > 6
-//     JsonDocument doc;
-// #else
-//     DynamicJsonDocument doc(file.size() * 1.33);
-// #endif
-//     if (!file)
-//       return false;
-
-//     DeserializationError error = deserializeJson(doc, file);
-//     if (error)
-//       return false;
-
-//     ledPin = doc[LED_LABEL];
-//     boolVar = doc[BOOL_LABEL];
-//     longVar = doc[LONG_LABEL];
-//     floatVar = doc[FLOAT_LABEL]["value"];
-//     stringVar = doc[STRING_LABEL].as<String>();
-
-//     tb_deviceName = doc[TB_DEVICE_NAME].as<String>();
-//     tb_deviceLatitude = doc[TB_DEVICE_LAT];
-//     tb_deviceLongitude = doc[TB_DEVICE_LON];
-//     tb_deviceToken = doc[TB_DEVICE_TOKEN].as<String>();
-//     tb_device_key = doc[TB_DEVICE_KEY].as<String>();
-//     tb_secret_key = doc[TB_SECRET_KEY].as<String>();
-//     tb_serverIP = doc[TB_SERVER].as<String>();
-//     tb_port = doc[TB_PORT];
-
-//     file.close();
-
-//     Serial.println();
-//     Serial.printf("LED pin value: %d\n", ledPin);
-//     Serial.printf("Bool value: %d\n", boolVar);
-//     Serial.printf("Long value: %ld\n",(long) longVar);
-//     Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
-//     Serial.println(stringVar);
-//     return true;
-//   }
-//   else
-//     Serial.println(F("Configuration file not exist"));
-//   return false;
-// }
-
 bool loadOptions() {    
     File config = server.getConfigFile("r");
     if (config) {
@@ -146,20 +100,41 @@ bool loadOptions() {
         String content = "";
         while (config.available()) {
             content += (char)config.read();
-        }        
+        }   
+        config.close();
+
         if (doc.parse(content)) {            
             doc.getNumber("Test int variable", ledPin);
+            doc.getBool("A bool variable", boolVar);
+            doc.getString("A String variable", stringVar);  
             doc.getNumber("Test float variable", longVar);
+            doc.getNumber("Test float variable", floatVar);
+            doc.getString(TB_DEVICE_NAME, tb_deviceName);
+            doc.getNumber(TB_DEVICE_LAT, tb_deviceLatitude);
+
+            doc.getNumber(TB_DEVICE_LON, tb_deviceLongitude);
+            doc.getString(TB_DEVICE_TOKEN, tb_deviceToken);
+            doc.getString(TB_DEVICE_KEY, tb_device_key);
+            doc.getString(TB_SECRET_KEY, tb_secret_key);
+            doc.getString(TB_SERVER, tb_serverIP);
+            doc.getNumber(TB_PORT, tb_port);
+            Serial.println();
+            Serial.printf("LED pin value: %d\n", ledPin);
+            Serial.printf("Bool value: %d\n", boolVar);
+            Serial.printf("Long value: %ld\n",(long) longVar);  
+            Serial.printf("Float value: %3.2f\n", floatVar);
+            Serial.printf("String var: %s\n\n", stringVar.c_str());
+            return true;
         }
         else {
-            Serial.println("Failed to parse configuration file");
-            config.close();
+            Serial.println("Failed to parse configuration file");            
             return false;
         }
-    }
-    config.close();
+    }    
     return true;
 }
+
+
 
 
 
@@ -171,31 +146,20 @@ void handleLoadOptions(AsyncWebServerRequest *request) {
 }
 
 void setup() {
-#ifdef LED_BUILTIN
+  pinMode(BOOT_PIN, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
-#endif
   Serial.begin(115200);
-
-  // Load configuration (if not present, default will be created when webserver will start)
-#if CLEAR_OPTIONS
-  if (server.clearOptions())
-    ESP.restart();
-#endif
 
   // FILESYSTEM INIT
   if (startFilesystem()){
     // Load configuration (if not present, default will be created when webserver will start)
-    if (loadOptions())
-      Serial.println(F("Application option loaded"));
-    else
-      Serial.println(F("Application options NOT loaded!"));
+    loadOptions();      
   }
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
-    captiveRun = true;
   }
 
   // Add custom page handlers to webserver
@@ -248,6 +212,9 @@ void setup() {
   server.enableFsCodeEditor();
 #endif
 
+  // Inform user when config.json is saved via /edit or /upload
+  server.setConfigSavedCallback(onConfigSaved);
+
   // Start web server
   if (server.init()) {
     Serial.print(F("\n\nWeb Server started on IP Address: "));
@@ -258,7 +225,7 @@ void setup() {
       "Open /edit page to view, edit or upload example or your custom webserver source files."
     ));
     Serial.printf("Ready! Open http://%s.local in your browser\n", hostname);
-    if (captiveRun)
+    if (server.isAccessPointMode())
       Serial.print(F("Captive portal is running"));
   }
 
@@ -266,8 +233,27 @@ void setup() {
 
 
 void loop() {
-  if (captiveRun)
+  if (server.isAccessPointMode())
     server.updateDNS();
+
+  // Keep BOOT_PIN pressed 5 seconds to clear application options
+  static unsigned long buttonPressStart = 0;
+  static bool buttonPressed = false;
+  
+  if (digitalRead(BOOT_PIN) == LOW) {
+    if (!buttonPressed) {
+      buttonPressed = true;
+      buttonPressStart = millis();
+    } 
+    else if (millis() - buttonPressStart >= 5000) {
+      Serial.println("\nClearing application options...");
+      server.clearConfigFile();
+      delay(1000);
+      ESP.restart();
+    }
+  } else {
+    buttonPressed = false;
+  }
   
   // This delay is required in order to avoid loopTask() WDT reset on ESP32
   delay(10);  

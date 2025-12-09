@@ -3,7 +3,6 @@
 #include <AsyncFsWebServer.h>  //https://github.com/cotestatnt/async-esp-fs-webserver
 
 #define FILESYSTEM LittleFS
-bool captiveRun = false;
 
 // AsyncFsWebServer server(80, FILESYSTEM, "esphost");
 AsyncFsWebServer server(80, FILESYSTEM);
