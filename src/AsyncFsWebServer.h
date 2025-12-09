@@ -335,6 +335,10 @@ class AsyncFsWebServer : public AsyncWebServer
     bool getOptionValue(const char *lbl, T &var) { return setup->getOptionValue(lbl, var);}
     template <typename T>
     bool saveOptionValue(const char *lbl, T val) { return setup->saveOptionValue(lbl, val);}
+
+    void closeSetupConfiguration() {
+      setup->closeConfiguration();
+    }
     /////////////////////////////////////////////////////////////////////////////////////////////////
 #endif
 

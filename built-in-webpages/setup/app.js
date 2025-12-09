@@ -423,7 +423,7 @@ function switchPage(el) {
   const target = el.target;
   const boxId = target.getAttribute("data-box");
   
-  $('top-nav').classList.remove('resp');
+  $('top-nav').classList.remove('responsive');
   
   // Update active menu item
   document.querySelectorAll("a").forEach(item => item.classList.remove('active'));
@@ -456,7 +456,7 @@ function switchPage(el) {
 }
 
 function showMenu() {
-  $('top-nav').classList.add('resp');
+  $('top-nav').classList.toggle('responsive');
 }
 
 function openModal(title, msg, fn) {

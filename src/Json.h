@@ -27,15 +27,15 @@ public:
     bool getString(const String& key, String& out) const;
     bool getBool(const String& key, bool& out) const;
     bool getNumber(const String& key, double& out) const;
-    bool getNumber(const String& key, float& out) const;
-    bool getNumber(const String& key, int8_t& out) const;
-    bool getNumber(const String& key, uint8_t& out) const;
-    bool getNumber(const String& key, int16_t& out) const;
-    bool getNumber(const String& key, uint16_t& out) const;
-    bool getNumber(const String& key, int32_t& out) const;
-    bool getNumber(const String& key, uint32_t& out) const;
-    bool getNumber(const String& key, int64_t& out) const;
-    bool getNumber(const String& key, uint64_t& out) const;
+    // bool getNumber(const String& key, float& out) const;
+    // bool getNumber(const String& key, int8_t& out) const;
+    // bool getNumber(const String& key, uint8_t& out) const;
+    // bool getNumber(const String& key, int16_t& out) const;
+    // bool getNumber(const String& key, uint16_t& out) const;
+    // bool getNumber(const String& key, int32_t& out) const;
+    // bool getNumber(const String& key, uint32_t& out) const;
+    // bool getNumber(const String& key, int64_t& out) const;
+    // bool getNumber(const String& key, uint64_t& out) const;
 
     // Object-scoped key helpers
     bool hasKey(const String& obj, const String& key) const;

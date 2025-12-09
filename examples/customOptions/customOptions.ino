@@ -10,8 +10,7 @@ AsyncFsWebServer server(80, FILESYSTEM);
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
-
-#define BTN_SAVE  5
+#define BOOT_PIN    0
 
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
@@ -65,6 +64,11 @@ function reload() {
 )EOF";
 
 
+// Callback: notify user when the configuration file is saved
+void onConfigSaved(const char* path) {
+  Serial.printf("\n[Config] File salvato: %s\n", path);
+}
+
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
   if (FILESYSTEM.begin()){
@@ -79,18 +83,6 @@ bool startFilesystem() {
   return false;
 }
 
-/*
-* Getting FS info (total and free bytes) is strictly related to
-* filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-*/
-#ifdef ESP32
-void getFsInfo(fsInfo_t* fsInfo) {
-	fsInfo->fsName = "LittleFS";
-	fsInfo->totalBytes = LittleFS.totalBytes();
-	fsInfo->usedBytes = LittleFS.usedBytes();
-}
-#endif
-
 
 ////////////////////  Load application options from filesystem  ////////////////////
 bool loadOptions() {
@@ -101,6 +93,7 @@ bool loadOptions() {
     server.getOptionValue(FLOAT_LABEL, floatVar);
     server.getOptionValue(STRING_LABEL, stringVar);
     server.getOptionValue(DROPDOWN_LABEL, dropdownSelected);
+    server.closeSetupConfiguration();  // Close configuration to free resources
 
     Serial.println("\nThis are the current values stored: \n");
     Serial.printf("LED pin value: %d\n", ledPin);
@@ -116,15 +109,6 @@ bool loadOptions() {
   return false;
 }
 
-void saveOptions() {
-  // server.saveOptionValue(LED_LABEL, ledPin);
-  // server.saveOptionValue(BOOL_LABEL, boolVar);
-  // server.saveOptionValue(LONG_LABEL, longVar);
-  // server.saveOptionValue(FLOAT_LABEL, floatVar);
-  // server.saveOptionValue(STRING_LABEL, stringVar);
-  // server.saveOptionValue(DROPDOWN_LABEL, dropdownSelected);
-  Serial.println(F("Application options saved."));
-}
 
 ////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
 void handleLoadOptions(AsyncWebServerRequest *request) {
@@ -136,70 +120,85 @@ void handleLoadOptions(AsyncWebServerRequest *request) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(BTN_SAVE, INPUT_PULLUP);
 
   // FILESYSTEM INIT
   if (startFilesystem()){
     // Load configuration (if not present, default will be created when webserver will start)
-    if (loadOptions())
-      Serial.println(F("Application option loaded"));
-    else
-      Serial.println(F("Application options NOT loaded!"));
+    loadOptions();
   }
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
-    captiveRun = true;
   }
 
-  // Add custom page handlers to webserver
+  // Add custom page handler
   server.on("/reload", HTTP_GET, handleLoadOptions);
 
   // Configure /setup page and start Web Server
   server.addOptionBox("My Options");
-
   server.addOption(BOOL_LABEL, boolVar);
   server.addOption(LED_LABEL, ledPin);
   server.addOption(LONG_LABEL, longVar);
   server.addOption(FLOAT_LABEL, floatVar, 1.0, 100.0, 0.01);
   server.addOption(STRING_LABEL, stringVar);
   server.addDropdownList(DROPDOWN_LABEL, dropdownList, LIST_SIZE);
-
   server.addHTML(save_btn_htm, "buttons", /*overwrite*/ false);
   server.addJavascript(button_script, "js", /*overwrite*/ false);
 
-  // Enable ACE FS file web editor and add FS info callback function
+  // Enable ACE FS file web editor and add FS info callback function    
+#ifdef ESP32
+  server.enableFsCodeEditor([](fsInfo_t* fsInfo) {
+    fsInfo->fsName = "LittleFS";
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();
+  });
+#else
+  // ESP8266 core support LittleFS by default
   server.enableFsCodeEditor();
-  #ifdef ESP32
-  server.setFsInfoCallback(getFsInfo);
-  #endif
+#endif
 
   // set /setup and /edit page authentication
   server.setAuthentication("admin", "admin");
+
+  // Inform user when config.json is saved via /edit or /upload
+  server.setConfigSavedCallback(onConfigSaved);
 
   // Start server
   server.init();
   Serial.print(F("\nESP Web Server started on IP Address: "));
   Serial.println(server.getServerIP());
   Serial.println(F(
-      "This is \"customOptions.ino\" example.\n"
+      "\nThis is \"customOptions.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"
       "Open /edit page to view, edit or upload example or your custom webserver source files."
   ));
 }
 
 void loop() {
-  if (captiveRun)
+  if (server.isAccessPointMode())
     server.updateDNS();
 
-  // Savew options also on button click
-  if (!digitalRead(BTN_SAVE)) {
-    saveOptions();
-    delay(1000);
+  // Keep BOOT_PIN pressed 5 seconds to clear application options
+  static unsigned long buttonPressStart = 0;
+  static bool buttonPressed = false;
+  
+  if (digitalRead(BOOT_PIN) == LOW) {
+    if (!buttonPressed) {
+      buttonPressed = true;
+      buttonPressStart = millis();
+    } 
+    else if (millis() - buttonPressStart >= 5000) {
+      Serial.println("\nClearing application options...");
+      server.clearConfigFile();
+      delay(1000);
+      ESP.restart();
+    }
+  } else {
+    buttonPressed = false;
   }
 
-  // This delay is required in order to avoid loopTask() WDT reset on ESP32
-  delay(1);  
+  // Nothing to do here, just a small delay for task yield
+  delay(10);  
 }

@@ -56,8 +56,17 @@ using namespace std::placeholders;
     );
 
     on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
+        // Send response first, then restart after a short delay so the client receives it
         request->send(200, "text/plain", WiFi.localIP().toString());
-        delay(500);
+        uint32_t timeout = millis() + 2000;
+        // Give network stack a moment to flush and close
+        while(millis() < timeout) {
+            #if defined(ESP8266)
+            yield();
+            #else
+            vTaskDelay(pdMS_TO_TICKS(100));
+            #endif
+        }
         ESP.restart();
     });
     
@@ -237,8 +246,19 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
-    request->send(404, "text/plain", "Not found");
-    log_debug("Resource %s not found\n", request->url().c_str());
+    // In AP mode, redirect root requests to /setup if index.htm/html doesn't exist
+    if (m_isApMode) {
+        if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
+            request->redirect("/setup");
+            log_debug("AP mode: redirecting / to /setup (no index file found)");
+        } else {
+            request->redirect("/setup");
+            log_debug("AP mode: redirecting %s to /setup", request->url().c_str());
+        }
+    } else {
+        request->send(404, "text/plain", "Not found");
+        log_debug("Resource %s not found\n", request->url().c_str());
+    }
 }
 
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
@@ -565,6 +585,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
 
             log_debug("%s", resp);
             request->send(200, "application/json", resp);
+            delay(500);  // Give client time to receive response before system changes
             setTaskWdt(AWS_WDT_TIMEOUT);
             return;
         }
@@ -772,6 +793,12 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
     // Start AP mode
     delay(100);
     WiFi.mode(WIFI_AP);
+    
+    // Configure IP address, gateway and netmask for AP mode
+    IPAddress apIP(192, 168, 4, 1);
+    IPAddress netmask(255, 255, 255, 0);
+    WiFi.softAPConfig(apIP, apIP, netmask);
+    
     if (!WiFi.softAP(ssid, pass)) {
         log_error("Captive portal failed to start: WiFi.softAP() failed!");
         return false;
@@ -780,12 +807,14 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
     m_isApMode = true;
 
     m_dnsServer = new DNSServer();
-    if (! m_dnsServer->start(53, "*", WiFi.softAPIP())) {
+    m_dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+    if (! m_dnsServer->start(53, "*", m_serverIp)) {
         log_error("Captive portal failed to start: no sockets for DNS server available!");
         return false;
     }
     m_captive = new CaptiveRequestHandler(redirectTargetURL);
     addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
+    
     log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
 
     return true;

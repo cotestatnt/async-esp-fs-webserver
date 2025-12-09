@@ -1,6 +1,6 @@
 #include <FS.h>
 #include <LittleFS.h>
-#include "src/AsyncFsWebServer.h"   // https://github.com/cotestatnt/async-esp-fs-webserver
+#include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver
 
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
@@ -9,7 +9,6 @@ AsyncFsWebServer server(80, FILESYSTEM, hostname);
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
-#define BOOT_PIN    0
 
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
@@ -18,7 +17,7 @@ bool boolVar2 = false;
 uint32_t longVar = 1234567890;
 float floatVar = 15.5F;
 String stringVar = "Test option String";
-
+String dropdownSelected = "Item1";
 // ThingsBoard variables
 String tb_deviceName = "ESP Sensor";
 double tb_deviceLatitude = 41.88505;
@@ -35,6 +34,7 @@ uint16_t tb_port = 80;
 #define LONG_LABEL "A long variable"
 #define FLOAT_LABEL "A float variable"
 #define STRING_LABEL "A String variable"
+#define DROPDOWN_TEST "A dropdown listbox"
 
 #define TB_DEVICE_NAME "Device Name"
 #define TB_DEVICE_LAT "Device Latitude"
@@ -92,49 +92,43 @@ void getFsInfo(fsInfo_t* fsInfo) {
 
 
 ////////////////////  Load application options from filesystem  ////////////////////
-bool loadOptions() {    
-    File config = server.getConfigFile("r");
-    if (config) {
-        using namespace AsyncFSWebServer;
-        Json doc;
-        String content = "";
-        while (config.available()) {
-            content += (char)config.read();
-        }   
-        config.close();
+bool loadOptions() {
+  if (FILESYSTEM.exists(server.getConfiFileName())) {
+    // Test "options" values
+    server.getOptionValue(LED_LABEL, ledPin);
+    server.getOptionValue(BOOL_LABEL, boolVar);
+    server.getOptionValue(BOOL_LABEL "2", boolVar2);
+    server.getOptionValue(LONG_LABEL, longVar);
+    server.getOptionValue(FLOAT_LABEL, floatVar);
+    server.getOptionValue(STRING_LABEL, stringVar);
+    server.getOptionValue(DROPDOWN_TEST, dropdownSelected);
+    // ThingsBoard variables
+    server.getOptionValue(TB_DEVICE_NAME, tb_deviceName);
+    server.getOptionValue(TB_DEVICE_LAT, tb_deviceLatitude);
+    server.getOptionValue(TB_DEVICE_LON, tb_deviceLongitude);
+    server.getOptionValue(TB_DEVICE_TOKEN, tb_deviceToken);
+    server.getOptionValue(TB_DEVICE_KEY, tb_device_key);
+    server.getOptionValue(TB_SECRET_KEY, tb_secret_key);
+    server.getOptionValue(TB_SERVER, tb_serverIP);
+    server.getOptionValue(TB_PORT, tb_port);
+    server.closeSetupConfiguration();  // Close configuration to free resources
 
-        if (doc.parse(content)) {            
-            doc.getNumber("Test int variable", ledPin);
-            doc.getBool("A bool variable", boolVar);
-            doc.getString("A String variable", stringVar);  
-            doc.getNumber("Test float variable", longVar);
-            doc.getNumber("Test float variable", floatVar);
-            doc.getString(TB_DEVICE_NAME, tb_deviceName);
-            doc.getNumber(TB_DEVICE_LAT, tb_deviceLatitude);
-
-            doc.getNumber(TB_DEVICE_LON, tb_deviceLongitude);
-            doc.getString(TB_DEVICE_TOKEN, tb_deviceToken);
-            doc.getString(TB_DEVICE_KEY, tb_device_key);
-            doc.getString(TB_SECRET_KEY, tb_secret_key);
-            doc.getString(TB_SERVER, tb_serverIP);
-            doc.getNumber(TB_PORT, tb_port);
-            Serial.println();
-            Serial.printf("LED pin value: %d\n", ledPin);
-            Serial.printf("Bool value: %d\n", boolVar);
-            Serial.printf("Long value: %ld\n",(long) longVar);  
-            Serial.printf("Float value: %3.2f\n", floatVar);
-            Serial.printf("String var: %s\n\n", stringVar.c_str());
-            return true;
-        }
-        else {
-            Serial.println("Failed to parse configuration file");            
-            return false;
-        }
-    }    
+    Serial.println("\nThis are the current values stored: \n");
+    Serial.printf("LED pin value: %d\n", ledPin);
+    Serial.printf("Bool value 1: %s\n", boolVar ? "true" : "false");
+    Serial.printf("Bool value 2: %s\n", boolVar2 ? "true" : "false");
+    Serial.printf("Long value: %u\n", longVar);
+    Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
+    Serial.printf("String value: %s\n", stringVar.c_str());
+    Serial.printf("Dropdown selected: %s\n", dropdownSelected.c_str());
     return true;
+  }
+  else {
+      Serial.println("Failed to parse configuration file");            
+      return false;
+  }
+  return true;
 }
-
-
 
 
 
@@ -146,7 +140,6 @@ void handleLoadOptions(AsyncWebServerRequest *request) {
 }
 
 void setup() {
-  pinMode(BOOT_PIN, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(115200);
 
@@ -175,7 +168,7 @@ void setup() {
   server.addOption(BOOL_LABEL, boolVar);
   server.addOption(BOOL_LABEL "2", boolVar2);
   const char* dropItem[3] = {"Item1", "Item2", "Item3"};
-  server.addDropdownList("DROPDOWN_TEST", dropItem, 3);
+  server.addDropdownList(DROPDOWN_TEST, dropItem, 3);
 
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");
@@ -235,26 +228,7 @@ void setup() {
 void loop() {
   if (server.isAccessPointMode())
     server.updateDNS();
-
-  // Keep BOOT_PIN pressed 5 seconds to clear application options
-  static unsigned long buttonPressStart = 0;
-  static bool buttonPressed = false;
   
-  if (digitalRead(BOOT_PIN) == LOW) {
-    if (!buttonPressed) {
-      buttonPressed = true;
-      buttonPressStart = millis();
-    } 
-    else if (millis() - buttonPressStart >= 5000) {
-      Serial.println("\nClearing application options...");
-      server.clearConfigFile();
-      delay(1000);
-      ESP.restart();
-    }
-  } else {
-    buttonPressed = false;
-  }
-  
-  // This delay is required in order to avoid loopTask() WDT reset on ESP32
+  // Nothing to do here, just a small delay for task yield
   delay(10);  
 }

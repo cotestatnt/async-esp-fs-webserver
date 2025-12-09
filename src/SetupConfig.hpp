@@ -281,6 +281,7 @@ class SetupConfigurator
             log_debug("Adding option \"%s\"", label);
 
             String key = label;
+            String savedKey = key; // original label for lookup in saved file
             if (hidden)
                 key += "-hidden";
             // Univoque key name
@@ -305,7 +306,7 @@ class SetupConfigurator
                 
                 if constexpr (std::is_same<T, String>::value) {
                     String savedVal;
-                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), "value", savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getString(key.c_str(), "value", savedVal) || m_savedDoc->getString(savedKey.c_str(), "value", savedVal))) {
                         m_doc->setString(key.c_str(), "value", savedVal);
                         valueFromSaved = true;
                     } else {
@@ -313,7 +314,7 @@ class SetupConfigurator
                     }
                 } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
                     String savedVal;
-                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), "value", savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getString(key.c_str(), "value", savedVal) || m_savedDoc->getString(savedKey.c_str(), "value", savedVal))) {
                         m_doc->setString(key.c_str(), "value", savedVal);
                         valueFromSaved = true;
                     } else {
@@ -321,7 +322,7 @@ class SetupConfigurator
                     }
                 } else {
                     double savedVal;
-                    if (m_savedDoc && m_savedDoc->getNumber(key.c_str(), "value", savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getNumber(key.c_str(), "value", savedVal) || m_savedDoc->getNumber(savedKey.c_str(), "value", savedVal))) {
                         m_doc->setNumber(key.c_str(), "value", savedVal);
                         valueFromSaved = true;
                     } else {
@@ -337,7 +338,7 @@ class SetupConfigurator
             else {
                 if constexpr (std::is_same<T, String>::value) {
                     String savedVal;
-                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getString(key.c_str(), savedVal) || m_savedDoc->getString(savedKey.c_str(), savedVal))) {
                         m_doc->setString(key.c_str(), savedVal);
                         valueFromSaved = true;
                     } else {
@@ -345,7 +346,7 @@ class SetupConfigurator
                     }
                 } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
                     String savedVal;
-                    if (m_savedDoc && m_savedDoc->getString(key.c_str(), savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getString(key.c_str(), savedVal) || m_savedDoc->getString(savedKey.c_str(), savedVal))) {
                         m_doc->setString(key.c_str(), savedVal);
                         valueFromSaved = true;
                     } else {
@@ -354,7 +355,7 @@ class SetupConfigurator
                 } else if constexpr (std::is_same<T, bool>::value) {
                     // Handle bool as boolean JSON type, not number
                     bool savedVal;
-                    if (m_savedDoc && m_savedDoc->getBool(key.c_str(), savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getBool(key.c_str(), savedVal) || m_savedDoc->getBool(savedKey.c_str(), savedVal))) {
                         m_doc->setBool(key.c_str(), savedVal);
                         valueFromSaved = true;
                     } else {
@@ -362,7 +363,7 @@ class SetupConfigurator
                     }
                 } else {
                     double savedVal;
-                    if (m_savedDoc && m_savedDoc->getNumber(key.c_str(), savedVal)) {
+                    if (m_savedDoc && (m_savedDoc->getNumber(key.c_str(), savedVal) || m_savedDoc->getNumber(savedKey.c_str(), savedVal))) {
                         m_doc->setNumber(key.c_str(), savedVal);
                         valueFromSaved = true;
                     } else {
@@ -377,32 +378,42 @@ class SetupConfigurator
 
         /*
             Get current value for a specific custom option (true on success)
+            Reads from m_doc if open, or reloads from file if closed
         */
         template <typename T>
         bool getOptionValue(const char *label, T &var) {
+            // If m_doc is nullptr, reload configuration from file
             if (m_doc == nullptr) {
                 if (!openConfiguration()) {
                     log_error("Error! /setup configuration not possible");
                     return false;
                 }
             }
+            
+            // Prefer persisted values when available; fall back to current session doc
+            AsyncFSWebServer::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
+            
+            if (sourceDoc == nullptr) {
+                log_error("No configuration document available for reading");
+                return false;
+            }
 
             if constexpr (std::is_same<T, String>::value) {
                 String out;
-                if (m_doc->getString(label, "value", out)) var = out;
-                else if (m_doc->getString(label, "selected", out)) var = out;
-                else if (m_doc->getString(label, out)) var = out;
+                if (sourceDoc->getString(label, "value", out)) var = out;
+                else if (sourceDoc->getString(label, "selected", out)) var = out;
+                else if (sourceDoc->getString(label, out)) var = out;
             } else if constexpr (std::is_same<T, const char*>::value || std::is_same<T, char*>::value) {
                 // For C-strings, read as string and assign to var via const char*
                 String out;
-                if (m_doc->getString(label, "value", out)) var = out.c_str();
-                else if (m_doc->getString(label, "selected", out)) var = out.c_str();
-                else if (m_doc->getString(label, out)) var = out.c_str();
+                if (sourceDoc->getString(label, "value", out)) var = out.c_str();
+                else if (sourceDoc->getString(label, "selected", out)) var = out.c_str();
+                else if (sourceDoc->getString(label, out)) var = out.c_str();
             } else {
                 double out;
-                if (m_doc->getNumber(label, "value", out)) var = static_cast<T>(out);
-                else if (m_doc->getNumber(label, "selected", out)) var = static_cast<T>(out);
-                else if (m_doc->getNumber(label, out)) var = static_cast<T>(out);
+                if (sourceDoc->getNumber(label, "value", out)) var = static_cast<T>(out);
+                else if (sourceDoc->getNumber(label, "selected", out)) var = static_cast<T>(out);
+                else if (sourceDoc->getNumber(label, out)) var = static_cast<T>(out);
             }
             return true;
         }
@@ -426,6 +437,12 @@ class SetupConfigurator
                 if (m_doc->hasKey(label, "value")) m_doc->setString(label, "value", v);
                 else if (m_doc->hasKey(label, "selected")) m_doc->setString(label, "selected", v);
                 else m_doc->setString(label, v);
+            } else if constexpr (std::is_same<T, bool>::value) {
+                // Persist booleans as JSON boolean type
+                bool v = val;
+                if (m_doc->hasKey(label, "value")) m_doc->setBool(label, "value", v);
+                else if (m_doc->hasKey(label, "selected")) m_doc->setBool(label, "selected", v);
+                else m_doc->setBool(label, v);
             } else {
                 double v = static_cast<double>(val);
                 if (m_doc->hasKey(label, "value")) m_doc->setNumber(label, "value", v);
