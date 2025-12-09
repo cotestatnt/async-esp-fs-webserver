@@ -744,6 +744,8 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
             case WL_CONNECTED:
                 log_debug("[WiFi] WiFi is connected!  IP address: %s", WiFi.localIP().toString().c_str());
                 m_serverIp = WiFi.localIP();
+                // Ensure AP mode flag reflects current station connection
+                m_isApMode = false;
                 return true;
             default:
                 log_debug("[WiFi] WiFi Status: %d", WiFi.status());
@@ -753,6 +755,7 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
             if (numberOfTries <= 0) {
                 log_debug("[WiFi] Failed to connect to WiFi!");
                 WiFi.disconnect();  // Use disconnect function to force stop trying to connect
+                // Keep AP flag unchanged here; caller may start AP later
                 return false;
             }
             else {
@@ -774,6 +777,7 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
         return false;
     }
     m_serverIp = WiFi.softAPIP();
+    m_isApMode = true;
 
     m_dnsServer = new DNSServer();
     if (! m_dnsServer->start(53, "*", WiFi.softAPIP())) {

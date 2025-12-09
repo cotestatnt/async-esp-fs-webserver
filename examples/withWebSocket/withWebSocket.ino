@@ -1,7 +1,6 @@
 #include <FS.h>
 #include <LittleFS.h>
-#include "src/async-esp-fs-webserver/src/AsyncFsWebServer.h"
-#include "src/async-esp-fs-webserver/src/Json.hpp"
+#include "AsyncFsWebServer.h"
 
 #include "index_htm.h"
 
@@ -80,37 +79,9 @@ void getUpdatedtime(const uint32_t timeout) {
 
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-    Serial.printf("\nListing directory: %s\n", dirname);
-    File root = fs.open(dirname, "r");
-    if(!root){
-        Serial.println("- failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println(" - not a directory");
-        return;
-    }
-    File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            if(levels){
-            #ifdef ESP32
-			  listDir(fs, file.path(), levels - 1);
-			#elif defined(ESP8266)
-			  listDir(fs, file.fullName(), levels - 1);
-			#endif
-            }
-        } else {
-            Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
 bool startFilesystem() {
   if (FILESYSTEM.begin()) {
-    listDir(LittleFS, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 1);
     return true;
   } else {
     Serial.println("ERROR on mounting filesystem. It will be reformatted!");
@@ -154,10 +125,10 @@ void setup() {
   if (startFilesystem()) {
     // Load configuration (if not present, default will be created when webserver will start)
     if (loadApplicationConfig()) {
-      Serial.println(F("Application option loaded"));
+      Serial.println(F("\nApplication option loaded"));
       Serial.printf("  LED Pin: %d\n", ledPin);
       Serial.printf("  Option 1: %s\n", option1.c_str());   
-      Serial.printf("  Option 2: %u\n", option2);
+      Serial.printf("  Option 2: %u\nn", option2);
     }
     else
       Serial.println(F("Application options NOT loaded!"));

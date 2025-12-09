@@ -182,8 +182,15 @@ bool Json::getNumber(const String &key, double &out) const
     if (!root) return false;
     cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key.c_str());
     if (!item) return false;
-    out = item->valuedouble;
-    return true;
+    if (cJSON_IsNumber(item)) {
+        out = item->valuedouble;
+        return true;
+    }
+    if (cJSON_IsString(item) && item->valuestring) {
+        out = atof(item->valuestring);
+        return true;
+    }
+    return false;
 }
 
 

@@ -1,10 +1,10 @@
 #include <FS.h>
 #include <LittleFS.h>
-#include <AsyncFsWebServer.h>
+#include "AsyncFsWebServer.h"
 
 AsyncFsWebServer server(80, LittleFS, "myServer");
-int testInt = 150;
-float testFloat = 123.456;
+uint16_t testInt = 150;
+float testFloat = 123.456f;
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -12,23 +12,38 @@ float testFloat = 123.456;
 const uint8_t ledPin = LED_BUILTIN;
 
 
-// FILESYSTEM INIT
-bool startFilesystem(){
+////////////////////////////////  Filesystem  /////////////////////////////////////////
+bool startFilesystem() {
   if (LittleFS.begin()){
-      File root = LittleFS.open("/", "r");
-      File file = root.openNextFile();
-      while (file){
-          Serial.printf("FS File: %s, size: %d\n", file.name(), file.size());
-          file = root.openNextFile();
-      }
-      return true;
+    server.printFileList(LittleFS, "/", 1);
+    Serial.println();
+    return true;
   }
   else {
-      Serial.println("ERROR on mounting filesystem. It will be reformatted!");
-      LittleFS.format();
-      ESP.restart();
+    Serial.println("ERROR on mounting filesystem. It will be reformatted!");
+    LittleFS.format();
+    ESP.restart();
   }
   return false;
+}
+
+////////////////////////////  Load custom options //////////////////////////////////////
+bool loadApplicationConfig() {    
+    File config = server.getConfigFile("r");
+    if (config) {
+        using namespace AsyncFSWebServer;
+        Json doc;
+        String content = "";
+        while (config.available()) {
+            content += (char)config.read();
+        }
+        bool parsed = doc.parse(content);
+        if (parsed) {            
+            doc.getNumber("Test int variable", testInt);
+            doc.getNumber("Test float variable", testFloat);
+        }
+    }
+    return true;
 }
 
 
@@ -63,24 +78,12 @@ void setup() {
     pinMode(ledPin, OUTPUT);
     Serial.begin(115200);
     delay(1000);
-    if (startFilesystem()) {
-        Serial.println("LittleFS filesystem ready!");
-        File config = server.getConfigFile("r");
-        if (config) {
-            using namespace AsyncFSWebServer;
-            Json doc;
-            String content = "";
-            while (config.available()) {
-                content += (char)config.read();
-            }
-            if (doc.parse(content)) {
-                double temp;
-                if (doc.getNumber("Test int variable", temp)) testInt = (int)temp;
-                doc.getNumber("Test float variable", testFloat);
-            }
+    if (startFilesystem()) {        
+        // Load application config options
+        if (loadApplicationConfig()) {        
+            Serial.printf("Stored \"testInt\" value: %d\n", testInt);
+            Serial.printf("Stored \"testFloat\" value: %3.3f\n", testFloat);
         }
-        Serial.printf("Stored \"testInt\" value: %d\n", testInt);
-        Serial.printf("Stored \"testFloat\" value: %3.2f\n", testFloat);
     }
     else
         Serial.println("LittleFS error!");
@@ -91,22 +94,25 @@ void setup() {
         server.startCaptivePortal("ESP_AP", "123456789", "/setup");
     }
 
+    // Add custom application options tab and set custom title
     server.addOptionBox("Custom options");
     server.addOption("Test int variable", testInt);
-    server.addOption("Test float variable", testFloat);
+    server.addOption("Test float variable", (double)testFloat, 0.0, 100.0, 0.001);
     server.setSetupPageTitle("Simple Async ESP FS WebServer");
 
-    // Enable ACE FS file web editor and add FS info callback function
+    // Enable ACE FS file web editor and add FS info callback function    
+#ifdef ESP32
+    server.enableFsCodeEditor(getFsInfo);
+#else
     server.enableFsCodeEditor();
-    #ifdef ESP32
-    server.setFsInfoCallback(getFsInfo);
-    #endif
+#endif
 
+    // Custom endpoint handler
     server.on("/led", HTTP_GET, handleLed);
 
     // Start server
     server.init();
-    Serial.print(F("Async ESP Web Server started on IP Address: "));
+    Serial.print(F("\nAsync ESP Web Server started on IP Address: "));
     Serial.println(server.getServerIP());
     Serial.println(F(
         "This is \"simpleServer.ino\" example.\n"
@@ -117,7 +123,7 @@ void setup() {
 }
 
 void loop() {
-  // This delay is required in order to avoid loopTask() WDT reset on ESP32
-    delay(1);  
+    // This delay is required in order to avoid loopTask() WDT reset on ESP32
+    delay(10);  
 
 }

@@ -77,6 +77,7 @@ class AsyncFsWebServer : public AsyncWebServer
     AsyncWebSocket* m_ws = nullptr;
     AsyncWebHandler *m_captive = nullptr;
     DNSServer* m_dnsServer = nullptr;
+    bool m_isApMode = false;
 
     void handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len);
     void handleScanNetworks(AsyncWebServerRequest *request);
@@ -171,6 +172,10 @@ class AsyncFsWebServer : public AsyncWebServer
     inline IPAddress getServerIP() {
       return m_serverIp;
     }
+    /*
+      Return true if the device is currently running in Access Point mode
+    */
+    inline bool isAccessPointMode() const { return m_isApMode; }
     /*
       Start webserver and bind a websocket event handler (optional)
     */
@@ -288,6 +293,17 @@ class AsyncFsWebServer : public AsyncWebServer
     inline File getConfigFile(const char* mode) {
       File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, mode);
       return file;
+    }
+
+    /*
+    * Clear the saved configuration options by removing config.json.
+    * Returns true if the file was removed or did not exist.
+    */
+    inline bool clearConfigFile() {
+      if (m_filesystem->exists(ESP_FS_WS_CONFIG_FILE)) {
+        return m_filesystem->remove(ESP_FS_WS_CONFIG_FILE);
+      }
+      return true;
     }
 
     /*

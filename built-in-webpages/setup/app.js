@@ -24,12 +24,11 @@ const $ = (el) => document.getElementById(el);
 const hide = (id) => $(id).classList.add('hide');
 const show = (id) => $(id).classList.remove('hide');
 
+// Create element with attributes (readable + robust)
 const newEl = (element, attribute) => {
   const el = document.createElement(element);
-  if (typeof(attribute) === 'object') {
-    for (const key in attribute) {
-      el.setAttribute(key, attribute[key]);
-    }
+  if (attribute && typeof attribute === 'object') {
+    for (const [key, val] of Object.entries(attribute)) el.setAttribute(key, val);
   }
   return el;
 };
@@ -182,14 +181,12 @@ const createNewBox = (cont, lbl) => {
 // Create options box
 const createOptionsBox = async (raw) => {
   // Initialize WiFi settings
-  $('no-dhcp').checked = raw.dhcp;
+  const dhcp = !!raw.dhcp;
+  $('no-dhcp').checked = dhcp;
   $('ip').value = raw.ip_address;
   $('gateway').value = raw.gateway;
   $('subnet').value = raw.subnet;
-  if (raw.dhcp) {
-    show('conf-wifi');
-    show('save-wifi');
-  }
+  if (dhcp) { show('conf-wifi'); show('save-wifi'); }
 
   let nest = {};
   let boxId = 'wifi-box';
@@ -229,31 +226,38 @@ const createOptionsBox = async (raw) => {
 };
 
 function addInputListener(item) {
-  const handlers = {
-    number: (e) => {
-      const { id, value, step } = e.target;
-      options[id] = step ? {
-        value: Math.round(value * (1/step)) / (1/step),
-        step,
-        min: e.target.getAttribute("min"),
-        max: e.target.getAttribute("max")
-      } : parseInt(value);
-    },
-    text: (e) => options[e.target.id] = e.target.value,
-    checkbox: (e) => options[e.target.id] = e.target.checked,
-    'select-one': (e) => options[e.target.id].selected = e.target.value
+  const onChange = (e) => {
+    const t = e.target;
+    switch (t.type) {
+      case 'number': {
+        const step = t.step ? Number(t.step) : 0;
+        options[t.id] = step ? {
+          value: Math.round(Number(t.value) * (1/step)) / (1/step),
+          step,
+          min: t.getAttribute('min'),
+          max: t.getAttribute('max')
+        } : parseInt(t.value, 10);
+        break;
+      }
+      case 'text':
+        options[t.id] = t.value;
+        break;
+      case 'checkbox':
+        options[t.id] = t.checked;
+        break;
+      default:
+        if (t.type === 'select-one') options[t.id].selected = t.value;
+        break;
+    }
   };
-
-  const handler = handlers[item.type];
-  if (handler) item.addEventListener('change', handler);
+  item.addEventListener('change', onChange);
 }
 
 function insertKey(key, value, obj, pos) {
-  return Object.keys(obj).reduce((acc, k, i) => {
-    if (i === pos) acc[key] = value;
-    acc[k] = obj[k];
-    return acc;
-  }, {});
+  const acc = {};
+  const keys = Object.keys(obj);
+  keys.forEach((k, i) => { if (i === pos) acc[key] = value; acc[k] = obj[k]; });
+  return acc;
 }
 
 function saveParameters() {
@@ -293,17 +297,10 @@ function saveParameters() {
   const formData = new FormData();
   formData.append("data", configData, '/' + configFile);
 
-  fetch('/edit', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.text())
-  .then(() => {
-    openModal(
-      'Save options',
-      `<br><b>"/${configFile}"</b> saved successfully on flash memory!<br><br>`
-    );
-  });
+  fetch('/edit', { method: 'POST', body: formData })
+    .then(r => r.text())
+    .then(() => openModal('Save options', `<br><b>"/${configFile}"</b> saved successfully on flash memory!<br><br>`))
+    .catch(err => openModal('Error!', `Failed to save: ${err}`));
 }
 
 
@@ -355,9 +352,8 @@ function listWifi(obj) {
   obj.sort((a, b) => b.strength - a.strength);
 
   const list = document.querySelector('#wifi-list');
-  const wifiTable = $('wifi-table');
-  
   list.innerHTML = "";
+  const frag = document.createDocumentFragment();
   obj.forEach((net, i) => {
     const row = newEl('tr', { id: `wifi-${i}` });
     row.addEventListener('click', selectWifi);
@@ -367,8 +363,9 @@ function listWifi(obj) {
       <td class="hide-tiny">${net.strength} dBm</td>
       <td>${net.security ? svgLock : svgUnlock}</td>
     `;
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.appendChild(frag);
   show('wifi-table');
 }
 
