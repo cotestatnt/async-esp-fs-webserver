@@ -7,6 +7,8 @@ This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/e
 
 You need to install the following dependencies. Remove any previously installed clones or old versions, as they may cause conflicts.
 
+Some examples also require the [ArduinoJson](https://github.com/bblanchon/ArduinoJson) library, but it is no longer a dependency. Starting from version 2.1.0, the JSON parsing strictly needed by AsyncFsWebServer is handled internally, using the ultra-lightweight and efficient cJSON implementation.
+
 https://github.com/ESP32Async/ESPAsyncWebServer
 
 #### ESP32
