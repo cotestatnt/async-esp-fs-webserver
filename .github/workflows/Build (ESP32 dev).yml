@@ -51,7 +51,7 @@ jobs:
 
       - name: Build Examples
         run: |
-          EXCLUDE_EXAMPLES="esp32-cam.ino mysqlRFID.ino"
+          EXCLUDE_EXAMPLES="esp32-cam.ino"
           
           for i in `ls examples`; do
             # skip excluded examples
@@ -194,5 +194,5 @@ jobs:
             echo "============================================================="
             echo "Building examples/$i..."
             echo "============================================================="
-            PLATFORMIO_SRC_DIR=examples/$i PIO_BOARD=${{ matrix.board }} pio run -e ci-arduino-3
+            PLATFORMIO_SRC_DIR=examples/$i PIO_BOARD=${{ matrix.board }} pio run -e ci-esp8266
           done      
