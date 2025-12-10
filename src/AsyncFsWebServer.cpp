@@ -23,23 +23,23 @@ void setTaskWdt(uint32_t timeout) {
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 
 //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
-using namespace std::placeholders;
+
+    on("*", HTTP_HEAD, [this](AsyncWebServerRequest *request) { this->handleFileName(request); });
 
 #if ESP_FS_WS_SETUP
-    m_filesystem_ok = setup->checkConfigFile();
-    if (setup->isOpened()) {
+    m_filesystem_ok = getSetupConfigurator()->checkConfigFile();
+    if (getSetupConfigurator()->isOpened()) {
         log_debug("Config file %s closed", ESP_FS_WS_CONFIG_FILE);
-        setup->closeConfiguration();
+        getSetupConfigurator()->closeConfiguration();
     }
     onUpdate();
 
-    on("/setup", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleSetup, this, _1));
-    // on("/favicon.ico", HTTP_GET, std::bind(&AsyncFsWebServer::sendOK, this, _1));
-    on("/connect", HTTP_POST, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::doWifiConnection, this, _1));
-    on("/scan", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleScanNetworks, this, _1));
-    on("/getStatus", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::getStatus, this, _1));
-    on("/clear_config", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::clearConfig, this, _1));
-    on("*", HTTP_HEAD, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileName, this, _1));
+    on("/setup", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleSetup(request); });
+    on("/connect", HTTP_POST, [this](AsyncWebServerRequest *request) { this->doWifiConnection(request); });
+    on("/scan", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleScanNetworks(request); });
+    on("/getStatus", HTTP_GET, [this](AsyncWebServerRequest *request) { this->getStatus(request); });
+    on("/clear_config", HTTP_GET, [this](AsyncWebServerRequest *request) { this->clearConfig(request); });
+    
     
     on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
         String reply = "{\"ssid\":\"";
@@ -49,10 +49,12 @@ using namespace std::placeholders;
         reply += "}";
         request->send(200, "application/json", reply);
     });
-#endif
+
     on("/upload", HTTP_POST,
-        std::bind(&AsyncFsWebServer::sendOK, this, _1),
-        std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
+        [this](AsyncWebServerRequest *request) { this->sendOK(request); },
+        [this](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final) {
+            this->handleUpload(request, filename, index, data, len, final);
+        }
     );
 
     on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -68,20 +70,22 @@ using namespace std::placeholders;
         });
         request->send(response);
     });
+#endif
     
-    onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
+    onNotFound([this](AsyncWebServerRequest *request) { this->notFound(request); });
     serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
 
     if (wsHandle != nullptr)
         m_ws->onEvent(wsHandle);
     else
-        m_ws->onEvent(std::bind(&AsyncFsWebServer::handleWebSocket,this, _1, _2, _3, _4, _5, _6));
+        m_ws->onEvent([this](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+            this->handleWebSocket(server, client, type, arg, data, len);
+        });
     addHandler(m_ws);
     
     DefaultHeaders::Instance().addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     DefaultHeaders::Instance().addHeader("Pragma", "no-cache");
     DefaultHeaders::Instance().addHeader("Expires", "0");
-
     begin();
 
     // Configure and start MDNS responder
@@ -124,8 +128,8 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
     }
 }
 
-void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
 #if ESP_FS_WS_EDIT
+void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
     using namespace std::placeholders;
     on("/status", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
     on("/list", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileList, this, _1));
@@ -136,10 +140,9 @@ void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
         std::bind(&AsyncFsWebServer::sendOK, this, _1),
         std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
     );
-
     getFsInfo = fsCallback;
-#endif
 }
+#endif
 
 void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
    switch (type) {
@@ -175,7 +178,6 @@ void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketCl
     }
 }
 
-
 void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
     // Free previous allocations if they exist
     if (m_pageUser) {
@@ -206,7 +208,8 @@ void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
         m_pageUser[userLen - 1] = '\0';
         m_pagePswd[pswnLen - 1] = '\0';
         log_debug("Authentication credentials set successfully");
-    } else {
+    } 
+    else {
         log_error("Failed to allocate memory for authentication credentials");
         if (m_pageUser) {
             free(m_pageUser);
@@ -218,21 +221,6 @@ void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
         }
     }
 }
-
-#if    ESP_FS_WS_SETUP_HTM
-void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
-    if (m_pageUser != nullptr) {
-        if(!request->authenticate(m_pageUser, m_pagePswd))
-            return request->requestAuthentication();
-    }
-
-    // Changed array name to match SEGGER Bin2C output
-    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acsetup_min_htm, sizeof(_acsetup_min_htm));
-    response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("X-Config-File", ESP_FS_WS_CONFIG_FILE);
-    request->send(response);
-}
-#endif
 
 void AsyncFsWebServer::handleFileName(AsyncWebServerRequest *request) {
     if (m_filesystem->exists(request->url()))
@@ -255,6 +243,24 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
     }
 }
 
+
+
+#if    ESP_FS_WS_SETUP_HTM
+void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
+    if (m_pageUser != nullptr) {
+        if(!request->authenticate(m_pageUser, m_pagePswd))
+            return request->requestAuthentication();
+    }
+
+    // Changed array name to match SEGGER Bin2C output
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acsetup_min_htm, sizeof(_acsetup_min_htm));
+    response->addHeader("Content-Encoding", "gzip");
+    response->addHeader("X-Config-File", ESP_FS_WS_CONFIG_FILE);
+    request->send(response);
+}
+#endif
+
+#if ESP_FS_WS_SETUP
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     AsyncFSWebServer::Json doc;
     doc.setString("firmware", m_version);
@@ -263,23 +269,19 @@ void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     String ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
     doc.setString("ip", ip);
     doc.setString("hostname", m_host);
-#if ESP_FS_WS_SETUP
     doc.setString("path", String(ESP_FS_WS_CONFIG_FILE).substring(1));   // remove first '/'
-#endif
     doc.setString("liburl", LIB_URL);
     String reply = doc.serialize();
     request->send(200, "application/json", reply);
 }
 
-
 void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
-#if ESP_FS_WS_SETUP
     if (m_filesystem->remove(ESP_FS_WS_CONFIG_FILE))
         request->send(200, "text/plain", "Clear config OK");
     else
         request->send(200, "text/plain", "Clear config not done");
-#endif
 }
+
 
 
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
@@ -351,7 +353,6 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     }
 }
 
-
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
     String dir;
     int p1 = 0;  int p2 = 0;
@@ -413,12 +414,10 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
         log_debug("Upload complete: %s, size: %zu (index: %zu)", filename.c_str(), index + len, index);
         
         // Call config saved callback if this is the config file
-#if ESP_FS_WS_SETUP
         if (filename == ESP_FS_WS_CONFIG_FILE && m_configSavedCallback) {
             log_debug("Config file saved, calling callback");
             m_configSavedCallback(filename.c_str());
         }
-#endif
     }
 }
 
@@ -686,7 +685,7 @@ void AsyncFsWebServer::onUpdate() {
 #endif
 }
 
-
+#endif //ESP_FS_WS_SETUP
 
 bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
     // Check if we need to config wifi connection
