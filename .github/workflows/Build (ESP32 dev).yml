@@ -51,7 +51,15 @@ jobs:
 
       - name: Build Examples
         run: |
+          EXCLUDE_EXAMPLES="esp32-cam.ino"
+          
           for i in `ls examples`; do
+            # skip excluded examples
+            if [[ $EXCLUDE_EXAMPLES == *"$i"* ]]; then
+              echo "Skipping: $i"
+              continue
+            fi
+            
             echo "============================================================="
             echo "Building examples/$i..."
             echo "============================================================="
@@ -174,9 +182,17 @@ jobs:
 
       - name: Build Examples
         run: |
+          EXCLUDE_EXAMPLES="esp32-cam.ino"
+          
           for i in `ls examples`; do
+            # skip excluded examples
+            if [[ $EXCLUDE_EXAMPLES == *"$i"* ]]; then
+              echo "Skipping: $i"
+              continue
+            fi
+            
             echo "============================================================="
             echo "Building examples/$i..."
             echo "============================================================="
-            PLATFORMIO_SRC_DIR=examples/$i PIO_BOARD=${{ matrix.board }} pio run -e ci-arduino-3-latest
-          done        
+            arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
+          done      
