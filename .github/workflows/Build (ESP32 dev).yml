@@ -194,5 +194,5 @@ jobs:
             echo "============================================================="
             echo "Building examples/$i..."
             echo "============================================================="
-            arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
+            PLATFORMIO_SRC_DIR=examples/$i PIO_BOARD=${{ matrix.board }} pio run -e ci-esp8266
           done      
