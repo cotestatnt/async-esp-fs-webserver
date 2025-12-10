@@ -9,9 +9,6 @@ struct tm Time;
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(80, FILESYSTEM, "myserver");
 
-// Firmware version is set to compile time internally with a macro, but you can set a custom string
-#define FW_VERSION "1.0." BUILD_YYYYMMDDHHMM_STR  // Custom firmware version -> Major.Minor.Build
-
 // Define built-in LED if not defined by board (eg. generic dev boards)
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -136,8 +133,11 @@ void setup() {
     loadOptions();
   }
 
-  // Set firmware version to be shown in /setup page  
-  server.setFirmwareVersion(FW_VERSION);
+  // Firmware version is set to compile time internally with a macro, but you can set a custom string
+  // Custom firmware version -> Major.Minor.Build (build is set to compile date YYYYMMDDHHMM)
+  char verBuf[32];
+  snprintf(verBuf, sizeof(verBuf), "1.0.%u", (unsigned)BUILD_YYYYMMDDHHMM);
+  server.setFirmwareVersion(verBuf);
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {

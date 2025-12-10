@@ -60,10 +60,6 @@
 ((__TIME__[0]-'0')*10 + (__TIME__[1]-'0'))*100 + \
 ((__TIME__[3]-'0')*10 + (__TIME__[4]-'0')))
 
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
-#define BUILD_YYYYMMDDHHMM_STR STR(BUILD_YYYYMMDDHHMM)
-
 
 // Watchdog timeout utility
 #if defined(ESP32)
@@ -160,7 +156,18 @@ class AsyncFsWebServer : public AsyncWebServer
         m_host = hostname;
 
       // Set build date as default firmware version (can be overridden with setFirmwareVersion())
-      setFirmwareVersion( BUILD_YYYYMMDDHHMM_STR );
+      const char* months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+      int monthNum = 0;
+      for (int i = 0; i < 12; ++i) {
+        if (__DATE__[0] == months[i][0] && __DATE__[1] == months[i][1] && __DATE__[2] == months[i][2]) { monthNum = i + 1; break; }
+      }
+      int day = (__DATE__[4] == ' ') ? (__DATE__[5]-'0') : (((__DATE__[4]-'0')*10) + (__DATE__[5]-'0'));
+      int year = (((__DATE__[7]-'0')*1000) + ((__DATE__[8]-'0')*100) + ((__DATE__[9]-'0')*10) + (__DATE__[10]-'0'));
+      int hour = (((__TIME__[0]-'0')*10) + (__TIME__[1]-'0'));
+      int min  = (((__TIME__[3]-'0')*10) + (__TIME__[4]-'0'));
+      char ymdhm[32];
+      snprintf(ymdhm, sizeof(ymdhm), "%04d%02d%02d%02d%02d", year, monthNum, day, hour, min);
+      snprintf(m_version, sizeof(m_version), "%s", ymdhm);
     }
 
     ~AsyncFsWebServer() {
