@@ -295,4 +295,25 @@ bool Json::getNumber(const String &objName, const String &key, double &out) cons
     return true;
 }
 
+bool Json::getBool(const String &objName, const String &key, bool &out) const
+{
+    if (!root)
+        return false;
+    cJSON *scope = cJSON_GetObjectItemCaseSensitive(root, objName.c_str());
+    if (!scope)
+        return false;
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(scope, key.c_str());
+    if (!item)
+        return false;
+    if (cJSON_IsBool(item)) {
+        out = cJSON_IsTrue(item);
+        return true;
+    }
+    if (cJSON_IsNumber(item)) {
+        out = (item->valuedouble != 0.0);
+        return true;
+    }
+    return false;
+}
+
 

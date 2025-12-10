@@ -34,6 +34,67 @@ In the image below, for example, the HTML and Javascript code to provision the d
 
 ![image](https://github.com/cotestatnt/async-esp-fs-webserver/assets/27758688/d728c315-7271-454d-8c34-fb9db0b7a333)
 
+### Setup Page Configuration
+
+#### DropdownList (static API)
+Declare a compile-time dropdown and add it to the `/setup` page. The `label` is the JSON key.
+
+```
+static const char* modes[] = {"AUTO", "MANUAL", "OFF"};
+AsyncFsWebServer::DropdownList modeSelect{ "mode", modes, 3, 0 };
+
+server.addDropdownList(modeSelect);
+// On boot, read persisted selection
+server.getDropdownSelection(modeSelect);
+size_t idx = modeSelect.selectedIndex;
+```
+
+The configuration stores dropdowns as an object with `values` and `selected`:
+
+```
+{
+	"mode": {
+		"values": ["AUTO", "MANUAL", "OFF"],
+		"selected": "MANUAL"
+	}
+}
+```
+
+#### Booleans
+Boolean options are saved and read strictly as JSON booleans (`true`/`false`).
+
+```
+bool myFlag = true;
+server.addOption("My Flag", myFlag);
+// On boot
+server.getOptionValue("My Flag", myFlag);
+```
+
+#### Floats
+Float options can be configured with `min`, `max`, and `step` and are stored as an object containing these properties plus the current `value`.
+
+```
+float gain = 1.5f;
+// Add with constraints and step resolution
+server.addOption("Gain", gain, /*min*/ 0.0, /*max*/ 10.0, /*step*/ 0.01);
+
+// On boot
+server.getOptionValue("Gain", gain);
+```
+
+The JSON shape will be:
+
+```
+{
+	"Gain": {
+		"value": 1.50,
+		"min": 0.0,
+		"max": 10.0,
+		"step": 0.01
+	}
+}
+```
+
 ## Web server file upload
 
 In addition to built-in firmware update functionality, you can also upload your web server content all at once (typically the files are placed inside the folder `data` of your sketch).

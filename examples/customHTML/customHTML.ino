@@ -167,8 +167,9 @@ void setup() {
   server.addOption(STRING_LABEL, stringVar);
   server.addOption(BOOL_LABEL, boolVar);
   server.addOption(BOOL_LABEL "2", boolVar2);
-  const char* dropItem[3] = {"Item1", "Item2", "Item3"};
-  server.addDropdownList(DROPDOWN_TEST, dropItem, 3);
+  static const char* dropItem[] = {"Item1", "Item2", "Item3"};
+  AsyncFsWebServer::DropdownList dropdownDef{ DROPDOWN_TEST, dropItem, 3, 0 };
+  server.addDropdownList(dropdownDef);
 
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");

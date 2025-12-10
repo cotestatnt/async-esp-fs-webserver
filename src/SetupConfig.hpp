@@ -9,6 +9,25 @@
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
 
+// Public dropdown definition type, available only when /setup is enabled
+namespace AsyncFSWebServer {
+    struct DropdownList {
+        const char* label;                 // JSON key / UI label id
+        const char* const* values;         // Static array of values (null-terminated strings)
+        size_t size;                       // Number of items in values
+        size_t selectedIndex;              // Currently selected item index
+    };
+
+    struct Slider {
+        const char* label;                 // JSON key / UI label id
+        double min;                        // Minimum value
+        double max;                        // Maximum value
+        double step;                       // Step increment
+        double value;                      // Current value
+    };
+}
+
+
 class SetupConfigurator
 {
     protected:
@@ -83,8 +102,19 @@ class SetupConfigurator
         SetupConfigurator(fs::FS *fs) : m_filesystem(fs) { ; }
 
         bool closeConfiguration() {
-            m_opened = false;
+            
 
+            // If no options were added in this session, skip writing to avoid overwriting
+            if (numOptions == 0) {
+                log_debug("No options added; skipping config write");
+                if (m_doc) { delete m_doc; m_doc = nullptr; }
+                if (m_savedDoc) { delete m_savedDoc; m_savedDoc = nullptr; }
+                return true;
+            }
+         
+
+
+            // Write configuration to file only if content has changed
             // Serialize the new content
             String newContent = m_doc->serialize(true);
             
@@ -114,6 +144,7 @@ class SetupConfigurator
                         delete (m_savedDoc); 
                         m_savedDoc = nullptr; 
                     }
+                    m_opened = false;
                     return false;
                 }
             } 
@@ -127,6 +158,9 @@ class SetupConfigurator
                 delete (m_savedDoc); 
                 m_savedDoc = nullptr; 
             }
+
+            m_opened = false;
+            numOptions = 0;
             return true;
         }
 
@@ -251,6 +285,144 @@ class SetupConfigurator
         }
 
         /*
+            Add a new dropdown using a static definition that tracks current index
+        */
+        void addDropdownList(AsyncFSWebServer::DropdownList &def) {
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
+                }
+            }
+
+            const char* label = def.label;
+
+            // If key is present we don't need to create it.
+            if (m_doc->hasObject(label)) {
+                log_debug("Key \"%s\" value present", label);
+            } else {
+                m_doc->ensureObject(label);
+
+                // Determine selected value: prefer saved, otherwise provided index, otherwise first
+                String selectedValue = (def.size > 0) ? String(def.values[(def.selectedIndex < def.size) ? def.selectedIndex : 0]) : String("");
+                if (m_savedDoc) {
+                    String savedSelected;
+                    if (m_savedDoc->getString(label, "selected", savedSelected)) {
+                        selectedValue = savedSelected;
+                        log_debug("Dropdown \"%s\" using saved value: %s", label, selectedValue.c_str());
+                    }
+                }
+
+                m_doc->setString(label, "selected", selectedValue);
+                std::vector<String> vals; vals.reserve(def.size);
+                for (size_t i = 0; i < def.size; i++) { vals.emplace_back(String(def.values[i])); }
+                m_doc->setArray(label, "values", vals);
+            }
+
+            // Update selectedIndex to reflect selected string
+            size_t idx = 0;
+            String sel;
+            // Read from current doc (preferred) then saved
+            if (!m_doc->getString(label, "selected", sel)) {
+                if (m_savedDoc) m_savedDoc->getString(label, "selected", sel);
+            }
+            for (idx = 0; idx < def.size; idx++) {
+                if (sel.equals(String(def.values[idx]))) {
+                    def.selectedIndex = idx;
+                    break;
+                }
+            }
+
+            numOptions++ ;
+        }
+
+        /*
+            Update a dropdown definition's selectedIndex from persisted config
+            Returns true if a matching value was found
+        */
+        bool getDropdownSelection(AsyncFSWebServer::DropdownList &def) {
+            // Ensure we have a doc to read from
+            if (m_doc == nullptr && !openConfiguration()) {
+                log_error("Error! /setup configuration not possible");
+                return false;
+            }
+
+            AsyncFSWebServer::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
+            if (sourceDoc == nullptr) {
+                log_error("No configuration document available for reading");
+                return false;
+            }
+
+            String sel;
+            // Try object key "selected" under the label
+            if (!sourceDoc->getString(def.label, "selected", sel)) {
+                // Fallback to top-level string (legacy)
+                if (!sourceDoc->getString(def.label, sel)) {
+                    return false;
+                }
+            }
+
+            for (size_t i = 0; i < def.size; i++) {
+                if (sel.equals(String(def.values[i]))) {
+                    def.selectedIndex = i;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /*
+            Add a new slider using a static definition that tracks current value
+        */
+        void addSlider(AsyncFSWebServer::Slider &def) {
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
+                }
+            }
+
+            const char* label = def.label;
+            m_doc->ensureObject(label);
+
+            // Prefer saved value when available; else use def.value
+            double current = def.value;
+            if (m_savedDoc) {
+                double saved;
+                if (m_savedDoc->getNumber(label, "value", saved) || m_savedDoc->getNumber(label, saved)) {
+                    current = saved;
+                    log_debug("Slider \"%s\" using saved value: %f", label, current);
+                }
+            }
+
+            m_doc->setNumber(label, "value", current);
+            m_doc->setNumber(label, "min", def.min);
+            m_doc->setNumber(label, "max", def.max);
+            m_doc->setNumber(label, "step", def.step);
+            m_doc->setString(label, "type", String("slider"));            
+            numOptions++;
+        }
+
+        /*
+            Read slider value into the provided struct from persisted config
+            Returns true if a value was found
+        */
+        bool getSliderValue(AsyncFSWebServer::Slider &def) {
+            if (m_doc == nullptr && !openConfiguration()) {
+                log_error("Error! /setup configuration not possible");
+                return false;
+            }
+
+            AsyncFSWebServer::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
+            if (sourceDoc == nullptr) return false;
+
+            double v;
+            if (sourceDoc->getNumber(def.label, "value", v) || sourceDoc->getNumber(def.label, v)) {
+                def.value = v;
+                return true;
+            }
+            return false;
+        }
+
+        /*
             Add a new option box with custom label
         */
         void addOptionBox(const char* boxTitle) {
@@ -277,8 +449,7 @@ class SetupConfigurator
                 if (!openConfiguration()) {
                     log_error("Error! /setup configuration not possible");
                 }
-            }
-            log_debug("Adding option \"%s\"", label);
+            }            
 
             String key = label;
             String savedKey = key; // original label for lookup in saved file
@@ -290,12 +461,8 @@ class SetupConfigurator
             if (key.equals("raw-javascript"))
                 key += numOptions ;
 
-            // If key is present we don't need to create it
-            if (m_doc->hasObject(key.c_str())) {
-                log_debug("Key \"%s\" already exists, skipping", key.c_str());
-                numOptions++;
-                return;
-            }
+            // Note: m_doc is a fresh session document. We always create/update the key here,
+            // and prefer values from m_savedDoc when available.
             
             // Try to get saved value from m_savedDoc, otherwise use provided default
             bool valueFromSaved = false;
@@ -334,6 +501,7 @@ class SetupConfigurator
                 m_doc->setNumber(key.c_str(), "min", d_min);
                 m_doc->setNumber(key.c_str(), "max", d_max);
                 m_doc->setNumber(key.c_str(), "step", step);
+                m_doc->setString(key.c_str(), "type", String("number"));
             }
             else {
                 if constexpr (std::is_same<T, String>::value) {
@@ -370,9 +538,9 @@ class SetupConfigurator
                         m_doc->setNumber(key.c_str(), static_cast<double>(val));
                     }
                 }
-            }
+            }                        
             
-            log_debug("Value added (saved=%d)", valueFromSaved);
+            log_debug("Option \"%s\" using %s value", key.c_str(), valueFromSaved ? "saved" : "default");            
             numOptions++;
         }
 
@@ -409,6 +577,12 @@ class SetupConfigurator
                 if (sourceDoc->getString(label, "value", out)) var = out.c_str();
                 else if (sourceDoc->getString(label, "selected", out)) var = out.c_str();
                 else if (sourceDoc->getString(label, out)) var = out.c_str();
+            } else if constexpr (std::is_same<T, bool>::value) {
+                // Read booleans strictly as JSON boolean type
+                bool outBool = false;
+                if (sourceDoc->getBool(label, "value", outBool)) var = outBool;
+                else if (sourceDoc->getBool(label, "selected", outBool)) var = outBool;
+                else if (sourceDoc->getBool(label, outBool)) var = outBool;
             } else {
                 double out;
                 if (sourceDoc->getNumber(label, "value", out)) var = static_cast<T>(out);

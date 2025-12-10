@@ -2,49 +2,55 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>  //https://github.com/cotestatnt/async-esp-fs-webserver
 
+// Timezone definition to get properly time from NTP server
+#define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
+struct tm Time;
+
 #define FILESYSTEM LittleFS
+AsyncFsWebServer server(80, FILESYSTEM, "myserver");
 
-// AsyncFsWebServer server(80, FILESYSTEM, "esphost");
-AsyncFsWebServer server(80, FILESYSTEM);
+// Firmware version is set to compile time internally with a macro, but you can set a custom string
+#define FW_VERSION "1.0." BUILD_YYYYMMDDHHMM_STR  // Custom firmware version -> Major.Minor.Build
 
+// Define built-in LED if not defined by board (eg. generic dev boards)
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 #define BOOT_PIN    0
 
-// Test "options" values
-uint8_t ledPin = LED_BUILTIN;
-bool boolVar = true;
-uint32_t longVar = 1234567890;
-float floatVar = 15.5F;
-String stringVar = "Test option String";
-
-// In order to show a dropdown list box in /setup page
-// we need a list of values and a variable to store the selected option
-#define LIST_SIZE  7
-const char* dropdownList[LIST_SIZE] =
-{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
-String dropdownSelected;
-
-// Var labels (in /setup webpage)
+// Labels used in /setup webpage for options
 #define LED_LABEL "The LED pin number"
 #define BOOL_LABEL "A bool variable"
+#define BOOL_LABEL2 "A second bool variable"
 #define LONG_LABEL "A long variable"
 #define FLOAT_LABEL "A float variable"
 #define STRING_LABEL "A String variable"
-#define DROPDOWN_LABEL "A dropdown listbox"
+#define DROPDOWN_LABEL "Days of week"
+#define BRIGHTNESS_LABEL "Brightness"
 
-// Timezone definition to get properly time from NTP server
-#define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
-struct tm Time;
+// Test "options" values
+uint8_t ledPin = LED_BUILTIN;
+bool boolVar = true;
+bool boolVar2 = false;
+uint32_t longVar = 1234567890;
+float floatVar = 15.51F;
+String stringVar = "Test option String";
 
-static const char save_btn_htm[] PROGMEM = R"EOF(
+// Add a dropdown list box in /setup page
+const char* days[] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+uint8_t daySelected = 2;// Default to "Wednesday"
+AsyncFsWebServer::DropdownList dayOfWeek{ DROPDOWN_LABEL, days, 7, daySelected}; 
+
+// Add a slider in /setup page
+AsyncFsWebServer::Slider brightness{ BRIGHTNESS_LABEL, 0.0, 100.0, 1.0, 50.0 };
+
+static const char reload_btn_htm[] PROGMEM = R"EOF(
 <div class="btn-bar">
   <a class="btn" id="reload-btn">Reload options</a>
 </div>
 )EOF";
 
-static const char button_script[] PROGMEM = R"EOF(
+static const char reload_btn_script[] PROGMEM = R"EOF(
 /* Add click listener to button */
 document.getElementById('reload-btn').addEventListener('click', reload);
 function reload() {
@@ -64,7 +70,7 @@ function reload() {
 )EOF";
 
 
-// Callback: notify user when the configuration file is saved
+///////////// Callback: notify user when the configuration file is saved  /////////////
 void onConfigSaved(const char* path) {
   Serial.printf("\n[Config] File salvato: %s\n", path);
 }
@@ -83,25 +89,28 @@ bool startFilesystem() {
   return false;
 }
 
-
 ////////////////////  Load application options from filesystem  ////////////////////
 bool loadOptions() {
   if (FILESYSTEM.exists(server.getConfiFileName())) {
     server.getOptionValue(LED_LABEL, ledPin);
     server.getOptionValue(BOOL_LABEL, boolVar);
+    server.getOptionValue(BOOL_LABEL2, boolVar2);
     server.getOptionValue(LONG_LABEL, longVar);
     server.getOptionValue(FLOAT_LABEL, floatVar);
     server.getOptionValue(STRING_LABEL, stringVar);
-    server.getOptionValue(DROPDOWN_LABEL, dropdownSelected);
+    server.getDropdownSelection(dayOfWeek);    
+    server.getSliderValue(brightness);
     server.closeSetupConfiguration();  // Close configuration to free resources
 
     Serial.println("\nThis are the current values stored: \n");
     Serial.printf("LED pin value: %d\n", ledPin);
     Serial.printf("Bool value: %s\n", boolVar ? "true" : "false");
+    Serial.printf("Bool value2: %s\n", boolVar2 ? "true" : "false");
     Serial.printf("Long value: %u\n", longVar);
-    Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
+    Serial.printf("Float value: %3.2f\n", floatVar);
     Serial.printf("String value: %s\n", stringVar.c_str());
-    Serial.printf("Dropdown selected value: %s\n\n", dropdownSelected.c_str());
+    Serial.printf("Dropdown selected value: %s\n", days[dayOfWeek.selectedIndex]);
+    Serial.printf("Slider value: %3.2f\n\n", brightness.value);
     return true;
   }
   else
@@ -127,6 +136,9 @@ void setup() {
     loadOptions();
   }
 
+  // Set firmware version to be shown in /setup page  
+  server.setFirmwareVersion(FW_VERSION);
+
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
@@ -139,13 +151,15 @@ void setup() {
   // Configure /setup page and start Web Server
   server.addOptionBox("My Options");
   server.addOption(BOOL_LABEL, boolVar);
+  server.addOption(BOOL_LABEL2, boolVar2);
   server.addOption(LED_LABEL, ledPin);
   server.addOption(LONG_LABEL, longVar);
   server.addOption(FLOAT_LABEL, floatVar, 1.0, 100.0, 0.01);
   server.addOption(STRING_LABEL, stringVar);
-  server.addDropdownList(DROPDOWN_LABEL, dropdownList, LIST_SIZE);
-  server.addHTML(save_btn_htm, "buttons", /*overwrite*/ false);
-  server.addJavascript(button_script, "js", /*overwrite*/ false);
+  server.addDropdownList(dayOfWeek);
+  server.addSlider(brightness);  
+  server.addHTML(reload_btn_htm, "buttons", /*overwrite*/ false);
+  server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);
 
   // Enable ACE FS file web editor and add FS info callback function    
 #ifdef ESP32
@@ -181,7 +195,7 @@ void loop() {
     server.updateDNS();
 
   // Keep BOOT_PIN pressed 5 seconds to clear application options
-  static unsigned long buttonPressStart = 0;
+  static uint32_t buttonPressStart = 0;
   static bool buttonPressed = false;
   
   if (digitalRead(BOOT_PIN) == LOW) {

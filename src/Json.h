@@ -44,6 +44,7 @@ public:
     bool setBool(const String& obj, const String& key, bool value);
     bool setArray(const String& obj, const String& key, const std::vector<String>& values);
     bool getString(const String& obj, const String& key, String& out) const;
+    bool getBool(const String& obj, const String& key, bool& out) const;
     bool getNumber(const String& obj, const String& key, double& out) const;
 
 private:

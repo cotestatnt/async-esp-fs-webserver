@@ -130,6 +130,7 @@ const addOptionsElement = (opt) => {
 
     if (typeof(value) === "number") el.setAttribute('type', 'number');
     if (typeof(value) === "object") {
+      // Dropdown list
       if (value.values) {
         el = newEl('select', { 'id': key });
         value.values.forEach((a) => {
@@ -140,16 +141,73 @@ const addOptionsElement = (opt) => {
         });
         el.value = value.selected;
         lastBox.appendChild(el);
-      } else {
+      }
+      // Slider (explicit discriminator)
+      else if (value.type === 'slider' && typeof value.value === 'number' && 'min' in value && 'max' in value && 'step' in value) {
         const num = Math.round(value.value * (1 / value.step)) / (1 / value.step);
+        const stepStr = String(value.step);
+        const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+
+        // Create slider input
+        const slider = newEl('input', { 'class': 'opt-input slider', 'type': 'range', 'id': key });
+        slider.setAttribute('step', value.step);
+        slider.setAttribute('min', value.min);
+        slider.setAttribute('max', value.max);
+        slider.value = Number(num).toFixed(decimalPlaces);
+
+        // Create readout input for precise edits
+        const readout = newEl('input', { 'class': 'opt-input slider-readout', 'type': 'number', 'id': `${key}-readout` });
+        readout.setAttribute('step', value.step);
+        readout.setAttribute('min', value.min);
+        readout.setAttribute('max', value.max);
+        readout.value = Number(num).toFixed(decimalPlaces);
+
+        // Keep slider and readout in sync
+        slider.addEventListener('input', (e) => {
+          readout.value = e.target.value;
+          const prev = (options[key] && typeof options[key] === 'object') ? options[key] : {};
+          options[key] = {
+            ...prev,
+            value: Number(e.target.value),
+            step: value.step,
+            min: value.min,
+            max: value.max,
+            type: prev.type || 'slider'
+          };
+        });
+        readout.addEventListener('change', (e) => {
+          const v = Number(e.target.value);
+          const bounded = Math.min(Math.max(v, value.min), value.max);
+          const rounded = Math.round(bounded * (1 / value.step)) / (1 / value.step);
+          const fixed = Number(rounded).toFixed(decimalPlaces);
+          slider.value = fixed;
+          readout.value = fixed;
+          const prev = (options[key] && typeof options[key] === 'object') ? options[key] : {};
+          options[key] = {
+            ...prev,
+            value: Number(fixed),
+            step: value.step,
+            min: value.min,
+            max: value.max,
+            type: prev.type || 'slider'
+          };
+        });
+
+        // Wrap slider + readout in a container
+        const container = newEl('div', { 'class': 'slider-wrapper' });
+        container.appendChild(slider);
+        container.appendChild(readout);
+        el = container;
+      }
+      // Numeric object rendered as number input (explicit discriminator or fallback)
+      else if ((value.type === 'number') && typeof value.value === 'number' && 'min' in value && 'max' in value && 'step' in value) {
+        const num = Math.round(value.value * (1 / value.step)) / (1 / value.step);
+        const stepStr = String(value.step);
+        const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
         el.setAttribute('type', 'number');
         el.setAttribute('step', value.step);
         el.setAttribute('min', value.min);
         el.setAttribute('max', value.max);
-        
-        // Calculate decimal places from step value
-        const stepStr = String(value.step);
-        const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
         el.value = Number(num).toFixed(decimalPlaces);
       }
     }
@@ -231,12 +289,21 @@ function addInputListener(item) {
     switch (t.type) {
       case 'number': {
         const step = t.step ? Number(t.step) : 0;
-        options[t.id] = step ? {
-          value: Math.round(Number(t.value) * (1/step)) / (1/step),
-          step,
-          min: t.getAttribute('min'),
-          max: t.getAttribute('max')
-        } : parseInt(t.value, 10);
+        // Ignore readout changes handled above; treat plain number inputs
+        if (t.id.endsWith('-readout')) return;
+        if (step) {
+          const prev = (options[t.id] && typeof options[t.id] === 'object') ? options[t.id] : {};
+          options[t.id] = {
+            ...prev,
+            value: Math.round(Number(t.value) * (1/step)) / (1/step),
+            step,
+            min: Number(t.getAttribute('min')),
+            max: Number(t.getAttribute('max')),
+            type: (prev && prev.type) ? prev.type : 'number'
+          };
+        } else {
+          options[t.id] = parseInt(t.value, 10);
+        }
         break;
       }
       case 'text':
@@ -482,6 +549,11 @@ function closeModal(doCb) {
   if (closeCb && doCb) closeCb();
 }
 
+// Ask user confirmation before triggering restart
+function confirmRestart() {
+  openModal('Restart ESP', '<br>Do you want to restart now?', restartESP);
+}
+
 function restartESP() {
   fetch(`${esp}reset`)
     .then(() => {
@@ -582,7 +654,7 @@ const eventListeners = {
   'set-wifi': ['click', switchPage],
   'set-update': ['click', switchPage],
   'about': ['click', switchPage],
-  'restart': ['click', restartESP],
+  'restart': ['click', confirmRestart],
   'picker': ['change', uploadFolder],
   'update-btn': ['click', handleSubmit]
 };

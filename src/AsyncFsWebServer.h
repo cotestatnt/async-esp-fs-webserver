@@ -52,6 +52,19 @@
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
 
+// Build date as YYYYMMDDHHMM integer and string helpers
+#define BUILD_YYYYMMDDHHMM \
+(((__DATE__[7]-'0')*1000 + (__DATE__[8]-'0')*100 + (__DATE__[9]-'0')*10 + (__DATE__[10]-'0'))*100000000 + \
+(((__DATE__[0]+__DATE__[1]+__DATE__[2])%100)%12+1)*1000000 + \
+(__DATE__[4]==' ' ? (__DATE__[5]-'0') : ((__DATE__[4]-'0')*10 + (__DATE__[5]-'0')))*10000 + \
+((__TIME__[0]-'0')*10 + (__TIME__[1]-'0'))*100 + \
+((__TIME__[3]-'0')*10 + (__TIME__[4]-'0')))
+
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+#define BUILD_YYYYMMDDHHMM_STR STR(BUILD_YYYYMMDDHHMM)
+
+
 // Watchdog timeout utility
 #if defined(ESP32)
     #define AWS_WDT_TIMEOUT (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000)
@@ -117,7 +130,8 @@ class AsyncFsWebServer : public AsyncWebServer
     uint16_t m_port;
     uint32_t m_timeout = AWS_LONG_WDT_TIMEOUT;
 
-    char m_version[16] = {__TIME__};
+    // Firmware version buffer (expanded to accommodate custom version strings)
+    char m_version[32] = {};
     bool m_filesystem_ok = false;
 
     fs::FS* m_filesystem = nullptr;
@@ -140,8 +154,13 @@ class AsyncFsWebServer : public AsyncWebServer
     setup = new SetupConfigurator(m_filesystem);
 #endif
       m_ws = new AsyncWebSocket("/ws");
+
+      // Set hostname if provided from constructor
       if (strlen(hostname))
         m_host = hostname;
+
+      // Set build date as default firmware version (can be overridden with setFirmwareVersion())
+      setFirmwareVersion( BUILD_YYYYMMDDHHMM_STR );
     }
 
     ~AsyncFsWebServer() {
@@ -287,6 +306,10 @@ class AsyncFsWebServer : public AsyncWebServer
     ////////////////////////////   SETUP PAGE CONFIGURATION /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
 #if ESP_FS_WS_SETUP
+    // Public alias to dropdown definition type (available only when /setup is enabled)
+    using DropdownList = AsyncFSWebServer::DropdownList;
+  // Public alias to slider definition type
+  using Slider = AsyncFSWebServer::Slider;
     /*
     * Get reference to current config.json file
     */
@@ -317,7 +340,9 @@ class AsyncFsWebServer : public AsyncWebServer
     void addHTML(const char* html, const char* id, bool ow = false) {setup->addHTML(html, id, ow);}
     void addCSS(const char* css, const char* id, bool ow = false){setup->addCSS(css, id, ow);}
     void addJavascript(const char* script, const char* id, bool ow = false) {setup->addJavascript(script, id, ow);}
-    void addDropdownList(const char *lbl, const char** a, size_t size){setup->addDropdownList(lbl, a, size);}
+    void addDropdownList(const char *lbl, const char** a, size_t size){setup->addDropdownList(lbl, a, size);}    
+    void addDropdownList(DropdownList &def){ setup->addDropdownList(def); }
+    void addSlider(Slider &def){ setup->addSlider(def); }
     void addOptionBox(const char* title) { setup->addOption("param-box", title); }
     void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
       setup->setLogoBase64(logo, w, h, ow);
@@ -336,6 +361,11 @@ class AsyncFsWebServer : public AsyncWebServer
     template <typename T>
     bool saveOptionValue(const char *lbl, T val) { return setup->saveOptionValue(lbl, val);}
 
+    // Update a dropdown definition's selectedIndex from persisted config
+    bool getDropdownSelection(DropdownList &def) { return setup->getDropdownSelection(def); }
+    // Read slider value back into struct
+    bool getSliderValue(Slider &def) { return setup->getSliderValue(def); }
+
     void closeSetupConfiguration() {
       setup->closeConfiguration();
     }
@@ -343,5 +373,8 @@ class AsyncFsWebServer : public AsyncWebServer
 #endif
 
 };
+
+
+
 
 #endif

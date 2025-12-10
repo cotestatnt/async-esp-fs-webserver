@@ -56,18 +56,17 @@ using namespace std::placeholders;
     );
 
     on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
-        // Send response first, then restart after a short delay so the client receives it
-        request->send(200, "text/plain", WiFi.localIP().toString());
-        uint32_t timeout = millis() + 2000;
-        // Give network stack a moment to flush and close
-        while(millis() < timeout) {
+        // Send response and restart AFTER client disconnects to ensure 200 reaches browser
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", WiFi.localIP().toString());
+        response->addHeader("Connection", "close");
+        request->onDisconnect([]() {
             #if defined(ESP8266)
-            yield();
+            ESP.reset();
             #else
-            vTaskDelay(pdMS_TO_TICKS(100));
+            ESP.restart();
             #endif
-        }
-        ESP.restart();
+        });
+        request->send(response);
     });
     
     onNotFound( std::bind(&AsyncFsWebServer::notFound, this, _1));
@@ -245,18 +244,13 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", "OK");
 }
 
-void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
-    // In AP mode, redirect root requests to /setup if index.htm/html doesn't exist
-    if (m_isApMode) {
-        if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
-            request->redirect("/setup");
-            log_debug("AP mode: redirecting / to /setup (no index file found)");
-        } else {
-            request->redirect("/setup");
-            log_debug("AP mode: redirecting %s to /setup", request->url().c_str());
-        }
-    } else {
-        request->send(404, "text/plain", "Not found");
+void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {    
+    if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
+        request->redirect("/setup");
+        log_debug("Redirecting \"/\" to \"/setup\" (no index file found)");
+    }
+    else {
+        request->send(404, "text/plain", "AsyncFsWebServer: resource not found");
         log_debug("Resource %s not found\n", request->url().c_str());
     }
 }
@@ -646,7 +640,7 @@ void AsyncFsWebServer::onUpdate() {
         // the request handler is triggered after the upload has finished... 
         // create the response, add header, and send response
 
-        String txt = Update.hasError() ?  Update.errorString() : "Update Success<br>Restart ESP to load new firmware!\n";
+        String txt = Update.hasError() ?  Update.errorString() : "Success! Restart ESP to load new firmware!\n";
         AsyncWebServerResponse *response = request->beginResponse((Update.hasError()) ? 500 : 200, "text/plain", txt);
         response->addHeader("Connection", "close");
         response->addHeader("Access-Control-Allow-Origin", "*");   
