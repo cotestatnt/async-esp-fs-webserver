@@ -130,15 +130,14 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
 
 #if ESP_FS_WS_EDIT
 void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
-    using namespace std::placeholders;
-    on("/status", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFsStatus, this, _1));
-    on("/list", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileList, this, _1));
-    on("/edit", HTTP_PUT, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileCreate, this, _1));
-    on("/edit", HTTP_DELETE, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileDelete, this, _1));
-    on("/edit", HTTP_GET, (ArRequestHandlerFunction)std::bind(&AsyncFsWebServer::handleFileEdit, this, _1));
+    on("/status", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFsStatus(request); });
+    on("/list", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileList(request); });
+    on("/edit", HTTP_PUT, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileCreate(request); });
+    on("/edit", HTTP_DELETE, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileDelete(request); });
+    on("/edit", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileEdit(request); });
     on("/edit", HTTP_POST,
-        std::bind(&AsyncFsWebServer::sendOK, this, _1),
-        std::bind(&AsyncFsWebServer::handleUpload, this, _1, _2, _3, _4, _5, _6)
+        [this](AsyncWebServerRequest *request) { sendOK(request); },
+        [this](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) { handleUpload(request, filename, index, data, len, final); }
     );
     getFsInfo = fsCallback;
 }

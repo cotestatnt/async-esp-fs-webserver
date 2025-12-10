@@ -24,9 +24,9 @@
 #endif
 
 #ifndef ESP_FS_WS_EDIT
-    #define ESP_FS_WS_EDIT              0   //has edit methods
+    #define ESP_FS_WS_EDIT              1   //has edit methods
     #ifndef ESP_FS_WS_EDIT_HTM
-        #define ESP_FS_WS_EDIT_HTM      0   //included from progmem
+        #define ESP_FS_WS_EDIT_HTM      1   //included from progmem
     #endif
 #endif
 
