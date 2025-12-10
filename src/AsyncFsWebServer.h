@@ -45,7 +45,7 @@
     #define ESP_FS_WS_CONFIG_FOLDER "/config"
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
     #include "setup_htm.h"
-    #include "SetupConfig.hpp"  // TEMP: testing SetupConfig overhead
+    #include "SetupConfig.hpp" 
 #endif
 
 #include "CaptivePortal.hpp"
