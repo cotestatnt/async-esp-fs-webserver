@@ -89,7 +89,8 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 }
 
 void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t levels) {
-    Serial.println(String("\nListing directory: ") + dirname);
+    Serial.print("\nListing directory: ");
+    Serial.println(dirname);
     File root = fs.open(dirname, "r");
     if (!root) {
         Serial.println("- failed to open directory");
@@ -234,7 +235,14 @@ void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     AsyncFSWebServer::Json doc;
     doc.setString("firmware", m_version);
-    String mode = WiFi.status() == WL_CONNECTED ? ("Station (" + WiFi.SSID()) +')' : "Access Point";
+    String mode;
+    if (WiFi.status() == WL_CONNECTED) {
+        mode = "Station (";
+        mode += WiFi.SSID();
+        mode += ")";
+    } else {
+        mode = "Access Point";
+    }
     doc.setString("mode", mode);
     String ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
     doc.setString("ip", ip);
@@ -501,7 +509,8 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             }
         }
 
-        Serial.println("\n\n\nConnecting to " + ssid);
+        Serial.print("\n\n\nConnecting to ");
+        Serial.println(ssid);
         WiFi.begin(ssid.c_str(), pass.c_str());
 
         if (WiFi.status() == WL_CONNECTED && newSSID) {
@@ -534,8 +543,10 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             Serial.print(F("\nConnected to Wifi! IP address: "));
             Serial.println(m_serverIp);
             String serverLoc = F("http://");
-            for (int i = 0; i < 4; i++)
-                serverLoc += i ? "." + String(m_serverIp[i]) : String(m_serverIp[i]);
+            for (int i = 0; i < 4; i++) {
+                if (i) serverLoc += ".";
+                serverLoc += m_serverIp[i];
+            }
             serverLoc += "/setup";
             resp  = "ESP successfully connected to ";
             resp += ssid;
@@ -948,7 +959,9 @@ void AsyncFsWebServer::deleteContent(String& path) {
     if (!entry) {
       break;
     }
-    String entryPath = path + "/" + entry.name();
+    String entryPath = path;
+    entryPath += "/";
+    entryPath += entry.name();
     if (entry.isDirectory()) {
       entry.close();
       deleteContent(entryPath);

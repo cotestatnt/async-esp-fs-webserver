@@ -24,12 +24,21 @@ class CaptiveRequestHandler : public AsyncWebHandler
 {
 public:
     explicit CaptiveRequestHandler(String redirectTargetURL) :
-        targetURL("http://" + WiFi.softAPIP().toString() + redirectTargetURL)
+        targetURL(buildTargetURL(redirectTargetURL))
     {
     }
     virtual ~CaptiveRequestHandler() {}
 
     const String targetURL;
+
+    static String buildTargetURL(const String& redirect) {
+        String s;
+        s.reserve(64);
+        s += "http://";
+        s += WiFi.softAPIP().toString();
+        s += redirect;
+        return s;
+    }
 
     bool canHandle(AsyncWebServerRequest *request) const override {
         if (request->host() != WiFi.softAPIP().toString())

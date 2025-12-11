@@ -165,7 +165,12 @@ class SetupConfigurator
         }
 
         void setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
-            String filename = String(ESP_FS_WS_CONFIG_FOLDER) + "/img-logo-" + width + "_" + height + ".txt";
+            String filename = ESP_FS_WS_CONFIG_FOLDER;
+            filename += "/img-logo-";
+            filename += width;
+            filename += "_";
+            filename += height;
+            filename += ".txt";
             if (filename.length() >= 120) {
                 log_error("Logo filename too long");
                 return;
