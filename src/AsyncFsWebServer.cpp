@@ -42,12 +42,10 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     
     
     on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-        String reply = "{\"ssid\":\"";
-        reply += WiFi.SSID();
-        reply += "\", \"rssi\":";
-        reply += WiFi.RSSI();
-        reply += "}";
-        request->send(200, "application/json", reply);
+        AsyncFSWebServer::Json doc;
+        doc.setString("ssid", WiFi.SSID());
+        doc.setNumber("rssi", WiFi.RSSI());
+        request->send(200, "application/json", doc.serialize());
     });
 
     on("/upload", HTTP_POST,
@@ -75,33 +73,23 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     onNotFound([this](AsyncWebServerRequest *request) { this->notFound(request); });
     serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
 
-    if (wsHandle != nullptr)
+    if (wsHandle != nullptr) {
+        if (!m_ws) m_ws = new AsyncWebSocket("/ws");
         m_ws->onEvent(wsHandle);
-    else
-        m_ws->onEvent([this](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
-            this->handleWebSocket(server, client, type, arg, data, len);
-        });
-    addHandler(m_ws);
+        addHandler(m_ws);
+    }
     
     DefaultHeaders::Instance().addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     DefaultHeaders::Instance().addHeader("Pragma", "no-cache");
     DefaultHeaders::Instance().addHeader("Expires", "0");
     begin();
 
-    // Configure and start MDNS responder
-    if (!MDNS.begin(m_host.c_str())){
-        log_error("MDNS responder not started");
-    } else {
-        log_debug("MDNS responder started %s", m_host.c_str());
-        MDNS.addService("http", "tcp", m_port);
-        MDNS.setInstanceName("async-fs-webserver");
-    }
+    // MDNS is started only in AP mode (see startCaptivePortal)
     return true;
 }
 
-
 void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t levels) {
-    Serial.printf("\nListing directory: %s\n", dirname);
+    Serial.println(String("\nListing directory: ") + dirname);
     File root = fs.open(dirname, "r");
     if (!root) {
         Serial.println("- failed to open directory");
@@ -122,7 +110,12 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
             #endif
         }
         } else {
-        Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
+        String line = "|__ FILE: ";
+        line += file.name();
+        line += " (";
+        line += (unsigned long)file.size();
+        line += " bytes)";
+        Serial.println(line);
         }
         file = root.openNextFile();
     }
@@ -143,39 +136,17 @@ void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
 }
 #endif
 
-void AsyncFsWebServer::handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len) {
-   switch (type) {
-        case WS_EVT_CONNECT:
-            client->printf("{\"Websocket connected\": true, \"clients\": %" PRIu32 "}", client->id());
-            break;
-        case WS_EVT_DISCONNECT:
-            client->printf("{\"Websocket connected\": false, \"clients\": 0}");
-            break;
-        case WS_EVT_DATA: {
-            AwsFrameInfo * info = (AwsFrameInfo*)arg;
-            String msg = "";
-            if(info->final && info->index == 0 && info->len == len){
-                //the whole message is in a single frame and we got all of it's data
-                Serial.printf("ws[%s][%" PRIu32 "] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
-                if (info->opcode == WS_TEXT){
-                    for(size_t i=0; i < info->len; i++) {
-                        msg += (char) data[i];
-                    }
-                }
-                else {
-                    char buff[4];
-                    for(size_t i=0; i < info->len; i++) {
-                        sprintf(buff, "%02x ", (uint8_t) data[i]);
-                        msg += buff ;
-                    }
-                }
-                Serial.printf("%s\n",msg.c_str());
-            }
-        }
-        default:
-            break;
-    }
+
+// Enable WebSocket handler at runtime. Creates WS on `path` and registers default handler.
+void AsyncFsWebServer::enableWebSocket(const char* path, AwsEventHandler handler) {
+    if (m_ws) return;
+    m_ws = new AsyncWebSocket(path);
+    if (handler) {
+        m_ws->onEvent(handler);
+    } 
+    addHandler(m_ws);
 }
+
 
 void AsyncFsWebServer::setAuthentication(const char* user, const char* pswd) {
     // Free previous allocations if they exist
@@ -326,20 +297,20 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     if (res >= 0) {
         log_info("Scan completed! Number of networks: %d", res);
         // Build JSON array manually
-        String json = "[";
+        String json;
+        json.reserve(res * 100);
+        json = "[";
         for (int i = 0; i < res; ++i) {
             if (i > 0) json += ",";
-            json += "{\"strength\":";
-            json += WiFi.RSSI(i);
-            json += ",\"ssid\":\"";
-            json += WiFi.SSID(i);
-            json += "\",\"security\":\"";
+            AsyncFSWebServer::Json item;
+            item.setNumber("strength", WiFi.RSSI(i));
+            item.setString("ssid", WiFi.SSID(i));
             #if defined(ESP8266)
-            json += AUTH_OPEN ? "none" : "enabled";
+            item.setString("security", AUTH_OPEN ? "none" : "enabled");
             #elif defined(ESP32)
-            json += WIFI_AUTH_OPEN ? "none" : "enabled";
+            item.setString("security", WIFI_AUTH_OPEN ? "none" : "enabled");
             #endif
-            json += "\"}";
+            json += item.serialize();
         }
         json += "]";
         request->send(200, "application/json", json);
@@ -354,6 +325,7 @@ void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
 
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
     String dir;
+    dir.reserve(path.length());
     int p1 = 0;  int p2 = 0;
     while (p2 != -1) {
         p2 = path.indexOf("/", p1 + 1);
@@ -424,7 +396,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     String ssid, pass;
     IPAddress gateway, subnet, local_ip;
     bool config = false,  newSSID = false;
-    char resp[512] = {0};
+    String resp;
 
     if (request->hasArg("ip_address") && request->hasArg("subnet") && request->hasArg("gateway")) {
         gateway.fromString(request->arg("gateway"));
@@ -451,15 +423,12 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     */
     if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_AP) {
         log_debug("WiFi status %d", WiFi.status());
-        snprintf(resp, sizeof(resp),
-            "ESP is already connected to <b>%s</b> WiFi!<br>"
-            "Do you want close this connection and attempt to connect to <b>%s</b>?"
-            "<br><br><i>Note:<br>Flash stored WiFi credentials will be updated.<br>"
-            "The ESP will no longer be reachable from this web page "
-            "due to the change of WiFi network.<br>To find out the new IP address, "
-            "check the serial monitor or your router.<br></i>",
-            WiFi.SSID().c_str(), ssid.c_str()
-        );
+        resp.reserve(512);
+        resp  = "ESP is already connected to <b>";
+        resp += WiFi.SSID();
+        resp += "</b> WiFi!<br>Do you want close this connection and attempt to connect to <b>";
+        resp += ssid;
+        resp += "</b>?<br><br><i>Note:<br>Flash stored WiFi credentials will be updated.<br>The ESP will no longer be reachable from this web page due to the change of WiFi network.<br>To find out the new IP address, check the serial monitor or your router.<br></i>";
         request->send(200, "application/json", resp);
         return;
     }
@@ -532,7 +501,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             }
         }
 
-        Serial.printf("\n\n\nConnecting to %s\n", ssid.c_str());
+        Serial.println("\n\n\nConnecting to " + ssid);
         WiFi.begin(ssid.c_str(), pass.c_str());
 
         if (WiFi.status() == WL_CONNECTED && newSSID) {
@@ -568,14 +537,19 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             for (int i = 0; i < 4; i++)
                 serverLoc += i ? "." + String(m_serverIp[i]) : String(m_serverIp[i]);
             serverLoc += "/setup";
-            snprintf(resp, sizeof(resp),
-                "ESP successfully connected to %s WiFi network. <br><b>Restart ESP now?</b>"
-                "<br><br><i>Note: disconnect your browser from ESP AP and then reload "
-                "<a href='%s'>%s</a> or <a href='http://%s.local'>http://%s.local</a></i>",
-                ssid.c_str(), serverLoc.c_str(), serverLoc.c_str(), m_host.c_str(), m_host.c_str()
-            );
+            resp  = "ESP successfully connected to ";
+            resp += ssid;
+            resp += " WiFi network. <br><b>Restart ESP now?</b><br><br><i>Note: disconnect your browser from ESP AP and then reload <a href='";
+            resp += serverLoc;
+            resp += "'>";
+            resp += serverLoc;
+            resp += "</a> or <a href='http://";
+            resp += m_host;
+            resp += ".local'>http://";
+            resp += m_host;
+            resp += ".local</a></i>";
 
-            log_debug("%s", resp);
+            log_debug("%s", resp.c_str());
             request->send(200, "application/json", resp);
             delay(500);  // Give client time to receive response before system changes
             setTaskWdt(AWS_WDT_TIMEOUT);
@@ -759,6 +733,10 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
                 m_serverIp = WiFi.localIP();
                 // Ensure AP mode flag reflects current station connection
                 m_isApMode = false;
+                #if ESP_FS_WS_MDNS
+                // Station connected: stop mDNS to save memory (kept only for AP verification)
+                MDNS.end();
+                #endif
                 return true;
             default:
                 log_debug("[WiFi] WiFi Status: %d", WiFi.status());
@@ -807,6 +785,17 @@ bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, co
     m_captive = new CaptiveRequestHandler(redirectTargetURL);
     addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
     
+    #if ESP_FS_WS_MDNS
+    // Start MDNS only in AP mode for connection verification to the captive SSID
+    if (!MDNS.begin(m_host.c_str())){
+        log_error("MDNS responder not started");
+    } else {
+        log_debug("MDNS responder started %s (AP mode)", m_host.c_str());
+        MDNS.addService("http", "tcp", m_port);
+        MDNS.setInstanceName("async-fs-webserver");
+    }
+    #endif
+
     log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
 
     return true;
@@ -843,7 +832,9 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
     }
 
     File root = m_filesystem->open(path, "r");
-    String output = "[";
+    String output;
+    output.reserve(512);
+    output = "[";
     if (root.isDirectory()) {
         File file = root.openNextFile();
         bool first = true;
@@ -854,13 +845,11 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
             if (filename.lastIndexOf("/") > -1) {
                 filename.remove(0, filename.lastIndexOf("/") + 1);
             }
-            output += "{\"type\":\"";
-            output += (file.isDirectory()) ? "dir" : "file";
-            output += "\",\"size\":";
-            output += file.size();
-            output += ",\"name\":\"";
-            output += filename;
-            output += "\"}";
+            AsyncFSWebServer::Json item;
+            item.setString("type", (file.isDirectory()) ? "dir" : "file");
+            item.setNumber("size", file.size());
+            item.setString("name", filename);
+            output += item.serialize();
             file = root.openNextFile();
         }
     }
@@ -1006,27 +995,20 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     if (getFsInfo != nullptr) {
         getFsInfo(&info);
     }
-    String json;
-    json = "{\"type\":\"";
-    json += info.fsName;
-    json += "\", \"isOk\":";
+    AsyncFSWebServer::Json doc;
+    doc.setString("type", info.fsName);
+    doc.setString("isOk", m_filesystem_ok ? "true" : "false");
+
     if (m_filesystem_ok)  {
         IPAddress ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
-        json += PSTR("\"true\", \"totalBytes\":\"");
-        json += info.totalBytes;
-        json += PSTR("\", \"usedBytes\":\"");
-        json += info.usedBytes;
-        json += PSTR("\", \"mode\":\"");
-        json += WiFi.status() == WL_CONNECTED ? "Station" : "Access Point";
-        json += PSTR("\", \"ssid\":\"");
-        json += WiFi.SSID();
-        json += PSTR("\", \"ip\":\"");
-        json += ip.toString();
-        json += "\"";
+        doc.setString("totalBytes", String(info.totalBytes));
+        doc.setString("usedBytes", String(info.usedBytes));
+        doc.setString("mode", WiFi.status() == WL_CONNECTED ? "Station" : "Access Point");
+        doc.setString("ssid", WiFi.SSID());
+        doc.setString("ip", ip.toString());
     }
-    else
-        json += "\"false\"";
-    json += PSTR(",\"unsupportedFiles\":\"\"}");
+    doc.setString("unsupportedFiles", "");
+    String json = doc.serialize();
     request->send(200, "application/json", json);
 }
 #endif // ESP_FS_WS_EDIT

@@ -165,18 +165,13 @@ class SetupConfigurator
         }
 
         void setLogoBase64(const char* logo, const char* width, const char* height, bool overwrite) {
-            // Use snprintf to safely create the filename with proper bounds checking
-            char filename[128];
-            int written = snprintf(filename, sizeof(filename), "%s/img-logo-%s_%s.txt", 
-                                   ESP_FS_WS_CONFIG_FOLDER, width, height);
-            
-            if (written < 0 || written >= (int)sizeof(filename)) {
+            String filename = String(ESP_FS_WS_CONFIG_FOLDER) + "/img-logo-" + width + "_" + height + ".txt";
+            if (filename.length() >= 120) {
                 log_error("Logo filename too long");
                 return;
             }
-
-            optionToFile(filename, logo, overwrite);
-            addOption("img-logo", filename);
+            optionToFile(filename.c_str(), logo, overwrite);
+            addOption("img-logo", filename.c_str());
         }
 
         bool optionToFile(const char* filename, const char* str, bool overWrite) {

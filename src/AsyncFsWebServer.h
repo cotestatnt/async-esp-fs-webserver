@@ -6,6 +6,7 @@
 #include "SerialLog.h"
 #include "Version.h"
 #include "ESPAsyncWebServer.h"
+#include "Json.h"
 
 
 #ifdef ESP32
@@ -24,16 +25,18 @@
 #endif
 
 #ifndef ESP_FS_WS_EDIT
-    #define ESP_FS_WS_EDIT              1   //has edit methods
+    #define ESP_FS_WS_EDIT              1   // Library has edit methods
     #ifndef ESP_FS_WS_EDIT_HTM
-        #define ESP_FS_WS_EDIT_HTM      1   //included from progmem
+                                            // Disable if you provide your own edit page
+        #define ESP_FS_WS_EDIT_HTM      1   // Library serve /edit webpage from progmem                                            
     #endif
 #endif
 
 #ifndef ESP_FS_WS_SETUP
-    #define ESP_FS_WS_SETUP             1   //has setup methods
+    #define ESP_FS_WS_SETUP             1   // Library has setup methods
     #ifndef ESP_FS_WS_SETUP_HTM
-        #define ESP_FS_WS_SETUP_HTM     1   //included from progmem
+                                            // Disable if you provide your own setup page
+        #define ESP_FS_WS_SETUP_HTM     1   // Library serve /setup webpage from progmem                                            
     #endif
 #endif
 
@@ -49,20 +52,16 @@
 #endif
 
 #include "CaptivePortal.hpp"
+#ifndef ESP_FS_WS_MDNS
+  #define ESP_FS_WS_MDNS 1
+#endif
+
 
 #define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
 
-// Build date-time at compile-time as integer
-#define BUILD_MONTH ((((__DATE__[0] + __DATE__[1] + __DATE__[2]) % 100) % 12) + 1)
-#define BUILD_DAY   (__DATE__[4] == ' ' ? __DATE__[5] - '0' : (__DATE__[4] - '0')*10 + (__DATE__[5] - '0'))
-#define BUILD_YEAR  ((__DATE__[7]-'0')*1000 + (__DATE__[8]-'0')*100 + (__DATE__[9]-'0')*10 + (__DATE__[10]-'0'))
-#define BUILD_HOUR  ((__TIME__[0]-'0')*10 + (__TIME__[1]-'0'))
-#define BUILD_MIN   ((__TIME__[3]-'0')*10 + (__TIME__[4]-'0'))
 
-// YYYYMMDDHHMM
-#define BUILD_YYYYMMDDHHMM (BUILD_YEAR*100000000 + BUILD_MONTH*1000000 + BUILD_DAY*10000 + BUILD_HOUR*100 + BUILD_MIN)
 
 // Watchdog timeout utility
 #if defined(ESP32)
@@ -90,8 +89,7 @@ class AsyncFsWebServer : public AsyncWebServer
     AsyncWebHandler *m_captive = nullptr;
     DNSServer* m_dnsServer = nullptr;
     bool m_isApMode = false;
-
-    void handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len);        
+  
     void notFound(AsyncWebServerRequest *request);
     void handleFileName(AsyncWebServerRequest *request);
 
@@ -130,7 +128,7 @@ class AsyncFsWebServer : public AsyncWebServer
     uint32_t m_timeout = AWS_LONG_WDT_TIMEOUT;
 
     // Firmware version buffer (expanded to accommodate custom version strings)
-    char m_version[32] = {};
+    String m_version;
     bool m_filesystem_ok = false;
 
     fs::FS* m_filesystem = nullptr;
@@ -157,14 +155,13 @@ class AsyncFsWebServer : public AsyncWebServer
     {
       m_port = port;
       // setup is lazily initialized when first needed (lazy initialization)
-      m_ws = new AsyncWebSocket("/ws");
 
       // Set hostname if provided from constructor
       if (strlen(hostname))
         m_host = hostname;
 
-      // Set build date as default firmware version (can be overridden with setFirmwareVersion())      
-      snprintf(m_version, sizeof(m_version), "%lu", (unsigned long)BUILD_YYYYMMDDHHMM);
+      // Set build date as default firmware version (YYMMDDHHmm) from Version.h constexprs      
+      m_version = String(BUILD_TIMESTAMP);
     }
 
     // Class destructor
@@ -258,23 +255,14 @@ class AsyncFsWebServer : public AsyncWebServer
     bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
 
     /*
-     * get instance of current websocket handler
+     * get instance of current websocket handler (enabled at runtime)
     */
-    AsyncWebSocket* getWebSocket() { return m_ws;}
+    AsyncWebSocket* getWebSocket() { return m_ws; }
 
     /*
-     * Broadcast a websocket message to all clients connected
+     * Enable WebSocket at runtime. Creates WS on `path` and registers handler.
     */
-    void wsBroadcast(const char * buffer) {
-      m_ws->textAll(buffer);
-    }
-
-    /*
-    * Broadcast a binary websocket message to all clients connected
-    */
-    void wsBroadcastBinary(uint8_t * message, size_t len) {
-      m_ws->binaryAll(message, len);
-    }
+    void enableWebSocket(const char* path, AwsEventHandler handler);
 
     /*
     * Need to be run in loop to handle DNS requests
@@ -283,12 +271,15 @@ class AsyncFsWebServer : public AsyncWebServer
       m_dnsServer->processNextRequest();
     }
 
-
     /*
     * Set current firmware version (shown in /setup webpage)
     */
-    inline void setFirmwareVersion(char* version) {
-      strlcpy(m_version, version, sizeof(m_version));
+    inline void setFirmwareVersion(const char* version) {
+      m_version = String(version);
+    }
+
+    inline void setFirmwareVersion(const String& version) {
+      m_version = version;
     }
 
     /*

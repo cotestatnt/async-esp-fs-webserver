@@ -19,14 +19,102 @@ bool Json::parse(const String &text)
     return root != nullptr;
 }
 
+static void jsonEscapeString(const char* in, String& out) {
+    if (!in) { out += ""; return; }
+    out.reserve(out.length() + strlen(in) + 4);
+    for (const char* p = in; *p; ++p) {
+        char c = *p;
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if ((unsigned char)c < 0x20) {
+                    // Control chars -> skip or encode minimally
+                    // Minimal approach: skip
+                } else {
+                    out += c;
+                }
+        }
+    }
+}
+
+static void serializeNode(const cJSON* item, String& out);
+
+static void serializeArray(const cJSON* array, String& out) {
+    out.reserve(out.length() + 64);
+    out += '[';
+    const cJSON* child = array->child;
+    bool first = true;
+    while (child) {
+        if (!first) out += ',';
+        first = false;
+        serializeNode(child, out);
+        child = child->next;
+    }
+    out += ']';
+}
+
+static void serializeObject(const cJSON* obj, String& out) {
+    out.reserve(out.length() + 64);
+    out += '{';
+    const cJSON* child = obj->child;
+    bool first = true;
+    while (child) {
+        if (!first) out += ',';
+        first = false;
+        out += '"';
+        jsonEscapeString(child->string, out);
+        out += '"';
+        out += ':';
+        serializeNode(child, out);
+        child = child->next;
+    }
+    out += '}';
+}
+
+static void serializeNumber(const cJSON* item, String& out) {
+    // Prefer integer when representable
+    double d = item->valuedouble;
+    // Use valueint if it matches
+    if ((double)item->valueint == d) {
+        out += String(item->valueint);
+        return;
+    }
+    // Fallback: limited precision to reduce code size
+    // Using String(double, digits) avoids heavy printf linkage
+    out += String(d, 6);
+}
+
+static void serializeNode(const cJSON* item, String& out) {
+    if (!item) { out += "null"; return; }
+    switch (item->type & 0xFF) {
+        case cJSON_False: out += "false"; break;
+        case cJSON_True: out += "true"; break;
+        case cJSON_NULL: out += "null"; break;
+        case cJSON_Number: serializeNumber(item, out); break;
+        case cJSON_String:
+            out += '"';
+            jsonEscapeString(item->valuestring, out);
+            out += '"';
+            break;
+        case cJSON_Array: serializeArray(item, out); break;
+        case cJSON_Object: serializeObject(item, out); break;
+        default: out += "null"; break;
+    }
+}
+
 String Json::serialize(bool /*pretty*/) const
 {
     if (!root)
         return String();
-    char *out = cJSON_Print(root);
-    String s = out ? String(out) : String();
-    if (out)
-        free(out);
+    String s;
+    s.reserve(256);
+    serializeNode(root, s);
     return s;
 }
 
