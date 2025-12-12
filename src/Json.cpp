@@ -43,36 +43,61 @@ static void jsonEscapeString(const char* in, String& out) {
     }
 }
 
-static void serializeNode(const cJSON* item, String& out);
+static void serializeNode(const cJSON* item, String& out, bool pretty, int indent);
 
-static void serializeArray(const cJSON* array, String& out) {
+static void addIndent(String& out, int indent) {
+    for (int i = 0; i < indent; i++) out += "  ";
+}
+
+static void serializeArray(const cJSON* array, String& out, bool pretty, int indent) {
     out.reserve(out.length() + 64);
     out += '[';
     const cJSON* child = array->child;
     bool first = true;
+    if (pretty && child) out += '\n';
+    
     while (child) {
-        if (!first) out += ',';
+        if (!first) {
+            out += ',';
+            if (pretty) out += '\n';
+        }
         first = false;
-        serializeNode(child, out);
+        if (pretty) addIndent(out, indent + 1);
+        serializeNode(child, out, pretty, indent + 1);
         child = child->next;
+    }
+    if (pretty && array->child) {
+        out += '\n';
+        addIndent(out, indent);
     }
     out += ']';
 }
 
-static void serializeObject(const cJSON* obj, String& out) {
+static void serializeObject(const cJSON* obj, String& out, bool pretty, int indent) {
     out.reserve(out.length() + 64);
     out += '{';
     const cJSON* child = obj->child;
     bool first = true;
+    if (pretty && child) out += '\n';
+
     while (child) {
-        if (!first) out += ',';
+        if (!first) {
+            out += ',';
+            if (pretty) out += '\n';
+        }
         first = false;
+        if (pretty) addIndent(out, indent + 1);
         out += '"';
         jsonEscapeString(child->string, out);
         out += '"';
         out += ':';
-        serializeNode(child, out);
+        if (pretty) out += ' ';
+        serializeNode(child, out, pretty, indent + 1);
         child = child->next;
+    }
+    if (pretty && obj->child) {
+        out += '\n';
+        addIndent(out, indent);
     }
     out += '}';
 }
@@ -90,7 +115,7 @@ static void serializeNumber(const cJSON* item, String& out) {
     out += String(d, 6);
 }
 
-static void serializeNode(const cJSON* item, String& out) {
+static void serializeNode(const cJSON* item, String& out, bool pretty, int indent) {
     if (!item) { out += "null"; return; }
     switch (item->type & 0xFF) {
         case cJSON_False: out += "false"; break;
@@ -102,19 +127,19 @@ static void serializeNode(const cJSON* item, String& out) {
             jsonEscapeString(item->valuestring, out);
             out += '"';
             break;
-        case cJSON_Array: serializeArray(item, out); break;
-        case cJSON_Object: serializeObject(item, out); break;
+        case cJSON_Array: serializeArray(item, out, pretty, indent); break;
+        case cJSON_Object: serializeObject(item, out, pretty, indent); break;
         default: out += "null"; break;
     }
 }
 
-String Json::serialize(bool /*pretty*/) const
+String Json::serialize(bool pretty) const
 {
     if (!root)
         return String();
     String s;
     s.reserve(256);
-    serializeNode(root, s);
+    serializeNode(root, s, pretty, 0);
     return s;
 }
 

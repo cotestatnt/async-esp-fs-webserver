@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <FS.h>
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>  //https://github.com/cotestatnt/async-esp-fs-webserver
@@ -13,7 +14,10 @@ AsyncFsWebServer server(80, FILESYSTEM, "myserver");
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
+
+#ifndef BOOT_PIN
 #define BOOT_PIN    0
+#endif
 
 // Labels used in /setup webpage for options
 #define LED_LABEL "The LED pin number"
@@ -69,7 +73,8 @@ function reload() {
 
 /////////// Callback: notify user when the configuration file is saved  /////////////
 void onConfigSaved(const char* path) {
-  Serial.printf("\n[Config] File salvato: %s\n", path);
+  Serial.print("\n[Config] File salvato: ");
+  Serial.println(path); 
 }
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
@@ -100,14 +105,14 @@ bool loadOptions() {
     server.closeSetupConfiguration();  // Close configuration to free resources
 
     Serial.println("\nThis are the current values stored: \n");
-    Serial.printf("LED pin value: %d\n", ledPin);
-    Serial.printf("Bool value: %s\n", boolVar ? "true" : "false");
-    Serial.printf("Bool value2: %s\n", boolVar2 ? "true" : "false");
-    Serial.printf("Long value: %u\n", longVar);
-    Serial.printf("Float value: %3.2f\n", floatVar);
-    Serial.printf("String value: %s\n", stringVar.c_str());
-    Serial.printf("Dropdown selected value: %s\n", days[dayOfWeek.selectedIndex]);
-    Serial.printf("Slider value: %3.2f\n\n", brightness.value);
+    Serial.print("LED pin value: "); Serial.println(ledPin);    
+    Serial.print("Bool value: "); Serial.println(boolVar ? "true" : "false");
+    Serial.print("Bool value2: "); Serial.println(boolVar2 ? "true" : "false");
+    Serial.print("Long value: "); Serial.println(longVar);
+    Serial.print("Float value: "); Serial.println(floatVar);
+    Serial.print("String value: "); Serial.println(stringVar);
+    Serial.print("Dropdown selected value: "); Serial.println(days[dayOfWeek.selectedIndex]);
+    Serial.print("Slider value: "); Serial.println(brightness.value);
     return true;
   }
   else
@@ -134,10 +139,10 @@ void setup() {
   }
 
   // Firmware version is set to compile time internally with a macro, but you can set a custom string
-  // Custom firmware version -> Major.Minor.Build (build is set to compile date YYYYMMDDHHMM)
-  char verBuf[32];
-  snprintf(verBuf, sizeof(verBuf), "1.0.%u", (unsigned)BUILD_YYYYMMDDHHMM);
-  server.setFirmwareVersion(verBuf);
+  // Custom firmware version -> Major.Minor.Build
+  // Build is a packed 32-bit value; for display use unpack or keep compact.
+  String version = "1.0." + String(BUILD_TIMESTAMP);
+  server.setFirmwareVersion(version);
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
@@ -161,16 +166,18 @@ void setup() {
   server.addHTML(reload_btn_htm, "buttons", /*overwrite*/ false);
   server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);
 
-  // Enable ACE FS file web editor and add FS info callback function    
-#ifdef ESP32
-  server.enableFsCodeEditor([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-  });
-#else
-  // ESP8266 core support LittleFS by default
-  server.enableFsCodeEditor();
+  // Enable ACE FS file web editor and add FS info callback function
+#if ESP_FS_WS_EDIT
+  #ifdef ESP32
+    server.enableFsCodeEditor([](fsInfo_t* fsInfo) {
+      fsInfo->fsName = "LittleFS";
+      fsInfo->totalBytes = LittleFS.totalBytes();
+      fsInfo->usedBytes = LittleFS.usedBytes();
+    });
+  #else
+    // ESP8266 core support LittleFS by default
+    server.enableFsCodeEditor();
+  #endif
 #endif
 
   // set /setup and /edit page authentication
@@ -188,6 +195,9 @@ void setup() {
       "Open /setup page to configure optional parameters.\n"
       "Open /edit page to view, edit or upload example or your custom webserver source files."
   ));
+
+  Serial.print(F("Compile time (default firmware version): "));
+  Serial.println(BUILD_TIMESTAMP);
 }
 
 void loop() {

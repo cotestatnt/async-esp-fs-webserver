@@ -264,6 +264,22 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     void enableWebSocket(const char* path, AwsEventHandler handler);
 
+        /*
+     * Broadcast a websocket message to all clients connected
+    */
+    void wsBroadcast(const char * buffer) {
+      if (m_ws != nullptr)
+        m_ws->textAll(buffer);
+    }
+
+    /*
+    * Broadcast a binary websocket message to all clients connected
+    */
+    void wsBroadcastBinary(uint8_t * message, size_t len) {
+      if (m_ws != nullptr)
+        m_ws->binaryAll(message, len);
+    }
+
     /*
     * Need to be run in loop to handle DNS requests
     */
