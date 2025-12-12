@@ -11,31 +11,14 @@ AsyncFsWebServer server(80, FILESYSTEM, hostname);
 #define LED_BUILTIN 2
 #endif
 
-// Test "options" values
-uint8_t ledPin = LED_BUILTIN;
-bool boolVar = true;
-bool boolVar2 = false;
-uint32_t longVar = 1234567890;
-float floatVar = 15.5F;
-String stringVar = "Test option String";
-String dropdownSelected = "Item1";
-// ThingsBoard variables
-String tb_deviceName = "ESP Sensor";
-double tb_deviceLatitude = 41.88505;
-double tb_deviceLongitude = 12.50050;
-String tb_deviceToken = "xxxxxxxxxxxxxxxxxxx";
-String tb_device_key = "xxxxxxxxxxxxxxxxxxx";
-String tb_secret_key = "xxxxxxxxxxxxxxxxxxx";
-String tb_serverIP = "thingsboard.cloud";
-uint16_t tb_port = 80;
-
-// Var labels (in /setup webpage)
+// Var labels as shown in /setup webpage
 #define LED_LABEL "The LED pin number"
 #define BOOL_LABEL "A bool variable"
 #define LONG_LABEL "A long variable"
 #define FLOAT_LABEL "A float variable"
 #define STRING_LABEL "A String variable"
 #define DROPDOWN_TEST "A dropdown listbox"
+#define BRIGHTNESS_LABEL "A slider control"
 
 #define TB_DEVICE_NAME "Device Name"
 #define TB_DEVICE_LAT "Device Latitude"
@@ -46,9 +29,25 @@ uint16_t tb_port = 80;
 #define TB_DEVICE_KEY "Provisioning device key"
 #define TB_SECRET_KEY "Provisioning secret key"
 
-// Timezone definition to get properly time from NTP server
-//n.u. #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
-//n.u. struct tm Time;
+// Test "options" values
+uint8_t ledPin = LED_BUILTIN;
+bool boolVar = true;
+bool boolVar2 = false;
+uint32_t longVar = 1234567890;
+float floatVar = 15.5F;
+String stringVar = "Test option String";
+String dropdownSelected = "Item1";
+AsyncFsWebServer::Slider brightness{ BRIGHTNESS_LABEL, 0.0, 100.0, 1.0, 50.0 };
+
+// ThingsBoard variables
+String tb_deviceName = "ESP Sensor";
+double tb_deviceLatitude = 41.88505;
+double tb_deviceLongitude = 12.50050;
+String tb_deviceToken = "xxxxxxxxxxxxxxxxxxx";
+String tb_device_key = "xxxxxxxxxxxxxxxxxxx";
+String tb_secret_key = "xxxxxxxxxxxxxxxxxxx";
+String tb_serverIP = "thingsboard.cloud";
+uint16_t tb_port = 80;
 
 /*
 * Include the custom HTML, CSS and Javascript to be injected in /setup webpage.
@@ -103,6 +102,8 @@ bool loadOptions() {
     server.getOptionValue(FLOAT_LABEL, floatVar);
     server.getOptionValue(STRING_LABEL, stringVar);
     server.getOptionValue(DROPDOWN_TEST, dropdownSelected);
+    server.getSliderValue(brightness);
+
     // ThingsBoard variables
     server.getOptionValue(TB_DEVICE_NAME, tb_deviceName);
     server.getOptionValue(TB_DEVICE_LAT, tb_deviceLatitude);
@@ -122,6 +123,7 @@ bool loadOptions() {
     Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
     Serial.printf("String value: %s\n", stringVar.c_str());
     Serial.printf("Dropdown selected: %s\n", dropdownSelected.c_str());
+    Serial.print("Slider value: "); Serial.println(brightness.value);
     return true;
   }
   else {
@@ -167,6 +169,7 @@ void setup() {
   static const char* dropItem[] = {"Item1", "Item2", "Item3"};
   AsyncFsWebServer::DropdownList dropdownDef{ DROPDOWN_TEST, dropItem, 3, 0 };
   server.addDropdownList(dropdownDef);
+  server.addSlider(brightness);  
 
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");
