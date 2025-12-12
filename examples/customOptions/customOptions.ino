@@ -135,11 +135,10 @@ void setup() {
     loadOptions();
   }
 
-  // Firmware version is set to compile time internally with a macro, but you can set a custom string
+  // Default firmware version is set to compile time, but you can edit with a custom string
   // Custom firmware version -> Major.Minor.Build (build is set to compile date YYYYMMDDHHMM)
-  char verBuf[32];
-  snprintf(verBuf, sizeof(verBuf), "1.0.%u", (unsigned)BUILD_YYYYMMDDHHMM);
-  server.setFirmwareVersion(verBuf);
+  String version = "1.0." + String(BUILD_TIMESTAMP);
+  server.setFirmwareVersion(version);
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
