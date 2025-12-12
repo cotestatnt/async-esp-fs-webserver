@@ -1,18 +1,19 @@
-If you like this work, please consider [sponsoring this project!](https://paypal.me/cotesta)
-
-# async-esp-fs-webserver
+# AsyncFsWebServer
 ESP32/ESP8266 WebServer, WiFi manager and ACE web editor Arduino library. Based on [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer) from @ESP32Async
 
-This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/esp-fs-webserver/) Arduino library, but working with the very good **ESPAsyncWebServer** library instead default webserver library.
+This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/esp-fs-webserver/) Arduino library, but working with the very good **ESP Async WebServer** library instead default webserver library.
 
 You need to install the following dependencies. Remove any previously installed clones or old versions, as they may cause conflicts.
 
-https://github.com/ESP32Async/ESPAsyncWebServer
+#### ESP32: https://github.com/ESP32Async/AsyncTCP
+#### ESP8266: https://github.com/ESP32Async/ESPAsyncTCP
+#### Both ESP32/ESP8266: https://github.com/ESP32Async/ESPAsyncWebServer
 
-#### ESP32
-https://github.com/ESP32Async/AsyncTCP
-#### ESP8266
-https://github.com/ESP32Async/ESPAsyncTCP
+### Documentation (available methods + usage)
+- [docs/API.md](../../docs/API.md)
+- [docs/SetupAndWiFi.md](../../docs/SetupAndWiFi.md)
+- [docs/FileEditorAndFS.md](../../docs/FileEditorAndFS.md)
+- [docs/WebSocket.md](../../docs/WebSocket.md)
 
 
 **Note**:
@@ -46,3 +47,4 @@ The page can be enabled at runtime using the method `enableFsCodeEditor()` and i
 
 ![image](https://github.com/cotestatnt/async-esp-fs-webserver/assets/27758688/668c0899-a060-4aed-956b-51311bf3fe13)
 
+If you like this work, please consider [sponsoring this project!](https://paypal.me/cotesta)
