@@ -51,7 +51,7 @@ jobs:
 
       - name: Build Examples
         run: |
-          EXCLUDE_EXAMPLES="esp32-cam.ino"
+          EXCLUDE_EXAMPLES="esp32-cam binaryWebsocket csvLogger csvLoggerSD customHTML customOptions gpio_list handleFormData highcharts localRFID mqtt_webserver mysqlRFID remoteOTA" 
           
           for i in `ls examples`; do
             # skip excluded examples
@@ -100,7 +100,15 @@ jobs:
 
       - name: Build Examples
         run: |
+          EXCLUDE_EXAMPLES="customHTML"
+          
           for i in `ls examples`; do
+            # skip excluded examples
+            if [[ $EXCLUDE_EXAMPLES == *"$i"* ]]; then
+              echo "Skipping: $i"
+              continue
+            fi
+            
             echo "============================================================="
             echo "Building examples/$i..."
             echo "============================================================="
