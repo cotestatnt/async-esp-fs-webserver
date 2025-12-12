@@ -147,14 +147,20 @@ jobs:
           set -uo pipefail
           echo "==================== Final build report (ESP32/pio) ===================="
           failures=0
+          files=0
           shopt -s nullglob
           for f in reports/*.txt; do
+            files=$((files + 1))
             echo "--- ${f} ---"
             cat "$f"
             if grep -q " : FAIL" "$f"; then
               failures=$((failures + 1))
             fi
           done
+          if [[ $files -eq 0 ]]; then
+            echo "No report files found (artifact download failed?)"
+            exit 1
+          fi
           echo "======================================================================="
           if [[ $failures -gt 0 ]]; then
             echo "One or more shards reported FAIL."
