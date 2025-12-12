@@ -1,20 +1,19 @@
-If you like this work, please consider [sponsoring this project!](https://paypal.me/cotesta)
-
-# async-esp-fs-webserver
+# AsyncFsWebServer
 ESP32/ESP8266 WebServer, WiFi manager and ACE web editor Arduino library. Based on [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer) from @ESP32Async
 
-This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/esp-fs-webserver/) Arduino library, but working with the very good **ESPAsyncWebServer** library instead default webserver library.
+This is the equivalent to [**esp-fs-webserver**](https://github.com/cotestatnt/esp-fs-webserver/) Arduino library, but working with the very good **ESP Async WebServer** library instead default webserver library.
 
 You need to install the following dependencies. Remove any previously installed clones or old versions, as they may cause conflicts.
 
-Some examples also require the [ArduinoJson](https://github.com/bblanchon/ArduinoJson) library, but it is no longer a dependency. Starting from version 2.1.0, the JSON parsing strictly needed by AsyncFsWebServer is handled internally, using the ultra-lightweight and efficient cJSON implementation.
+#### ESP32: https://github.com/ESP32Async/AsyncTCP
+#### ESP8266: https://github.com/ESP32Async/ESPAsyncTCP
+#### Both ESP32/ESP8266: https://github.com/ESP32Async/ESPAsyncWebServer
 
-https://github.com/ESP32Async/ESPAsyncWebServer
-
-#### ESP32
-https://github.com/ESP32Async/AsyncTCP
-#### ESP8266
-https://github.com/ESP32Async/ESPAsyncTCP
+### Documentation (available methods + usage)
+- [docs/API.md](../../docs/API.md)
+- [docs/SetupAndWiFi.md](../../docs/SetupAndWiFi.md)
+- [docs/FileEditorAndFS.md](../../docs/FileEditorAndFS.md)
+- [docs/WebSocket.md](../../docs/WebSocket.md)
 
 
 **Note**:
@@ -34,67 +33,6 @@ In the image below, for example, the HTML and Javascript code to provision the d
 
 ![image](https://github.com/cotestatnt/async-esp-fs-webserver/assets/27758688/d728c315-7271-454d-8c34-fb9db0b7a333)
 
-### Setup Page Configuration
-
-#### DropdownList (static API)
-Declare a compile-time dropdown and add it to the `/setup` page. The `label` is the JSON key.
-
-```
-static const char* modes[] = {"AUTO", "MANUAL", "OFF"};
-AsyncFsWebServer::DropdownList modeSelect{ "mode", modes, 3, 0 };
-
-server.addDropdownList(modeSelect);
-// On boot, read persisted selection
-server.getDropdownSelection(modeSelect);
-size_t idx = modeSelect.selectedIndex;
-```
-
-The configuration stores dropdowns as an object with `values` and `selected`:
-
-```
-{
-	"mode": {
-		"values": ["AUTO", "MANUAL", "OFF"],
-		"selected": "MANUAL"
-	}
-}
-```
-
-#### Booleans
-Boolean options are saved and read strictly as JSON booleans (`true`/`false`).
-
-```
-bool myFlag = true;
-server.addOption("My Flag", myFlag);
-// On boot
-server.getOptionValue("My Flag", myFlag);
-```
-
-#### Floats
-Float options can be configured with `min`, `max`, and `step` and are stored as an object containing these properties plus the current `value`.
-
-```
-float gain = 1.5f;
-// Add with constraints and step resolution
-server.addOption("Gain", gain, /*min*/ 0.0, /*max*/ 10.0, /*step*/ 0.01);
-
-// On boot
-server.getOptionValue("Gain", gain);
-```
-
-The JSON shape will be:
-
-```
-{
-	"Gain": {
-		"value": 1.50,
-		"min": 0.0,
-		"max": 10.0,
-		"step": 0.01
-	}
-}
-```
-
 ## Web server file upload
 
 In addition to built-in firmware update functionality, you can also upload your web server content all at once (typically the files are placed inside the folder `data` of your sketch).
@@ -109,3 +47,4 @@ The page can be enabled at runtime using the method `enableFsCodeEditor()` and i
 
 ![image](https://github.com/cotestatnt/async-esp-fs-webserver/assets/27758688/668c0899-a060-4aed-956b-51311bf3fe13)
 
+If you like this work, please consider [sponsoring this project!](https://paypal.me/cotesta)
