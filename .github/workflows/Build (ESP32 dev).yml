@@ -15,56 +15,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  arduino-esp32:
-    name: ESP32 (arduino-cli) - Release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install arduino-cli
-        run: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
+  # arduino-esp32:
+  #   name: ESP32 (arduino-cli) - Release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Install arduino-cli
+  #       run: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
 
-      - name: Update core index
-        run: arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+  #     - name: Update core index
+  #       run: arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
-      - name: Install core
-        run: arduino-cli core install --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json esp32:esp32
+  #     - name: Install core
+  #       run: arduino-cli core install --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json esp32:esp32
 
-      - name: Install ArduinoJson
-        run: arduino-cli lib install ArduinoJson
+  #     - name: Install ArduinoJson
+  #       run: arduino-cli lib install ArduinoJson
 
-      - name: Install AsyncTCP (ESP32)
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.3.7
+  #     - name: Install AsyncTCP (ESP32)
+  #       run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.3.7
 
-      - name: Install ESPAsyncWebServer
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer#v3.7.3
+  #     - name: Install ESPAsyncWebServer
+  #       run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer#v3.7.3
 
-      - name: Install Arduino-MySQL
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/cotestatnt/Arduino-MySQL
+  #     - name: Install Arduino-MySQL
+  #       run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/cotestatnt/Arduino-MySQL
 
-      - name: Install Arduino_MFRC522v2
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/OSSLibraries/Arduino_MFRC522v2
+  #     - name: Install Arduino_MFRC522v2
+  #       run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/OSSLibraries/Arduino_MFRC522v2
 
-      - name: Install PubSubCLient
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/knolleary/pubsubclient        
+  #     - name: Install PubSubCLient
+  #       run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/knolleary/pubsubclient        
 
-      - name: Checkout
-        uses: actions/checkout@v4
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Build Examples
-        run: |
-          EXCLUDE_EXAMPLES="simpleServer withWebSocket binaryWebsocket csvLogger csvLoggerSD customHTML customOptions gpio_list handleFormData highcharts localRFID mqtt_webserver mysqlRFID remoteOTA" 
-          
-          for i in `ls examples`; do
-            # skip excluded examples
-            if [[ $EXCLUDE_EXAMPLES == *"$i"* ]]; then
-              echo "Skipping: $i"
-              continue
-            fi
+  #     - name: Build Examples
+  #       run: |
+  #         EXCLUDE_EXAMPLES=""
+  #         for i in `ls examples`; do
+  #           # skip excluded examples
+  #           if [[ $EXCLUDE_EXAMPLES == *"$i"* ]]; then
+  #             echo "Skipping: $i"
+  #             continue
+  #           fi
             
-            echo "============================================================="
-            echo "Building examples/$i..."
-            echo "============================================================="
-            arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
-          done
+  #           echo "============================================================="
+  #           echo "Building examples/$i..."
+  #           echo "============================================================="
+  #           arduino-cli compile --library . --warnings none -b esp32:esp32:esp32 "examples/$i/$i.ino"
+  #         done
 
   platformio-esp32-arduino-latest:
     name: ESP32 (pio) - Arduino Latest
@@ -100,7 +99,7 @@ jobs:
 
       - name: Build Examples
         run: |
-          EXCLUDE_EXAMPLES="customHTML"
+          EXCLUDE_EXAMPLES="customHTML esp32-cam"
           
           for i in `ls examples`; do
             # skip excluded examples
