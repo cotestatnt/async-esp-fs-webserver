@@ -89,15 +89,19 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 }
 
 void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t levels) {
-    Serial.print("\nListing directory: ");
-    Serial.println(dirname);
+    printFileList(fs, dirname, levels, Serial);
+}
+
+void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t levels, Print& out) {
+    out.print("\nListing directory: ");
+    out.println(dirname);
     File root = fs.open(dirname, "r");
     if (!root) {
-        Serial.println("- failed to open directory");
+        out.println("- failed to open directory");
         return;
     }
     if (!root.isDirectory()) {
-        Serial.println(" - not a directory");
+        out.println(" - not a directory");
         return;
     }
     File file = root.openNextFile();
@@ -105,9 +109,9 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
         if (file.isDirectory()) {
         if (levels) {
             #ifdef ESP32
-            printFileList(fs, file.path(), levels - 1);
+            printFileList(fs, file.path(), levels - 1, out);
             #elif defined(ESP8266)
-            printFileList(fs, file.fullName(), levels - 1);
+            printFileList(fs, file.fullName(), levels - 1, out);
             #endif
         }
         } else {
@@ -116,7 +120,7 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
         line += " (";
         line += (unsigned long)file.size();
         line += " bytes)";
-        Serial.println(line);
+        out.println(line);
         }
         file = root.openNextFile();
     }

@@ -81,7 +81,7 @@ void getUpdatedtime(const uint32_t timeout) {
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
   if (FILESYSTEM.begin()) {
-    server.printFileList(FILESYSTEM, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 1, Serial);
     return true;
   } else {
     Serial.println("ERROR on mounting filesystem. It will be reformatted!");

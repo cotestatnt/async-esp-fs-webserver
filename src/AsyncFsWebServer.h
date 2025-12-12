@@ -8,8 +8,16 @@
 #include "ESPAsyncWebServer.h"
 #include "Json.h"
 
+class Print;
+
 
 #ifdef ESP32
+  // Arduino-ESP32 v3 splits networking primitives into a dedicated core library.
+  // PlatformIO's dependency finder doesn't always pull it in via transitive includes,
+  // so include it explicitly to ensure it gets compiled and linked.
+  #if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+    #include <Network.h>
+  #endif
   #include <WiFi.h>
   #include <WiFiAP.h>
   #include <Update.h>
@@ -228,6 +236,11 @@ class AsyncFsWebServer : public AsyncWebServer
       List FS content
     */
     void printFileList(fs::FS &fs, const char * dirname, uint8_t levels);
+
+    /*
+      List FS content to a destination stream (e.g. Serial, WiFiClient)
+    */
+    void printFileList(fs::FS &fs, const char * dirname, uint8_t levels, Print& out);
 
     /*
       Send a default "OK" reply to client

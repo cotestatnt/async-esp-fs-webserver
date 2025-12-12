@@ -1,13 +1,41 @@
-## esp-fs-webserver
-This example is a little bit more advanced respect to the [simpleServer](https://github.com/cotestatnt/esp-fs-webserver/tree/main/examples/simpleServer) example.
+## AsyncFsWebServer – withWebSocket example
 
-Basically is the same HTML code like simpleServer, but with the addition of a **WebSocket client** inside the webpage.
+This folder contains a PlatformIO example and a small documentation set for the `AsyncFsWebServer` library.
 
-Off course, on the ESP MCU we will run also a **WebSocket server** together to the web server.
-I've used the library [arduinoWebSockets](https://github.com/Links2004/arduinoWebSockets), so it is needed to compile, but you can choose which you prefer.
+### Documentation (available methods + usage)
 
-With the help of WebSocket technology, we can send message from server-to-clients or from client-to-server in a **full-duplex communication channels over a single TCP connection.**
+- [docs/README.md](../../docs/README.md)
+- [docs/API.md](../../docs/API.md)
+- [docs/SetupAndWiFi.md](../../docs/SetupAndWiFi.md)
+- [docs/FileEditorAndFS.md](../../docs/FileEditorAndFS.md)
+- [docs/WebSocket.md](../../docs/WebSocket.md)
 
-In this very simple example is used only to push from ESP side a message (the NTP updated ESP system time) to the connected clients, just to show hot to setup a system like this.
+### Quick start (summary)
+
+```cpp
+AsyncFsWebServer server(80, FILESYSTEM, hostname);
+
+if (FILESYSTEM.begin()) {
+	server.printFileList(FILESYSTEM, "/", 1); // default -> Serial
+}
+
+if (!server.startWiFi(10000)) {
+	server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+}
+
+server.enableFsCodeEditor();
+server.init(onWsEvent);
+```
+
+---
+
+## Original note (example description)
+This example is a bit more advanced than the [simpleServer](https://github.com/cotestatnt/esp-fs-webserver/tree/main/examples/simpleServer) example.
+
+Basically, it uses the same HTML as simpleServer, but with the addition of a **WebSocket client** in the web page.
+
+With WebSocket technology, we can send messages from server-to-client or client-to-server in a **full-duplex communication channel over a single TCP connection.**
+
+In this simple example, it is used only to push a message from the ESP (the NTP-synchronized system time) to connected clients, just to show how to set up a system like this.
 
 ![image](https://user-images.githubusercontent.com/27758688/151001497-6468b50f-d4cb-46e1-ab4c-4d7aca3883db.png)
