@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: (ESP8266) Build with Arduino CLI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - release/*
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arduino-esp8266:
+    name: ESP8266 (arduino-cli)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install arduino-cli
+        run: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
+
+      - name: Update core index
+        run: arduino-cli core update-index --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+
+      - name: Install core
+        run: arduino-cli core install --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json esp8266:esp8266
+
+      - name: Install ArduinoJson
+        run: arduino-cli lib install ArduinoJson
+
+      - name: Install ESPAsyncTCP (ESP8266)
+        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncTCP#v2.0.0
+
+      - name: Install ESPAsyncWebServer
+        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer#v3.7.3
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Examples
+        run: |
+          set -uo pipefail
+
+          # Examples not intended for ESP8266 / this job
+          EXCLUDE_EXAMPLES=(
+            esp32-cam
+            binaryWebSocket
+            csvLoggerSD
+            localRFID
+            mysqlRFID
+            mqtt_webserver
+          )
+
+          report_file="build-report-esp8266-arduino-cli.txt"
+          : > "$report_file"
+
+          failures=0
+          total=0
+
+          for dir in examples/*; do
+            if [[ ! -d "$dir" ]]; then
+              continue
+            fi
+
+            example="$(basename "$dir")"
+
+            if [[ " ${EXCLUDE_EXAMPLES[*]} " == *" ${example} "* ]]; then
+              echo "Skipping: ${example}"
+              printf '%-25s : SKIP\n' "${example}" >> "$report_file"
+              continue
+            fi
+
+            sketch="examples/${example}/${example}.ino"
+            total=$((total + 1))
+
+            echo "============================================================="
+            echo "Building ${sketch}..."
+            echo "============================================================="
+
+            if [[ ! -f "$sketch" ]]; then
+              failures=$((failures + 1))
+              printf '%-25s : FAIL (missing %s)\n' "${example}" "${sketch}" >> "$report_file"
+              continue
+            fi
+
+            echo "::group::arduino-cli compile - ${example}"
+            set +e
+            arduino-cli compile --library . --warnings none -b esp8266:esp8266:huzzah "$sketch"
+            rc=$?
+            set -e
+            echo "::endgroup::"
+
+            if [[ $rc -eq 0 ]]; then
+              printf '%-25s : OK\n' "${example}" >> "$report_file"
+            else
+              failures=$((failures + 1))
+              printf '%-25s : FAIL (exit=%s)\n' "${example}" "$rc" >> "$report_file"
+            fi
+          done
+
+          echo ""
+          echo "==================== Build report (esp8266/arduino-cli) ===================="
+          cat "$report_file"
+          echo "============================================================================="
+          echo "Total attempted: ${total} | Failures: ${failures}"
+
+          if [[ $failures -gt 0 ]]; then
+            exit 1
+          fi

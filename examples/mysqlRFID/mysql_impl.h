@@ -1,3 +1,5 @@
+#pragma once
+#include <Arduino.h>
 #include <MySQL.h>             //  https://github.com/cotestatnt/Arduino-MySQL
 #include <WiFiClient.h>
 
@@ -9,7 +11,7 @@ MySQL sql(&client, dbHost.c_str(), dbPort);
 
 #define MAX_QUERY_LEN       512     // MAX query string length
 
-static const char createUsersTable[] PROGMEM = R"string_literal(
+inline const char createUsersTable[] PROGMEM = R"string_literal(
 CREATE TABLE %s (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(32) UNIQUE,
@@ -21,7 +23,7 @@ CREATE TABLE %s (
 );
 )string_literal";
 
-static const char createLogTable[] PROGMEM = R"string_literal(
+inline const char createLogTable[] PROGMEM = R"string_literal(
 CREATE TABLE %s (
     id INT AUTO_INCREMENT PRIMARY KEY,
     epoch BIGINT,
@@ -33,7 +35,7 @@ CREATE TABLE %s (
 
 
 // Insert or update a device (if ble_id already defined keep it's actual value)
-static const char newUpdateUser[] PROGMEM = R"string_literal(
+inline const char newUpdateUser[] PROGMEM = R"string_literal(
 INSERT INTO users (username, password, name, email, tag_code, level)
 VALUES ('%s', '%s', '%s', '%s', %s, %s)
 ON DUPLICATE KEY UPDATE

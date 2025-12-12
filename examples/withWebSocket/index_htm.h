@@ -1,4 +1,7 @@
-static const char homepage[] PROGMEM = R"EOF(
+#pragma once
+#include <Arduino.h>
+
+inline const char homepage[] PROGMEM = R"EOF(
 <!DOCTYPE html>
 <html>
   <head>
