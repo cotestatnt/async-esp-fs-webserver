@@ -170,11 +170,11 @@ select { width: 92.5%; background-color: #f0f9ff; }
 }
 .btn-bar { display: flex; padding: 20px; justify-content: center; flex-wrap: wrap; grid-column-gap: 30px; grid-row-gap: 20px; order: 998; }
 .tf-wrapper { display: flex; margin-bottom: 10px; flex-direction: column; align-items: center; }
-.slider-wrapper { display: flex; align-items: center; gap: 14px; width: 92.5%; }
+.slider-wrapper { display: flex; align-items: center; gap: 14px; width: 92.5%; background-color: #f0f9ff; border-radius: 8px;}
 /* Slider track */
 .slider-wrapper .slider {
-	-webkit-appearance: none;
-	appearance: none;
+  appearance: none;
+	margin-left: 20px;
 	width: 100%;
 	height: 10px;
 	border-radius: 999px;
@@ -215,14 +215,11 @@ select { width: 92.5%; background-color: #f0f9ff; }
 }
 /* Numeric readout styling */
 .slider-wrapper .slider-readout {
-	width: 72px;
-	height: 36px;
-	padding: 0 10px;
-	text-align: right;
-	border-radius: 8px;
-	border: 2px solid #e0f2fe;
-	background: #f0f9ff;
-	color: #0f172a;
+	width: 60px;
+	height: 40px;
+	text-align: center;
+	
+	border: none;
 }
 .slider-wrapper .slider-readout:hover { border-color: #06b6d4; box-shadow: 0 0 12px rgba(6, 182, 212, 0.2); }
 .title { display: flex; }

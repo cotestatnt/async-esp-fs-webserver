@@ -41,7 +41,7 @@ const getParameters = () => {
     .then(res => res.json())
     .then(data => {
       $('esp-mode').innerHTML = data.mode;
-      $('esp-ip').innerHTML = `<a href="${esp}">${esp}</a>`;
+      $('esp-ip').innerHTML = `<a href="http://${data.hostname}.local/">http://${data.hostname}.local</a><a href="${esp}"> (${data.ip})</a>`;
       $('firmware').innerHTML = data.firmware;
       $('about').innerHTML = 'Created with ' + data.liburl;
       $('about').setAttribute('href', data.liburl);
