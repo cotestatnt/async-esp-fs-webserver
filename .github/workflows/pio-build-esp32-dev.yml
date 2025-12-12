@@ -18,7 +18,7 @@ jobs:
   # Build with PlatformIO - ESP32 Arduino Latest
 
   platformio-esp32-arduino-latest:
-    name: ESP32 (pio) - Arduino Latest
+    name: ESP32 (pio) - Arduino Latest (board=${{ matrix.board }}, shard=${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -26,6 +26,7 @@ jobs:
         board:
           - esp32dev
           - esp32-s3-devkitc-1
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout
@@ -53,11 +54,15 @@ jobs:
         run: |
           set -uo pipefail
 
-          report_file="build-report-${{ matrix.board }}.txt"
+          total_shards=4
+          shard="${{ matrix.shard }}"
+
+          report_file="build-report-${{ matrix.board }}-shard${{ matrix.shard }}.txt"
           : > "$report_file"
 
           failures=0
           total=0
+          index=0
 
           for dir in examples/*; do
             if [[ ! -d "$dir" ]]; then
@@ -66,6 +71,19 @@ jobs:
 
             example="$(basename "$dir")"
             board_to_use="${{ matrix.board }}"
+
+            # Split examples across shards for faster CI.
+            index=$((index + 1))
+            example_shard=$(( (index - 1) % total_shards + 1 ))
+            if [[ "$example_shard" != "$shard" ]]; then
+              continue
+            fi
+
+            # Avoid duplicating esp32-cam across the board matrix.
+            if [[ "$example" == "esp32-cam" && "${{ matrix.board }}" != "esp32dev" ]]; then
+              printf '%-25s : SKIP (board-specific)\n' "${example}" >> "$report_file"
+              continue
+            fi
 
             # Some examples are board-specific
             if [[ "$example" == "esp32-cam" ]]; then
@@ -80,6 +98,8 @@ jobs:
 
             echo "::group::pio run - examples/${example}"
             set +e
+            # Use a per-example build directory to avoid cross-example artefacts.
+            PLATFORMIO_BUILD_DIR=".pio/build-${board_to_use}-${example}" \
             PLATFORMIO_SRC_DIR="examples/${example}" PIO_BOARD="${board_to_use}" \
               pio run -e ci-arduino-3-latest
             rc=$?
@@ -100,6 +120,44 @@ jobs:
           echo "============================================================================="
           echo "Total attempted: ${total} | Failures: ${failures}"
 
+          # Do not fail the job here: the final report job will decide.
+
+      - name: Upload build report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pio-esp32-report-${{ matrix.board }}-shard${{ matrix.shard }}
+          path: build-report-${{ matrix.board }}-shard${{ matrix.shard }}.txt
+
+  report:
+    name: ESP32 (pio) - Final report
+    runs-on: ubuntu-latest
+    needs: platformio-esp32-arduino-latest
+    if: always()
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pio-esp32-report-*
+          merge-multiple: true
+          path: reports
+
+      - name: Print final report and set status
+        run: |
+          set -uo pipefail
+          echo "==================== Final build report (ESP32/pio) ===================="
+          failures=0
+          shopt -s nullglob
+          for f in reports/*.txt; do
+            echo "--- ${f} ---"
+            cat "$f"
+            if grep -q " : FAIL" "$f"; then
+              failures=$((failures + 1))
+            fi
+          done
+          echo "======================================================================="
           if [[ $failures -gt 0 ]]; then
+            echo "One or more shards reported FAIL."
             exit 1
           fi
+
