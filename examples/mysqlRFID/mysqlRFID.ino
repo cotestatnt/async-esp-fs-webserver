@@ -1,5 +1,7 @@
 #include <FS.h>
 #include <LittleFS.h>
+
+#include <ArduinoJson.h>       // https://github.com/bblanchon/ArduinoJson
 #include <MySQL.h>             // https://github.com/cotestatnt/Arduino-MySQL
 #include <AsyncFsWebServer.h>  // https://github.com/cotestatnt/async-esp-fs-webserver
 #include <MFRC522v2.h>         // https://github.com/OSSLibraries/Arduino_MFRC522v2
@@ -33,7 +35,6 @@ MFRC522 mfrc522{driver};               // Create MFRC522 instance.
 
 uint32_t chipId = 0;
 bool addLogRecord = true;
-
 
 #include "mysql_impl.h"
 #include "webserver_impl.h"

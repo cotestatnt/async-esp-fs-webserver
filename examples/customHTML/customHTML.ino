@@ -131,14 +131,6 @@ bool loadOptions() {
 }
 
 
-
-////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
-void handleLoadOptions(AsyncWebServerRequest *request) {
-  request->send(200, "text/plain", "Options loaded");
-  loadOptions();
-  Serial.println("Application option loaded after web request");
-}
-
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(115200);
@@ -155,8 +147,12 @@ void setup() {
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
   }
 
-  // Add custom page handlers to webserver
-  server.on("/reload", HTTP_GET, handleLoadOptions);
+  // Add custom HTTP request handlers to webserver
+  server.on("/reload", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "Options loaded");
+    loadOptions();
+    Serial.println("Application option loaded after web request");
+  });
 
   // Add a new options box
   server.addOptionBox("My Options");

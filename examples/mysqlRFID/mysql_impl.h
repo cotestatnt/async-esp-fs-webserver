@@ -19,8 +19,6 @@ CREATE TABLE %s (
     tag_code BIGINT UNSIGNED UNIQUE,
     level INT
 );
-
-
 )string_literal";
 
 static const char createLogTable[] PROGMEM = R"string_literal(
