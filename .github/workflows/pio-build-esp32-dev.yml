@@ -65,16 +65,22 @@ jobs:
             fi
 
             example="$(basename "$dir")"
+            board_to_use="${{ matrix.board }}"
+
+            # Some examples are board-specific
+            if [[ "$example" == "esp32-cam" ]]; then
+              board_to_use="esp32cam"
+            fi
 
             total=$((total + 1))
 
             echo "============================================================="
-            echo "Building examples/${example} (board=${{ matrix.board }})..."
+            echo "Building examples/${example} (board=${board_to_use})..."
             echo "============================================================="
 
             echo "::group::pio run - examples/${example}"
             set +e
-            PLATFORMIO_SRC_DIR="examples/${example}" PIO_BOARD="${{ matrix.board }}" \
+            PLATFORMIO_SRC_DIR="examples/${example}" PIO_BOARD="${board_to_use}" \
               pio run -e ci-arduino-3-latest
             rc=$?
             set -e
