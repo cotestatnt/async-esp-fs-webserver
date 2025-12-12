@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: (ESP32) Build dev with PlatformIO
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+      
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build with PlatformIO - ESP32 Arduino Latest
+
+  platformio-esp32-arduino-latest:
+    name: ESP32 (pio) - Arduino Latest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - esp32dev
+          - esp32-s3-devkitc-1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-pio
+          path: |
+            ~/.cache/pip
+            ~/.platformio
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install PIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+
+      - name: Build Examples
+        run: |
+          set -uo pipefail
+
+          report_file="build-report-${{ matrix.board }}.txt"
+          : > "$report_file"
+
+          failures=0
+          total=0
+
+          for dir in examples/*; do
+            if [[ ! -d "$dir" ]]; then
+              continue
+            fi
+
+            example="$(basename "$dir")"
+
+            total=$((total + 1))
+
+            echo "============================================================="
+            echo "Building examples/${example} (board=${{ matrix.board }})..."
+            echo "============================================================="
+
+            echo "::group::pio run - examples/${example}"
+            set +e
+            PLATFORMIO_SRC_DIR="examples/${example}" PIO_BOARD="${{ matrix.board }}" \
+              pio run -e ci-arduino-3-latest
+            rc=$?
+            set -e
+            echo "::endgroup::"
+
+            if [[ $rc -eq 0 ]]; then
+              printf '%-25s : OK\n' "${example}" >> "$report_file"
+            else
+              failures=$((failures + 1))
+              printf '%-25s : FAIL (exit=%s)\n' "${example}" "$rc" >> "$report_file"
+            fi
+          done
+
+          echo ""
+          echo "==================== Build report (board=${{ matrix.board }}) ===================="
+          cat "$report_file"
+          echo "============================================================================="
+          echo "Total attempted: ${total} | Failures: ${failures}"
+
+          if [[ $failures -gt 0 ]]; then
+            exit 1
+          fi
