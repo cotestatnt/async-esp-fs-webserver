@@ -20,13 +20,13 @@ AsyncFsWebServer server(80, FILESYSTEM, "myserver");
 #endif
 
 // Labels used in /setup webpage for options
-#define LED_LABEL "The LED pin number"
-#define BOOL_LABEL "A bool variable"
-#define BOOL_LABEL2 "A second bool variable"
-#define LONG_LABEL "A long variable"
-#define FLOAT_LABEL "A float variable"
-#define STRING_LABEL "A String variable"
-#define DROPDOWN_LABEL "Days of week"
+#define LED_LABEL       "The LED pin number"
+#define BOOL_LABEL      "A bool variable"
+#define BOOL_LABEL2     "A second bool variable"
+#define LONG_LABEL      "A long variable"
+#define FLOAT_LABEL     "A float variable"
+#define STRING_LABEL    "A String variable"
+#define DROPDOWN_LABEL  "Days of week"
 #define BRIGHTNESS_LABEL "Brightness"
 
 // Test "options" values

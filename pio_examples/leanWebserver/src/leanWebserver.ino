@@ -30,6 +30,19 @@ bool startFilesystem() {
   return false;
 }
 
+///////////////////////////////  HTTP endpoint  ///////////////////////////////////////
+void handleLed(AsyncWebServerRequest *request) {
+  static int value = false;
+  // http://xxx.xxx.xxx.xxx/led?val=1
+  if(request->hasParam("val")) {
+    value = request->arg("val").toInt();
+    digitalWrite(LED_BUILTIN, value);
+  }
+  String reply = "LED is now ";
+  reply += value ? "ON" : "OFF";
+  request->send(200, "text/plain", reply);
+}
+
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -44,6 +57,9 @@ void setup() {
     Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
   }
+
+  // Define HTTP endpoints
+  server.on("/led", HTTP_GET, handleLed);
   
   // Start server
   server.init();
