@@ -207,6 +207,13 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {    
+
+    // Check if authentication for all routes is turned on, and credentials are present:
+    if (m_authAll && m_pageUser != nullptr) {
+        if(!request->authenticate(m_pageUser, m_pagePswd))
+            return request->requestAuthentication();
+    }
+
     String _url = request->url();
 
     // Requested file not found, check if gzipped version exists

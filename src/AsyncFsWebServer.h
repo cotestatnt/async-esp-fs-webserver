@@ -97,6 +97,7 @@ class AsyncFsWebServer : public AsyncWebServer
     AsyncWebHandler *m_captive = nullptr;
     DNSServer* m_dnsServer = nullptr;
     bool m_isApMode = false;
+    bool m_authAll = false;
   
     void notFound(AsyncWebServerRequest *request);
     void handleFileName(AsyncWebServerRequest *request);
@@ -231,6 +232,12 @@ class AsyncFsWebServer : public AsyncWebServer
       Enable authenticate for /setup webpage
     */
     void setAuthentication(const char* user, const char* pswd);
+    /*
+    Enable the flag which turns on basic authentication for all pages
+    */
+    inline void requireAuthentication(bool require){
+      m_authAll = require;
+    }
 
     /*
       List FS content
