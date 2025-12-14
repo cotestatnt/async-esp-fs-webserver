@@ -39,22 +39,21 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     on("/scan", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleScanNetworks(request); });
     on("/getStatus", HTTP_GET, [this](AsyncWebServerRequest *request) { this->getStatus(request); });
     on("/clear_config", HTTP_GET, [this](AsyncWebServerRequest *request) { this->clearConfig(request); });
-    
-    
+    // Simple WiFi status endpoint
     on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncFSWebServer::Json doc;
         doc.setString("ssid", WiFi.SSID());
         doc.setNumber("rssi", WiFi.RSSI());
         request->send(200, "application/json", doc.serialize());
     });
-
+    // File upload handler for configuration files
     on("/upload", HTTP_POST,
         [this](AsyncWebServerRequest *request) { this->sendOK(request); },
         [this](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final) {
             this->handleUpload(request, filename, index, data, len, final);
         }
     );
-
+    // Endpoint to reset device
     on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
         // Send response and restart AFTER client disconnects to ensure 200 reaches browser
         AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", WiFi.localIP().toString());
@@ -208,14 +207,28 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {    
-    if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
-        request->redirect("/setup");
-        log_debug("Redirecting \"/\" to \"/setup\" (no index file found)");
+    String _url = request->url();
+
+    // Requested file not found, check if gzipped version exists
+    _url += ".gz";      
+    if (!m_filesystem->exists(_url)) {
+        log_debug("File %s not found, checking for index redirection", request->url().c_str());
+        
+        // File not found
+        if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
+            request->redirect("/setup");
+            log_debug("Redirecting \"/\" to \"/setup\" (no index file found)");
+            return;
+        }
     }
     else {
-        request->send(404, "text/plain", "AsyncFsWebServer: resource not found");
-        log_debug("Resource %s not found\n", request->url().c_str());
+        log_debug("Serving gzipped file for %s", request->url().c_str());
+        request->redirect(_url);
+        return;
     }
+
+    request->send(404, "text/plain", "AsyncFsWebServer: resource not found");
+    log_debug("Resource %s not found", request->url().c_str());
 }
 
 
