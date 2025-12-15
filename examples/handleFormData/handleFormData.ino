@@ -102,19 +102,7 @@ void setup(){
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
-  /*
-  * Getting FS info (total and free bytes) is strictly related to
-  * filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-  * (On ESP8266 will be used "built-in" fsInfo data type)
-  */
-  #ifdef ESP32
-  server.setFsInfoCallback( [](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-  #endif
-
+ 
   // Start server
   server.init();
   Serial.print(F("ESP Web Server started on IP Address: "));

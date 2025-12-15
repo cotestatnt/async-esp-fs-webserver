@@ -35,12 +35,7 @@ char outTopic[24];
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
   if (LittleFS.begin()) {
-    File root = LittleFS.open("/", "r");
-    File file = root.openNextFile();
-    while (file) {
-      Serial.printf("FS File: %s, size: %d\n", file.name(), file.size());
-      file = root.openNextFile();
-    }
+    myWebServer.printFileList(LittleFS, "/", 1, Serial);
     return true;
   } else {
     Serial.println("ERROR on mounting filesystem. It will be reformatted!");
@@ -103,11 +98,6 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback function
   myWebServer.enableFsCodeEditor();
-  myWebServer.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-  });
 
   // Start webserver
   myWebServer.init();
@@ -118,8 +108,6 @@ void setup() {
     "Open /setup page to configure optional parameters.\n"
     "Open /edit page to view, edit or upload example or your custom webserver source files."
   );
-
-  
 
   // Create a unique mqttClient ID and in/out topics
   snprintf(clientId, sizeof(clientId), "ESP-%llX", ESP.getEfuseMac());
@@ -162,5 +150,6 @@ void loop() {
     }
   }
 
-  delay(1);
+  // Nothing to do in main loop for Async Web Server
+  delay(10);
 }

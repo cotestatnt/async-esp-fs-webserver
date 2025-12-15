@@ -117,13 +117,6 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
-  #ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-      fsInfo->totalBytes = SD.totalBytes();
-      fsInfo->usedBytes = SD.usedBytes();
-      fsInfo->fsName = "SD";
-  });
-  #endif
 
   // Start server
   server.init();

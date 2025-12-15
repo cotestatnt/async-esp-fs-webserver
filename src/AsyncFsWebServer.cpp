@@ -21,9 +21,11 @@ void setTaskWdt(uint32_t timeout) {
 
 
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
+    // Set build date as default firmware version (YYMMDDHHmm) from Version.h constexprs
+    if (m_version.length() == 0)
+        m_version = String(BUILD_TIMESTAMP);
 
 //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
-
     on("*", HTTP_HEAD, [this](AsyncWebServerRequest *request) { this->handleFileName(request); });
 
 #if ESP_FS_WS_SETUP
@@ -115,7 +117,15 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
         }
         } else {
         String line = "|__ FILE: ";
-        line += file.name();
+        if (typeName == "SPIFFS") {
+            #ifdef ESP32
+            line += file.path();
+            #elif defined(ESP8266)
+            line += file.fullName();
+            #endif
+        } else {
+            line += file.name();
+        }      
         line += " (";
         line += (unsigned long)file.size();
         line += " bytes)";
@@ -869,10 +879,22 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
         while (file) {
             if (!first) output += ",";
             first = false;
-            String filename = file.name();
-            if (filename.lastIndexOf("/") > -1) {
-                filename.remove(0, filename.lastIndexOf("/") + 1);
-            }
+            String filename;
+            if (typeName.equals("SPIFFS")) {
+                // SPIFFS returns full path and subfolders are unsupported, remove leading '/'                
+                #if defined(ESP32)
+                filename += file.path();
+                #elif defined(ESP8266)
+                filename += file.fullName();
+                #endif
+                filename.remove(0, 1);
+            } 
+            else {
+                filename = file.name();
+                if (filename.lastIndexOf("/") > -1) {
+                    filename.remove(0, filename.lastIndexOf("/") + 1);
+                }
+            }         
             AsyncFSWebServer::Json item;
             item.setString("type", (file.isDirectory()) ? "dir" : "file");
             item.setNumber("size", file.size());

@@ -95,14 +95,7 @@ void setup() {
 
     // Enable ACE FS file web editor and add FS info callback fucntion
     server.enableFsCodeEditor();
-    #ifdef ESP32
-    server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-        fsInfo->totalBytes = LittleFS.totalBytes();
-        fsInfo->usedBytes = LittleFS.usedBytes();
-        fsInfo->fsName = "LittleFS";
-    });
-    #endif
-
+    
     // Start server
     server.init();
     Serial.print(F("Async ESP Web Server started on IP Address: "));

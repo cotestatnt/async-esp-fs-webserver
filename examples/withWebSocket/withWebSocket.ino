@@ -81,7 +81,7 @@ void getUpdatedtime(const uint32_t timeout) {
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
   if (FILESYSTEM.begin()) {
-    server.printFileList(FILESYSTEM, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 1, Serial);
     return true;
   } else {
     Serial.println("ERROR on mounting filesystem. It will be reformatted!");
@@ -153,19 +153,7 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
-  /*
-  * Getting FS info (total and free bytes) is strictly related to
-  * filesystem library used (LittleFS, FFat, SPIFFS etc etc)
-  * (On ESP8266 will be used "built-in" fsInfo data type)
-  */
-#ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-#endif
-
+  
   // Init with custom WebSocket event handler and start server
   server.init(onWsEvent);
 
