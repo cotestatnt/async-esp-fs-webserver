@@ -209,14 +209,6 @@ void setup() {
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
 
-#ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-#endif
-
   // Init with custom WebSocket event handler and start server
   server.init(onWsEvent);
 

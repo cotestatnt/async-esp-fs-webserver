@@ -121,8 +121,7 @@ void updateGpioList(AsyncWebServerRequest *request) {
   bool first = true;
   for (gpio_type &gpio : gpios) {
     if (!first) json += ",";
-    first = false;
-    
+    first = false;    
     json += "{\"type\":\"";
     json += gpio.type;
     json += "\",\"pin\":";
@@ -177,18 +176,6 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
-
-  /*
-  * Getting FS info (total and free bytes) is strictly related to
-  * filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-  */
-  #ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-	  fsInfo->fsName = "LittleFS";
-	  fsInfo->totalBytes = LittleFS.totalBytes();
-	  fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-  #endif
 
   // Add custom page handlers
   server.on("/getGpioList", HTTP_GET, updateGpioList);

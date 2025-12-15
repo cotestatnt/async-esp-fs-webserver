@@ -69,8 +69,6 @@ class Print;
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
 
-
-
 // Watchdog timeout utility
 #if defined(ESP32)
     #define AWS_WDT_TIMEOUT (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000)
@@ -132,6 +130,7 @@ class AsyncFsWebServer : public AsyncWebServer
     char* m_pagePswd = nullptr;
     String m_host = "esphost";
     String m_captiveUrl = "/setup";
+    String typeName = "FileSystem";
 
     uint16_t m_port;
     uint32_t m_timeout = AWS_LONG_WDT_TIMEOUT;
@@ -159,8 +158,10 @@ class AsyncFsWebServer : public AsyncWebServer
 #endif
 
   public:
-    // Constructor with filesystem reference
-    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") : AsyncWebServer(port), m_filesystem(&fs)
+    
+    // Template Constructor for derived filesystem classes (LittleFS, SPIFFS, etc)
+    template <typename T>
+    AsyncFsWebServer(uint16_t port, T &fs, const char* hostname = "") : AsyncWebServer(port), m_filesystem(&fs)
     {
       m_port = port;
       // setup is lazily initialized when first needed (lazy initialization)
@@ -168,9 +169,40 @@ class AsyncFsWebServer : public AsyncWebServer
       // Set hostname if provided from constructor
       if (strlen(hostname))
         m_host = hostname;
+      
+#ifdef ESP32
+        // Auto-configure getFsInfo for ESP32 filesystems
+        // Try to infer filesystem name from template type
+        String pretty = __PRETTY_FUNCTION__;
+        int start = pretty.indexOf("T = ");
+        if (start != -1)
+        {
+            start += 4;
+            int end = pretty.indexOf("]", start);
+            int semi = pretty.indexOf(";", start);
+            if (semi != -1 && semi < end)
+            {
+                end = semi;
+            }
+            if (end != -1)
+            {
+                typeName = pretty.substring(start, end);
+                // Clean up common prefixes/suffixes
+                typeName.replace("fs::", "");
+                if (typeName.endsWith("FS"))
+                {
+                    typeName = typeName.substring(0, typeName.length() - 2);
+                }
+            }
+        }
 
-      // Set build date as default firmware version (YYMMDDHHmm) from Version.h constexprs      
-      m_version = String(BUILD_TIMESTAMP);
+        getFsInfo = [&fs, this](fsInfo_t *info)
+        {
+            info->totalBytes = fs.totalBytes();
+            info->usedBytes = fs.usedBytes();
+            info->fsName = this->typeName;
+        };
+#endif
     }
 
     // Class destructor
