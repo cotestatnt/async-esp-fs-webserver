@@ -1,3 +1,6 @@
+#pragma once
+#include <Arduino.h>
+
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>  // https://github.com/cotestatnt/async-esp-fs-webserver
 #include "mbedtls/md.h"

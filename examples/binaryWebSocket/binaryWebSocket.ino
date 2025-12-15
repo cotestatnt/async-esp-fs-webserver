@@ -154,41 +154,15 @@ void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventTyp
 }
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-    Serial.printf("\nListing directory: %s\n", dirname);
-    File root = fs.open(dirname, "r");
-    if(!root){
-        Serial.println("- failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println(" - not a directory");
-        return;
-    }
-    File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            if(levels){
-            #ifdef ESP32
-			  listDir(fs, file.path(), levels - 1);
-			#elif defined(ESP8266)
-			  listDir(fs, file.fullName(), levels - 1);
-			#endif
-            }
-        } else {
-            Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
 bool startFilesystem() {
-  if (FILESYSTEM.begin()) {
-    listDir(LittleFS, "/", 1);
+  if (LittleFS.begin()){
+    server.printFileList(LittleFS, "/", 1);
+    Serial.println();
     return true;
-  } else {
+  }
+  else {
     Serial.println("ERROR on mounting filesystem. It will be reformatted!");
-    FILESYSTEM.format();
+    LittleFS.format();
     ESP.restart();
   }
   return false;
@@ -226,11 +200,6 @@ void setup() {
     server.startCaptivePortal(ssid, "123456789", "/setup");
   }
   
-  // Try to connect to WiFi (will start AP if not connected after timeout)
-  if (!server.startWiFi(10000)) {
-	Serial.println("\nWiFi not connected! Starting AP mode...");
-	server.startCaptivePortal("ESP_AP", "12345678", "/setup");
-  }
 
   // Add custom page handlers
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -242,9 +211,9 @@ void setup() {
 
 #ifdef ESP32
   server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-	fsInfo->fsName = "LittleFS";
-	fsInfo->totalBytes = LittleFS.totalBytes();
-	fsInfo->usedBytes = LittleFS.usedBytes();  
+    fsInfo->fsName = "LittleFS";
+    fsInfo->totalBytes = LittleFS.totalBytes();
+    fsInfo->usedBytes = LittleFS.usedBytes();  
   });
 #endif
 

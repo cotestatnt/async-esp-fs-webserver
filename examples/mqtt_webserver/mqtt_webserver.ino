@@ -14,9 +14,9 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-// Add the correct pin number for your board if needed
-#ifndef BUILTIN_LED
-#define BUILTIN_LED 2  // Most ESP32 boards use GPIO2 for the built-in LED
+// Define built-in LED if not defined by board (eg. generic dev boards)
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
 #endif
 
 AsyncFsWebServer myWebServer(80, LittleFS, "myServer");
@@ -59,7 +59,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 
   // Switch on the LED if an 1 was received as first character (LED on with LOW signal on most boards)
-  digitalWrite(BUILTIN_LED, (char)payload[0] == '1' ? LOW : HIGH);
+  digitalWrite(LED_BUILTIN, (char)payload[0] == '1' ? LOW : HIGH);
 }
 
 ///////////////////////////  MQTT reconnect function  ///////////////////////////////////
@@ -89,7 +89,7 @@ void mqttReconnect() {
 
 
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);  // Initialize the BUILTIN_LED pin as an output
+  pinMode(LED_BUILTIN, OUTPUT);  // Initialize the LED_BUILTIN pin as an output
   Serial.begin(115200);
 
   // LittleFS filesystem init

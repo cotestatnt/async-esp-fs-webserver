@@ -3,7 +3,6 @@
 #include <AsyncFsWebServer.h>
 
 AsyncFsWebServer server(80, LittleFS, "esphost");
-bool captiveRun = false;
 
 // Timezone definition to get properly time from NTP server
 #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
@@ -92,7 +91,6 @@ void setup() {
 	if (!server.startWiFi(10000)) {
 		Serial.println("\nWiFi not connected! Starting AP mode...");
 		server.startCaptivePortal("ESP32_LOGGER", "123456789", "/setup");
-		captiveRun = true;
 	}
 
     // Enable ACE FS file web editor and add FS info callback fucntion
@@ -132,7 +130,7 @@ void setup() {
 }
 
 void loop() {
-    if (captiveRun)
+    if (server.isAccessPointMode())
         server.updateDNS();
 
     static uint32_t updateTime;

@@ -4,9 +4,20 @@
 #include <FS.h>
 #include <DNSServer.h>
 #include "SerialLog.h"
+#include "Version.h"
 #include "ESPAsyncWebServer.h"
+#include "Json.h"
+
+class Print;
+
 
 #ifdef ESP32
+  // Arduino-ESP32 v3 splits networking primitives into a dedicated core library.
+  // PlatformIO's dependency finder doesn't always pull it in via transitive includes,
+  // so include it explicitly to ensure it gets compiled and linked.
+  #if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+    #include <Network.h>
+  #endif
   #include <WiFi.h>
   #include <WiFiAP.h>
   #include <Update.h>
@@ -22,16 +33,18 @@
 #endif
 
 #ifndef ESP_FS_WS_EDIT
-    #define ESP_FS_WS_EDIT              1   //has edit methods
+    #define ESP_FS_WS_EDIT              1   // Library has edit methods
     #ifndef ESP_FS_WS_EDIT_HTM
-        #define ESP_FS_WS_EDIT_HTM      1   //included from progmem
+                                            // Disable if you provide your own edit page
+        #define ESP_FS_WS_EDIT_HTM      1   // Library serve /edit webpage from progmem                                            
     #endif
 #endif
 
 #ifndef ESP_FS_WS_SETUP
-    #define ESP_FS_WS_SETUP             1   //has setup methods
+    #define ESP_FS_WS_SETUP             1   // Library has setup methods
     #ifndef ESP_FS_WS_SETUP_HTM
-        #define ESP_FS_WS_SETUP_HTM     1   //included from progmem
+                                            // Disable if you provide your own setup page
+        #define ESP_FS_WS_SETUP_HTM     1   // Library serve /setup webpage from progmem                                            
     #endif
 #endif
 
@@ -43,21 +56,20 @@
     #define ESP_FS_WS_CONFIG_FOLDER "/config"
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
     #include "setup_htm.h"
-    #include "SetupConfig.hpp"
+    #include "SetupConfig.hpp" 
 #endif
 
-#define ARDUINOJSON_USE_LONG_LONG 1
-    #include <ArduinoJson.h>
-#if ARDUINOJSON_VERSION_MAJOR > 6
-    #define JSON_DOC(x) JsonDocument doc
-#else
-    #define JSON_DOC(x) DynamicJsonDocument doc((size_t)x)
-#endif
 #include "CaptivePortal.hpp"
+#ifndef ESP_FS_WS_MDNS
+  #define ESP_FS_WS_MDNS 1
+#endif
+
 
 #define LIB_URL "https://github.com/cotestatnt/async-esp-fs-webserver/"
 #define MIN_F -3.4028235E+38
 #define MAX_F 3.4028235E+38
+
+
 
 // Watchdog timeout utility
 #if defined(ESP32)
@@ -76,6 +88,7 @@ typedef struct {
 
 using FsInfoCallbackF = std::function<void(fsInfo_t*)>;
 using CallbackF = std::function<void(void)>;
+using ConfigSavedCallbackF = std::function<void(const char*)>;  // Callback for config file saves
 
 class AsyncFsWebServer : public AsyncWebServer
 {
@@ -83,20 +96,20 @@ class AsyncFsWebServer : public AsyncWebServer
     AsyncWebSocket* m_ws = nullptr;
     AsyncWebHandler *m_captive = nullptr;
     DNSServer* m_dnsServer = nullptr;
-
-    void handleWebSocket(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t * data, size_t len);
-    void handleScanNetworks(AsyncWebServerRequest *request);
-    void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
-    void doWifiConnection(AsyncWebServerRequest *request);
-
+    bool m_isApMode = false;
+  
     void notFound(AsyncWebServerRequest *request);
-    void handleSetup(AsyncWebServerRequest *request);
-    void getStatus(AsyncWebServerRequest *request);
-    void clearConfig(AsyncWebServerRequest *request);
     void handleFileName(AsyncWebServerRequest *request);
 
-    // Get data and then do update
+#if ESP_FS_WS_SETUP    
+    void handleSetup(AsyncWebServerRequest *request);
+    void getStatus(AsyncWebServerRequest *request);
+    void clearConfig(AsyncWebServerRequest *request);        
+    void doWifiConnection(AsyncWebServerRequest *request);
+    void handleScanNetworks(AsyncWebServerRequest *request);
+    void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);    
     void onUpdate();
+#endif
 
     // edit page, in useful in some situation, but if you need to provide only a web interface, you can disable
 #if ESP_FS_WS_EDIT_HTM
@@ -122,36 +135,58 @@ class AsyncFsWebServer : public AsyncWebServer
     uint16_t m_port;
     uint32_t m_timeout = AWS_LONG_WDT_TIMEOUT;
 
-    char m_version[16] = {__TIME__};
+    // Firmware version buffer (expanded to accommodate custom version strings)
+    String m_version;
     bool m_filesystem_ok = false;
 
     fs::FS* m_filesystem = nullptr;
     FsInfoCallbackF getFsInfo = nullptr;
+    ConfigSavedCallbackF m_configSavedCallback = nullptr;  // Callback for config file saves
 
     IPAddress m_serverIp = IPAddress(192, 168, 4, 1);
 
 #if ESP_FS_WS_SETUP
     SetupConfigurator* setup = nullptr;
+    
+    // Lazy initialization: create setup object only when first needed
+    SetupConfigurator* getSetupConfigurator() {
+      if (!setup) {
+        setup = new SetupConfigurator(m_filesystem);
+      }
+      return setup;
+    }
 #endif
 
   public:
-    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") :
-    AsyncWebServer(port),
-    m_filesystem(&fs)
+    // Constructor with filesystem reference
+    AsyncFsWebServer(uint16_t port, fs::FS &fs, const char* hostname = "") : AsyncWebServer(port), m_filesystem(&fs)
     {
       m_port = port;
-#if ESP_FS_WS_SETUP
-    setup = new SetupConfigurator(m_filesystem);
-#endif
-      m_ws = new AsyncWebSocket("/ws");
+      // setup is lazily initialized when first needed (lazy initialization)
+
+      // Set hostname if provided from constructor
       if (strlen(hostname))
         m_host = hostname;
+
+      // Set build date as default firmware version (YYMMDDHHmm) from Version.h constexprs      
+      m_version = String(BUILD_TIMESTAMP);
     }
 
+    // Class destructor
     ~AsyncFsWebServer() {
       reset();
       end();
       if(_catchAllHandler) delete _catchAllHandler;
+      
+      // Deallocate all dynamically allocated resources
+      if(m_pageUser) delete[] m_pageUser;
+      if(m_pagePswd) delete[] m_pagePswd;
+      if(m_ws) delete m_ws;
+      if(m_captive) delete m_captive;
+      if(m_dnsServer) delete m_dnsServer;
+#if ESP_FS_WS_SETUP
+      if(setup) delete setup;  // Only delete if it was lazily initialized
+#endif
     }
 
   #ifdef ESP32
@@ -167,14 +202,30 @@ class AsyncFsWebServer : public AsyncWebServer
       return m_serverIp;
     }
     /*
+      Return true if the device is currently running in Access Point mode
+    */
+    inline bool isAccessPointMode() const { return m_isApMode; }
+    /*
       Start webserver and bind a websocket event handler (optional)
     */
     bool init(AwsEventHandler wsHandle = nullptr);
 
+#if ESP_FS_WS_EDIT    
     /*
       Enable the built-in ACE web file editor
     */
-    void enableFsCodeEditor();
+    void enableFsCodeEditor(FsInfoCallbackF fsCallback = nullptr);
+
+    /*
+    * Set callback function to provide updated FS info to library
+    * This it is necessary due to the different implementation of
+    * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
+    */
+    inline void setFsInfoCallback(FsInfoCallbackF fsCallback) {
+      getFsInfo = fsCallback;
+    }
+
+  #endif
 
     /*
       Enable authenticate for /setup webpage
@@ -185,6 +236,11 @@ class AsyncFsWebServer : public AsyncWebServer
       List FS content
     */
     void printFileList(fs::FS &fs, const char * dirname, uint8_t levels);
+
+    /*
+      List FS content to a destination stream (e.g. Serial, WiFiClient)
+    */
+    void printFileList(fs::FS &fs, const char * dirname, uint8_t levels, Print& out);
 
     /*
       Send a default "OK" reply to client
@@ -212,22 +268,29 @@ class AsyncFsWebServer : public AsyncWebServer
     bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
 
     /*
-     * get instance of current websocket handler
+     * get instance of current websocket handler (enabled at runtime)
     */
-    AsyncWebSocket* getWebSocket() { return m_ws;}
+    AsyncWebSocket* getWebSocket() { return m_ws; }
 
     /*
+     * Enable WebSocket at runtime. Creates WS on `path` and registers handler.
+    */
+    void enableWebSocket(const char* path, AwsEventHandler handler);
+
+        /*
      * Broadcast a websocket message to all clients connected
     */
     void wsBroadcast(const char * buffer) {
-      m_ws->textAll(buffer);
+      if (m_ws != nullptr)
+        m_ws->textAll(buffer);
     }
 
     /*
     * Broadcast a binary websocket message to all clients connected
     */
     void wsBroadcastBinary(uint8_t * message, size_t len) {
-      m_ws->binaryAll(message, len);
+      if (m_ws != nullptr)
+        m_ws->binaryAll(message, len);
     }
 
     /*
@@ -238,19 +301,14 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
-    * Set callback function to provide updated FS info to library
-    * This it is necessary due to the different implementation of
-    * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
-    */
-    inline void setFsInfoCallback(FsInfoCallbackF fsCallback) {
-      getFsInfo = fsCallback;
-    }
-
-    /*
     * Set current firmware version (shown in /setup webpage)
     */
-    inline void setFirmwareVersion(char* version) {
-      strlcpy(m_version, version, sizeof(m_version));
+    inline void setFirmwareVersion(const char* version) {
+      m_version = String(version);
+    }
+
+    inline void setFirmwareVersion(const String& version) {
+      m_version = version;
     }
 
     /*
@@ -260,15 +318,24 @@ class AsyncFsWebServer : public AsyncWebServer
       m_host = host;
     }
 
-    /*
-    * Get current library version
-    */
-    const char* getVersion();
-
     /////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////   SETUP PAGE CONFIGURATION /////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
-#if ESP_FS_WS_SETUP
+#if ESP_FS_WS_SETUP    
+
+    // Public alias to dropdown definition type (available only when /setup is enabled)
+    using DropdownList = AsyncFSWebServer::DropdownList;
+    // Public alias to slider definition type
+    using Slider = AsyncFSWebServer::Slider;
+
+    /*
+    * Set callback function to be called when configuration file is saved via /edit POST
+    * The callback receives the filename path as parameter
+    */
+    inline void setConfigSavedCallback(ConfigSavedCallbackF callback) {
+      m_configSavedCallback = callback;
+    }
+
     /*
     * Get reference to current config.json file
     */
@@ -278,37 +345,62 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
+    * Clear the saved configuration options by removing config.json.
+    * Returns true if the file was removed or did not exist.
+    */
+    inline bool clearConfigFile() {
+      if (m_filesystem->exists(ESP_FS_WS_CONFIG_FILE)) {
+        return m_filesystem->remove(ESP_FS_WS_CONFIG_FILE);
+      }
+      return true;
+    }
+
+    /*
     * Get complete path of config.json file
     */
     inline const char* getConfiFileName() {
       return ESP_FS_WS_CONFIG_FILE;
     }
 
-    void setSetupPageTitle(const char* title) { setup->addOption("name-logo", title); }
-    void addHTML(const char* html, const char* id, bool ow = false) {setup->addHTML(html, id, ow);}
-    void addCSS(const char* css, const char* id, bool ow = false){setup->addCSS(css, id, ow);}
-    void addJavascript(const char* script, const char* id, bool ow = false) {setup->addJavascript(script, id, ow);}
-    void addDropdownList(const char *lbl, const char** a, size_t size){setup->addDropdownList(lbl, a, size);}
-    void addOptionBox(const char* title) { setup->addOption("param-box", title); }
+    void setSetupPageTitle(const char* title) { getSetupConfigurator()->addOption("name-logo", title); }
+    void addHTML(const char* html, const char* id, bool ow = false) {getSetupConfigurator()->addHTML(html, id, ow);}
+    void addCSS(const char* css, const char* id, bool ow = false){getSetupConfigurator()->addCSS(css, id, ow);}
+    void addJavascript(const char* script, const char* id, bool ow = false) {getSetupConfigurator()->addJavascript(script, id, ow);}
+    void addDropdownList(const char *lbl, const char** a, size_t size){getSetupConfigurator()->addDropdownList(lbl, a, size);}    
+    void addDropdownList(DropdownList &def){ getSetupConfigurator()->addDropdownList(def); }
+    void addSlider(Slider &def){ getSetupConfigurator()->addSlider(def); }
+    void addOptionBox(const char* title) { getSetupConfigurator()->addOption("param-box", title); }
     void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
-      setup->setLogoBase64(logo, w, h, ow);
+      getSetupConfigurator()->setLogoBase64(logo, w, h, ow);
     }
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){
-      setup->addOption(lbl, val, false, min, max, st);
+      getSetupConfigurator()->addOption(lbl, val, false, min, max, st);
     }
     template <typename T>
     void addOption(const char *lbl, T val, bool hidden = false,  double min = MIN_F,
       double max = MAX_F, double st = 1.0) {
-      setup->addOption(lbl, val, hidden, min, max, st);
+      getSetupConfigurator()->addOption(lbl, val, hidden, min, max, st);
     }
     template <typename T>
-    bool getOptionValue(const char *lbl, T &var) { return setup->getOptionValue(lbl, var);}
+    bool getOptionValue(const char *lbl, T &var) { return getSetupConfigurator()->getOptionValue(lbl, var);}
     template <typename T>
-    bool saveOptionValue(const char *lbl, T val) { return setup->saveOptionValue(lbl, val);}
+    bool saveOptionValue(const char *lbl, T val) { return getSetupConfigurator()->saveOptionValue(lbl, val);}
+
+    // Update a dropdown definition's selectedIndex from persisted config
+    bool getDropdownSelection(DropdownList &def) { return getSetupConfigurator()->getDropdownSelection(def); }
+    // Read slider value back into struct
+    bool getSliderValue(Slider &def) { return getSetupConfigurator()->getSliderValue(def); }
+
+    void closeSetupConfiguration() {
+      getSetupConfigurator()->closeConfiguration();
+    }
     /////////////////////////////////////////////////////////////////////////////////////////////////
 #endif
 
 };
+
+
+
 
 #endif

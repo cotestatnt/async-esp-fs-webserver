@@ -5,13 +5,10 @@
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(80, FILESYSTEM, hostname);
-bool captiveRun = false;
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
-
-#define CLEAR_OPTIONS false
 
 // Test "options" values
 uint8_t ledPin = LED_BUILTIN;
@@ -20,7 +17,7 @@ bool boolVar2 = false;
 uint32_t longVar = 1234567890;
 float floatVar = 15.5F;
 String stringVar = "Test option String";
-
+String dropdownSelected = "Item1";
 // ThingsBoard variables
 String tb_deviceName = "ESP Sensor";
 double tb_deviceLatitude = 41.88505;
@@ -37,6 +34,7 @@ uint16_t tb_port = 80;
 #define LONG_LABEL "A long variable"
 #define FLOAT_LABEL "A float variable"
 #define STRING_LABEL "A String variable"
+#define DROPDOWN_TEST "A dropdown listbox"
 
 #define TB_DEVICE_NAME "Device Name"
 #define TB_DEVICE_LAT "Device Latitude"
@@ -60,6 +58,11 @@ uint16_t tb_port = 80;
 */
 #include "customElements.h"
 #include "thingsboard.h"
+
+// Callback: notify user when the configuration file is saved
+void onConfigSaved(const char* path) {
+  Serial.printf("\n[Config] File salvato: %s\n", path);
+}
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
 bool startFilesystem() {
@@ -89,93 +92,67 @@ void getFsInfo(fsInfo_t* fsInfo) {
 
 
 ////////////////////  Load application options from filesystem  ////////////////////
-/*
-* Unlike what was done in customOptions.ino, in this example
-* the variables are read (and written) all at once using the ArduinoJon library
-*/
 bool loadOptions() {
   if (FILESYSTEM.exists(server.getConfiFileName())) {
-    File file = server.getConfigFile("r");
-#if ARDUINOJSON_VERSION_MAJOR > 6
-    JsonDocument doc;
-#else
-    DynamicJsonDocument doc(file.size() * 1.33);
-#endif
-    if (!file)
-      return false;
+    // Test "options" values
+    server.getOptionValue(LED_LABEL, ledPin);
+    server.getOptionValue(BOOL_LABEL, boolVar);
+    server.getOptionValue(BOOL_LABEL "2", boolVar2);
+    server.getOptionValue(LONG_LABEL, longVar);
+    server.getOptionValue(FLOAT_LABEL, floatVar);
+    server.getOptionValue(STRING_LABEL, stringVar);
+    server.getOptionValue(DROPDOWN_TEST, dropdownSelected);
+    // ThingsBoard variables
+    server.getOptionValue(TB_DEVICE_NAME, tb_deviceName);
+    server.getOptionValue(TB_DEVICE_LAT, tb_deviceLatitude);
+    server.getOptionValue(TB_DEVICE_LON, tb_deviceLongitude);
+    server.getOptionValue(TB_DEVICE_TOKEN, tb_deviceToken);
+    server.getOptionValue(TB_DEVICE_KEY, tb_device_key);
+    server.getOptionValue(TB_SECRET_KEY, tb_secret_key);
+    server.getOptionValue(TB_SERVER, tb_serverIP);
+    server.getOptionValue(TB_PORT, tb_port);
+    server.closeSetupConfiguration();  // Close configuration to free resources
 
-    DeserializationError error = deserializeJson(doc, file);
-    if (error)
-      return false;
-
-    ledPin = doc[LED_LABEL];
-    boolVar = doc[BOOL_LABEL];
-    longVar = doc[LONG_LABEL];
-    floatVar = doc[FLOAT_LABEL]["value"];
-    stringVar = doc[STRING_LABEL].as<String>();
-
-    tb_deviceName = doc[TB_DEVICE_NAME].as<String>();
-    tb_deviceLatitude = doc[TB_DEVICE_LAT];
-    tb_deviceLongitude = doc[TB_DEVICE_LON];
-    tb_deviceToken = doc[TB_DEVICE_TOKEN].as<String>();
-    tb_device_key = doc[TB_DEVICE_KEY].as<String>();
-    tb_secret_key = doc[TB_SECRET_KEY].as<String>();
-    tb_serverIP = doc[TB_SERVER].as<String>();
-    tb_port = doc[TB_PORT];
-
-    file.close();
-
-    Serial.println();
+    Serial.println("\nThis are the current values stored: \n");
     Serial.printf("LED pin value: %d\n", ledPin);
-    Serial.printf("Bool value: %d\n", boolVar);
-    Serial.printf("Long value: %ld\n",(long) longVar);
+    Serial.printf("Bool value 1: %s\n", boolVar ? "true" : "false");
+    Serial.printf("Bool value 2: %s\n", boolVar2 ? "true" : "false");
+    Serial.printf("Long value: %u\n", longVar);
     Serial.printf("Float value: %d.%d\n", (int)floatVar, (int)(floatVar*1000)%1000);
-    Serial.println(stringVar);
+    Serial.printf("String value: %s\n", stringVar.c_str());
+    Serial.printf("Dropdown selected: %s\n", dropdownSelected.c_str());
     return true;
   }
-  else
-    Serial.println(F("Configuration file not exist"));
-  return false;
+  else {
+      Serial.println("Failed to parse configuration file");            
+      return false;
+  }
+  return true;
 }
 
-
-////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
-void handleLoadOptions(AsyncWebServerRequest *request) {
-  request->send(200, "text/plain", "Options loaded");
-  loadOptions();
-  Serial.println("Application option loaded after web request");
-}
 
 void setup() {
-#ifdef LED_BUILTIN
   pinMode(LED_BUILTIN, OUTPUT);
-#endif
   Serial.begin(115200);
-
-  // Load configuration (if not present, default will be created when webserver will start)
-#if CLEAR_OPTIONS
-  if (server.clearOptions())
-    ESP.restart();
-#endif
 
   // FILESYSTEM INIT
   if (startFilesystem()){
     // Load configuration (if not present, default will be created when webserver will start)
-    if (loadOptions())
-      Serial.println(F("Application option loaded"));
-    else
-      Serial.println(F("Application options NOT loaded!"));
+    loadOptions();      
   }
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
-    captiveRun = true;
   }
 
-  // Add custom page handlers to webserver
-  server.on("/reload", HTTP_GET, handleLoadOptions);
+  // Add custom HTTP request handlers to webserver
+  server.on("/reload", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "Options loaded");
+    loadOptions();
+    Serial.println("Application option loaded after web request");
+  });
 
   // Add a new options box
   server.addOptionBox("My Options");
@@ -186,8 +163,9 @@ void setup() {
   server.addOption(STRING_LABEL, stringVar);
   server.addOption(BOOL_LABEL, boolVar);
   server.addOption(BOOL_LABEL "2", boolVar2);
-  const char* dropItem[3] = {"Item1", "Item2", "Item3"};
-  server.addDropdownList("DROPDOWN_TEST", dropItem, 3);
+  static const char* dropItem[] = {"Item1", "Item2", "Item3"};
+  AsyncFsWebServer::DropdownList dropdownDef{ DROPDOWN_TEST, dropItem, 3, 0 };
+  server.addDropdownList(dropdownDef);
 
   // Add a new options box with custom code injected
   server.addOptionBox("Custom HTML");
@@ -217,23 +195,27 @@ void setup() {
   // Add custom logo to /setup page with custom size
   server.setLogoBase64(base64_logo, "128", "128", /*overwrite file*/ false);
 
-  // Enable ACE FS file web editor and add FS info callback function
+  // Enable ACE FS file web editor and add FS info callback function    
+#ifdef ESP32
+  server.enableFsCodeEditor(getFsInfo);
+#else
   server.enableFsCodeEditor();
-  #ifdef ESP32
-  server.setFsInfoCallback(getFsInfo);
-  #endif
+#endif
 
-  // Start server
+  // Inform user when config.json is saved via /edit or /upload
+  server.setConfigSavedCallback(onConfigSaved);
+
+  // Start web server
   if (server.init()) {
     Serial.print(F("\n\nWeb Server started on IP Address: "));
     Serial.println(server.getServerIP());
     Serial.println(F(
-      "This is \"customHTML.ino\" example.\n"
+      "\nThis is \"customHTML.ino\" example.\n"
       "Open /setup page to configure optional parameters.\n"
       "Open /edit page to view, edit or upload example or your custom webserver source files."
     ));
     Serial.printf("Ready! Open http://%s.local in your browser\n", hostname);
-    if (captiveRun)
+    if (server.isAccessPointMode())
       Serial.print(F("Captive portal is running"));
   }
 
@@ -241,9 +223,9 @@ void setup() {
 
 
 void loop() {
-  if (captiveRun)
+  if (server.isAccessPointMode())
     server.updateDNS();
   
-  // This delay is required in order to avoid loopTask() WDT reset on ESP32
-  delay(1);  
+  // Nothing to do here, just a small delay for task yield
+  delay(10);  
 }

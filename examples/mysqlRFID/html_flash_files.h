@@ -1,4 +1,7 @@
-static const char login_htm[] PROGMEM = R"string_literal(
+#pragma once
+#include <Arduino.h>
+
+inline const char login_htm[] PROGMEM = R"string_literal(
 <!DOCTYPE html>
 <html lang="en">
 <head>

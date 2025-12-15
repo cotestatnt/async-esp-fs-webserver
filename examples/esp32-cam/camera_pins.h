@@ -1,3 +1,7 @@
+#pragma once
+#include <Arduino.h>
+#include "esp_camera.h"
+#include <esp_err.h>
 
 // Select camera model
 //#define CAMERA_MODEL_WROVER_KIT
@@ -256,7 +260,7 @@ const int pwmfreq = 50000;     // 50K pwm frequency
 const int pwmresolution = 9;   // duty cycle bit range
 const int pwmMax = pow(2,pwmresolution)-1;
 
-static esp_err_t init_camera() {
+inline esp_err_t init_camera() {
   //initialize the camera
   Serial.print("Camera init... ");
   esp_err_t err = esp_camera_init(&camera_config);

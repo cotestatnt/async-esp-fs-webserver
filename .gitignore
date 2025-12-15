@@ -36,3 +36,6 @@
 .vscode/
 *.lnk
 *.bak
+/build
+/built-in-webpages/setup/build_setup/node_modules
+/examples/customHTML/build

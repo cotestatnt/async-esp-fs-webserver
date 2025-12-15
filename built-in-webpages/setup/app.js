@@ -24,12 +24,11 @@ const $ = (el) => document.getElementById(el);
 const hide = (id) => $(id).classList.add('hide');
 const show = (id) => $(id).classList.remove('hide');
 
+// Create element with attributes (readable + robust)
 const newEl = (element, attribute) => {
   const el = document.createElement(element);
-  if (typeof(attribute) === 'object') {
-    for (const key in attribute) {
-      el.setAttribute(key, attribute[key]);
-    }
+  if (attribute && typeof attribute === 'object') {
+    for (const [key, val] of Object.entries(attribute)) el.setAttribute(key, val);
   }
   return el;
 };
@@ -42,7 +41,7 @@ const getParameters = () => {
     .then(res => res.json())
     .then(data => {
       $('esp-mode').innerHTML = data.mode;
-      $('esp-ip').innerHTML = `<a href="${esp}">${esp}</a>`;
+      $('esp-ip').innerHTML = `<a href="http://${data.hostname}.local/">http://${data.hostname}.local</a><a href="${esp}"> (${data.ip})</a>`;
       $('firmware').innerHTML = data.firmware;
       $('about').innerHTML = 'Created with ' + data.liburl;
       $('about').setAttribute('href', data.liburl);
@@ -131,6 +130,7 @@ const addOptionsElement = (opt) => {
 
     if (typeof(value) === "number") el.setAttribute('type', 'number');
     if (typeof(value) === "object") {
+      // Dropdown list
       if (value.values) {
         el = newEl('select', { 'id': key });
         value.values.forEach((a) => {
@@ -141,13 +141,74 @@ const addOptionsElement = (opt) => {
         });
         el.value = value.selected;
         lastBox.appendChild(el);
-      } else {
+      }
+      // Slider (explicit discriminator)
+      else if (value.type === 'slider' && typeof value.value === 'number' && 'min' in value && 'max' in value && 'step' in value) {
         const num = Math.round(value.value * (1 / value.step)) / (1 / value.step);
+        const stepStr = String(value.step);
+        const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+
+        // Create slider input
+        const slider = newEl('input', { 'class': 'opt-input slider', 'type': 'range', 'id': key });
+        slider.setAttribute('step', value.step);
+        slider.setAttribute('min', value.min);
+        slider.setAttribute('max', value.max);
+        slider.value = Number(num).toFixed(decimalPlaces);
+
+        // Create readout input for precise edits
+        const readout = newEl('input', { 'class': 'opt-input slider-readout', 'type': 'number', 'id': `${key}-readout` });
+        readout.setAttribute('step', value.step);
+        readout.setAttribute('min', value.min);
+        readout.setAttribute('max', value.max);
+        readout.value = Number(num).toFixed(decimalPlaces);
+
+        // Keep slider and readout in sync
+        slider.addEventListener('input', (e) => {
+          readout.value = e.target.value;
+          const prev = (options[key] && typeof options[key] === 'object') ? options[key] : {};
+          options[key] = {
+            ...prev,
+            value: Number(e.target.value),
+            step: value.step,
+            min: value.min,
+            max: value.max,
+            type: prev.type || 'slider'
+          };
+        });
+        readout.addEventListener('change', (e) => {
+          const v = Number(e.target.value);
+          const bounded = Math.min(Math.max(v, value.min), value.max);
+          const rounded = Math.round(bounded * (1 / value.step)) / (1 / value.step);
+          const fixed = Number(rounded).toFixed(decimalPlaces);
+          slider.value = fixed;
+          readout.value = fixed;
+          const prev = (options[key] && typeof options[key] === 'object') ? options[key] : {};
+          options[key] = {
+            ...prev,
+            value: Number(fixed),
+            step: value.step,
+            min: value.min,
+            max: value.max,
+            type: prev.type || 'slider'
+          };
+        });
+
+        // Wrap slider + readout in a container
+        const container = newEl('div', { 'class': 'slider-wrapper' });
+        container.appendChild(slider);
+        container.appendChild(readout);
+        el = container;
+      }
+      // Numeric object rendered as number input (explicit discriminator or fallback)
+      else if ((value.type === 'number') && typeof value.value === 'number' && 'min' in value && 'max' in value && 'step' in value) {
+        const num = Math.round(value.value * (1 / value.step)) / (1 / value.step);
+        const stepStr = String(value.step);
+        const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
         el.setAttribute('type', 'number');
         el.setAttribute('step', value.step);
         el.setAttribute('min', value.min);
         el.setAttribute('max', value.max);
-        el.value = Number(num).toFixed(3);
+        el.value = Number(num).toFixed(decimalPlaces);
       }
     }
     addInputListener(el);
@@ -177,22 +238,19 @@ const createNewBox = (cont, lbl) => {
 
 // Create options box
 const createOptionsBox = async (raw) => {
+  // Initialize WiFi settings
+  const dhcp = !!raw.dhcp;
+  $('no-dhcp').checked = dhcp;
+  $('ip').value = raw.ip_address;
+  $('gateway').value = raw.gateway;
+  $('subnet').value = raw.subnet;
+  if (dhcp) { show('conf-wifi'); show('save-wifi'); }
+
   let nest = {};
   let boxId = 'wifi-box';
   lastBox = $(boxId);
 
   Object.entries(raw).forEach(([key, value], index) => {
-    if (boxId === 'wifi-box') {
-      $('no-dhcp').checked = raw.dhcp;
-      $('ip').value = raw.ip_address;
-      $('gateway').value = raw.gateway;
-      $('subnet').value = raw.subnet;
-      if ($('no-dhcp').checked) {
-        show('conf-wifi');
-        show('save-wifi');
-      }
-    }
-
     if (key.startsWith('param-box')) {
       addOptionsElement(nest);
       lastBox = createNewBox(index, value);
@@ -226,38 +284,47 @@ const createOptionsBox = async (raw) => {
 };
 
 function addInputListener(item) {
-  const updateNumberOption = (target, isStep) => {
-    if (isStep) {
-      options[target.id] = {
-        value: Math.round(target.value * (1/target.step)) / (1/target.step),
-        step: target.getAttribute("step"),
-        min: target.getAttribute("min"),
-        max: target.getAttribute("max")
-      };
-    } else {
-      options[target.id] = parseInt(target.value);
+  const onChange = (e) => {
+    const t = e.target;
+    switch (t.type) {
+      case 'number': {
+        const step = t.step ? Number(t.step) : 0;
+        // Ignore readout changes handled above; treat plain number inputs
+        if (t.id.endsWith('-readout')) return;
+        if (step) {
+          const prev = (options[t.id] && typeof options[t.id] === 'object') ? options[t.id] : {};
+          options[t.id] = {
+            ...prev,
+            value: Math.round(Number(t.value) * (1/step)) / (1/step),
+            step,
+            min: Number(t.getAttribute('min')),
+            max: Number(t.getAttribute('max')),
+            type: (prev && prev.type) ? prev.type : 'number'
+          };
+        } else {
+          options[t.id] = parseInt(t.value, 10);
+        }
+        break;
+      }
+      case 'text':
+        options[t.id] = t.value;
+        break;
+      case 'checkbox':
+        options[t.id] = t.checked;
+        break;
+      default:
+        if (t.type === 'select-one') options[t.id].selected = t.value;
+        break;
     }
   };
-
-  const handlers = {
-    number: (e) => updateNumberOption(e.target, e.target.getAttribute("step")),
-    text: (e) => options[e.target.id] = e.target.value,
-    checkbox: (e) => options[e.target.id] = e.target.checked,
-    'select-one': (e) => options[e.target.id].selected = e.target.value
-  };
-
-  const handler = handlers[item.type];
-  if (handler) {
-    item.addEventListener('change', handler);
-  }
+  item.addEventListener('change', onChange);
 }
 
 function insertKey(key, value, obj, pos) {
-  return Object.keys(obj).reduce((acc, k, i) => {
-    if (i === pos) acc[key] = value;
-    acc[k] = obj[k];
-    return acc;
-  }, {});
+  const acc = {};
+  const keys = Object.keys(obj);
+  keys.forEach((k, i) => { if (i === pos) acc[key] = value; acc[k] = obj[k]; });
+  return acc;
 }
 
 function saveParameters() {
@@ -297,17 +364,10 @@ function saveParameters() {
   const formData = new FormData();
   formData.append("data", configData, '/' + configFile);
 
-  fetch('/edit', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.text())
-  .then(() => {
-    openModal(
-      'Save options',
-      `<br><b>"/${configFile}"</b> saved successfully on flash memory!<br><br>`
-    );
-  });
+  fetch('/edit', { method: 'POST', body: formData })
+    .then(r => r.text())
+    .then(() => openModal('Save options', `<br><b>"/${configFile}"</b> saved successfully on flash memory!<br><br>`))
+    .catch(err => openModal('Error!', `Failed to save: ${err}`));
 }
 
 
@@ -347,6 +407,10 @@ function selectWifi(event) {
   $('ssid').value = ssid;
   $('ssid-name').textContent = ssid;
   $('password').focus();
+  
+  // Collapse wifi list and show chevron
+  $('wifi-table').classList.add('hide');
+  show('show-networks');
 }
 
 function listWifi(obj) {
@@ -356,6 +420,7 @@ function listWifi(obj) {
 
   const list = document.querySelector('#wifi-list');
   list.innerHTML = "";
+  const frag = document.createDocumentFragment();
   obj.forEach((net, i) => {
     const row = newEl('tr', { id: `wifi-${i}` });
     row.addEventListener('click', selectWifi);
@@ -365,8 +430,9 @@ function listWifi(obj) {
       <td class="hide-tiny">${net.strength} dBm</td>
       <td>${net.security ? svgLock : svgUnlock}</td>
     `;
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.appendChild(frag);
   show('wifi-table');
 }
 
@@ -421,27 +487,30 @@ function doConnection(e, f) {
 }
 
 function switchPage(el) {
-  $('top-nav').classList.remove('resp');
+  const target = el.target;
+  const boxId = target.getAttribute("data-box");
+  
+  $('top-nav').classList.remove('responsive');
   
   // Update active menu item
   document.querySelectorAll("a").forEach(item => item.classList.remove('active'));
-  el.target.classList.add('active');
+  target.classList.add('active');
 
   // Hide all option boxes and show the selected one
   document.querySelectorAll(".opt-box").forEach(e => e.classList.add('hide'));
-  show(el.target.getAttribute("data-box"));
+  show(boxId);
 
-  const isWifiPage = el.target.id === 'set-wifi';
+  const isWifiPage = target.id === 'set-wifi';
   if (!isWifiPage) {
+    const box = $(boxId);
     const fragment = document.createDocumentFragment();
     fragment.appendChild($('btn-hr'));
     fragment.appendChild($('btn-box'));
-    const box = $(el.target.getAttribute("data-box"));
     box.appendChild(fragment);
 
-    document.querySelectorAll('.raw-html').forEach(el => {
-      if (el.getAttribute("data-box") === box.id) {
-        box.insertBefore(el, $('btn-hr'));
+    document.querySelectorAll('.raw-html').forEach(elem => {
+      if (elem.getAttribute("data-box") === box.id) {
+        box.insertBefore(elem, $('btn-hr'));
       }
     });
 
@@ -454,7 +523,7 @@ function switchPage(el) {
 }
 
 function showMenu() {
-  $('top-nav').classList.add('resp');
+  $('top-nav').classList.toggle('responsive');
 }
 
 function openModal(title, msg, fn) {
@@ -480,15 +549,18 @@ function closeModal(doCb) {
   if (closeCb && doCb) closeCb();
 }
 
+// Ask user confirmation before triggering restart
+function confirmRestart() {
+  openModal('Restart ESP', '<br>Do you want to restart now?', restartESP);
+}
+
 function restartESP() {
   fetch(`${esp}reset`)
     .then(() => {
       closeModal();
       openModal('Restart!', '<br>ESP restarted!');
     })
-    .catch(error => {
-      openModal('Error!', `Failed to restart ESP: ${error}`);
-    });
+    .catch(error => openModal('Error!', `Failed to restart ESP: ${error}`));
 }
 function handleSubmit() {
   const fileElement = $('file-input');
@@ -532,34 +604,25 @@ function handleSubmit() {
 }
 async function uploadFolder(e) {
   const list = $('listing');
-  const files = Array.from(e.target.files);
-
-  for (const file of files) {
-    // Remove "data/" prefix if present
-    const path = file.webkitRelativePath.replace(/^data\//, '');
-    
-    // Add to visual list
+  const uploadFile = async (file, path) => {
     const item = newEl('li');
     item.textContent = path;
     list.appendChild(item);
 
     try {
-      // Read file and upload
       const formData = new FormData();
       formData.set("data", file, '/' + path);
-      
-      const response = await fetch('/edit', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to upload ${path}`);
-      }
+      const response = await fetch('/edit', { method: 'POST', body: formData });
+      if (!response.ok) throw new Error(`Upload failed`);
     } catch (err) {
       console.error(`Error uploading ${path}:`, err);
-      item.style.color = 'red'; // Visual error indicator
+      item.style.color = 'red';
     }
+  };
+
+  for (const file of e.target.files) {
+    const path = file.webkitRelativePath.replace(/^data\//, '');
+    await uploadFile(file, path);
   }
 }
 // Initialize SVG icons
@@ -591,7 +654,7 @@ const eventListeners = {
   'set-wifi': ['click', switchPage],
   'set-update': ['click', switchPage],
   'about': ['click', switchPage],
-  'restart': ['click', restartESP],
+  'restart': ['click', confirmRestart],
   'picker': ['change', uploadFolder],
   'update-btn': ['click', handleSubmit]
 };
@@ -612,6 +675,14 @@ $('no-dhcp').addEventListener('change', function() {
   const method = this.checked ? 'remove' : 'add';
   ['conf-wifi', 'save-wifi'].forEach(id => $(id).classList[method]('hide'));
 });
+
+// WiFi list chevron handler - toggle visibility
+if ($('show-networks')) {
+  $('show-networks').addEventListener('click', () => {
+    $('wifi-table').classList.toggle('hide');
+    $('show-networks').classList.toggle('hide');
+  });
+}
 
 // Initialize on page load
 window.addEventListener('load', getParameters);
