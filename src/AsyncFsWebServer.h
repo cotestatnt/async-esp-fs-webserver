@@ -161,7 +161,7 @@ class AsyncFsWebServer : public AsyncWebServer
     
     // Template Constructor for derived filesystem classes (LittleFS, SPIFFS, etc)
     template <typename T>
-    AsyncFsWebServer(uint16_t port, T &fs, const char* hostname = "") : AsyncWebServer(port), m_filesystem(&fs)
+    AsyncFsWebServer(T &fs, uint16_t port, const char* hostname = "") : AsyncWebServer(port), m_filesystem(&fs)
     {
       m_port = port;
       // setup is lazily initialized when first needed (lazy initialization)
@@ -243,22 +243,32 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     bool init(AwsEventHandler wsHandle = nullptr);
 
-#if ESP_FS_WS_EDIT    
+#if ESP_FS_WS_EDIT
+
     /*
       Enable the built-in ACE web file editor
     */
-    void enableFsCodeEditor(FsInfoCallbackF fsCallback = nullptr);
+    void enableFsCodeEditor();
 
-    /*
-    * Set callback function to provide updated FS info to library
-    * This it is necessary due to the different implementation of
-    * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
-    */
-    inline void setFsInfoCallback(FsInfoCallbackF fsCallback) {
-      getFsInfo = fsCallback;
+    // Backward compatibility method
+    [[deprecated("Use enableFsCodeEditor() instead (use built-in callback to provide FS info).")]]
+    void enableFsCodeEditor(FsInfoCallbackF fsCallback) {
+        if (fsCallback)
+            getFsInfo = fsCallback;
+        enableFsCodeEditor();
     }
 
-  #endif
+    /*
+     * Set callback function to provide updated FS info to library
+     * This it is necessary due to the different implementation of
+     * libraries for the filesystem (LittleFS, FFat, SPIFFS etc etc)
+     */
+    [[deprecated("Use enableFsCodeEditor() instead (use built-in callback to provide FS info)")]]
+    inline void setFsInfoCallback(FsInfoCallbackF fsCallback)
+    {
+        getFsInfo = fsCallback;
+    }
+#endif
 
     /*
       Enable authenticate for /setup webpage

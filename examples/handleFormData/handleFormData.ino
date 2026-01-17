@@ -3,7 +3,7 @@
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, LittleFS, "esphost");
+AsyncFsWebServer server(FILESYSTEM, 80, "esphost");
 
 ////////////////////////////  HTTP Request Handlers  ////////////////////////////////////
 void getDefaultValue (AsyncWebServerRequest *request) {

@@ -136,7 +136,7 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
 }
 
 #if ESP_FS_WS_EDIT
-void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
+void AsyncFsWebServer::enableFsCodeEditor() {
     on("/status", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFsStatus(request); });
     on("/list", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileList(request); });
     on("/edit", HTTP_PUT, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileCreate(request); });
@@ -146,7 +146,6 @@ void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
         [this](AsyncWebServerRequest *request) { sendOK(request); },
         [this](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) { handleUpload(request, filename, index, data, len, final); }
     );
-    getFsInfo = fsCallback;
 }
 #endif
 

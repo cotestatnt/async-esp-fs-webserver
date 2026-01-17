@@ -13,7 +13,7 @@
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM);
+AsyncFsWebServer server( FILESYSTEM, 80, "remoteOTA");
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2

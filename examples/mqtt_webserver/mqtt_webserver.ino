@@ -19,7 +19,7 @@
 #define LED_BUILTIN 2
 #endif
 
-AsyncFsWebServer myWebServer(80, LittleFS, "myServer");
+AsyncFsWebServer myWebServer(LittleFS, 80, "myServer");
 
 // Update these with values suitable for your network.
 const char* mqtt_server = "broker.mqtt-dashboard.com";

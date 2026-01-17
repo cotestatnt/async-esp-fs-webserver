@@ -4,7 +4,7 @@
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM);
+AsyncFsWebServer server(FILESYSTEM, 80);
 
 // Define a struct for store all info about each gpio
 struct gpio_type {

@@ -15,7 +15,7 @@
 #define FILESYSTEM LittleFS
 
 char const* hostname = "fsbrowser";
-AsyncFsWebServer server(80, FILESYSTEM, hostname);
+AsyncFsWebServer server(FILESYSTEM, 80, hostname);
 long unsigned int timer = 0; // used to determine when to send websocket packets
 
 // type declarations for websocket packet
