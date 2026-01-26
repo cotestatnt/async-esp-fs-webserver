@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>
 
-AsyncFsWebServer server(80, LittleFS, "esphost");
+AsyncFsWebServer server(LittleFS, 80, "esphost");
 
 // Timezone definition to get properly time from NTP server
 #define MYTZ "CET-1CEST,M3.5.0,M10.5.0/3"
@@ -95,14 +95,7 @@ void setup() {
 
     // Enable ACE FS file web editor and add FS info callback fucntion
     server.enableFsCodeEditor();
-    #ifdef ESP32
-    server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-        fsInfo->totalBytes = LittleFS.totalBytes();
-        fsInfo->usedBytes = LittleFS.usedBytes();
-        fsInfo->fsName = "LittleFS";
-    });
-    #endif
-
+    
     // Start server
     server.init();
     Serial.print(F("Async ESP Web Server started on IP Address: "));

@@ -12,7 +12,7 @@ extern MySQL sql;
 extern bool queryExecute(DataQuery_t&, const char*, ...);
 
 // Webserver class
-AsyncFsWebServer myWebServer(80, LittleFS, "esp32rfid");
+AsyncFsWebServer myWebServer(LittleFS, 80, "esp32rfid");
 
 int getUserLevel(const String& user, const String&  hash) {
   DataQuery_t data;
@@ -297,13 +297,6 @@ bool startWebServer(bool clear = false) {
   
   // Enable ACE FS file web editor and add FS info callback function
   myWebServer.enableFsCodeEditor();
-#if defined(ESP32)
-  myWebServer.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-#endif
 
   // Start the webserver
   myWebServer.init();

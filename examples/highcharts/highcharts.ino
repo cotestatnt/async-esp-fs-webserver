@@ -1,14 +1,10 @@
-#if defined(ESP8266)
-#include <ESP8266mDNS.h>
-#elif defined(ESP32)
-#include <ESPmDNS.h>
-#endif
+#include <Arduino.h>
 #include <FS.h>
 #include <LittleFS.h>
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM);
+AsyncFsWebServer server(FILESYSTEM, 80, "myserver");
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -56,37 +52,9 @@ void getUpdatedtime(const uint32_t timeout)
 
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-  Serial.printf("\nListing directory: %s\n", dirname);
-  File root = fs.open(dirname, "r");
-  if (!root) {
-    Serial.println("- failed to open directory");
-    return;
-  }
-  if (!root.isDirectory()) {
-    Serial.println(" - not a directory");
-    return;
-  }
-  File file = root.openNextFile();
-  while (file) {
-    if (file.isDirectory()) {
-      if (levels) {
-        #ifdef ESP32
-          listDir(fs, file.path(), levels - 1);
-        #elif defined(ESP8266)
-          listDir(fs, file.fullName(), levels - 1);
-        #endif
-      }
-    } else {
-      Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
-    }
-    file = root.openNextFile();
-  }
-}
-
 bool startFilesystem() {
   if (FILESYSTEM.begin()){
-    listDir(FILESYSTEM, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 2), Serial;
     return true;
   }
   else {
@@ -115,18 +83,6 @@ void setup() {
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
 
-  /*
-  * Getting FS info (total and free bytes) is strictly related to
-  * filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-  */
-  #ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-  #endif
-
   // Start server with custom websocket event handler
   server.init(onWsEvent);
   Serial.print(F("ESP Web Server started on IP Address: "));
@@ -137,32 +93,10 @@ void setup() {
     "Open /edit page to view, edit or upload example or your custom webserver source files."
   ));
 
-  // Start MDNS responder
-  if (WiFi.status() == WL_CONNECTED) {
-    // Set hostname
-#ifdef ESP8266
-    WiFi.hostname(hostname);
-#elif defined(ESP32)
-    WiFi.setHostname(hostname);
-#endif
-    if (MDNS.begin(hostname)) {
-      Serial.println(F("MDNS responder started."));
-      Serial.printf("You should be able to connect with address\t http://%s.local/\n", hostname);
-      // Add service to MDNS-SD
-      MDNS.addService("http", "tcp", 80);
-    }
-  }
 }
 
 
-void loop() {
-
-  if (WiFi.status() == WL_CONNECTED) {
-#ifdef ESP8266
-    MDNS.update();
-#endif
-  }
-
+void loop() {  
   // Send ESP system time (epoch) and heap stats to WS client
   static uint32_t sendToClientTime;
   if (millis() - sendToClientTime > 1000 ) {

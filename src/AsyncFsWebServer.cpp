@@ -21,9 +21,11 @@ void setTaskWdt(uint32_t timeout) {
 
 
 bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
+    // Set build date as default firmware version (YYMMDDHHmm) from Version.h constexprs
+    if (m_version.length() == 0)
+        m_version = String(BUILD_TIMESTAMP);
 
 //////////////////////    BUILT-IN HANDLERS    ////////////////////////////
-
     on("*", HTTP_HEAD, [this](AsyncWebServerRequest *request) { this->handleFileName(request); });
 
 #if ESP_FS_WS_SETUP
@@ -39,22 +41,21 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     on("/scan", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleScanNetworks(request); });
     on("/getStatus", HTTP_GET, [this](AsyncWebServerRequest *request) { this->getStatus(request); });
     on("/clear_config", HTTP_GET, [this](AsyncWebServerRequest *request) { this->clearConfig(request); });
-    
-    
+    // Simple WiFi status endpoint
     on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncFSWebServer::Json doc;
         doc.setString("ssid", WiFi.SSID());
         doc.setNumber("rssi", WiFi.RSSI());
         request->send(200, "application/json", doc.serialize());
     });
-
+    // File upload handler for configuration files
     on("/upload", HTTP_POST,
         [this](AsyncWebServerRequest *request) { this->sendOK(request); },
         [this](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final) {
             this->handleUpload(request, filename, index, data, len, final);
         }
     );
-
+    // Endpoint to reset device
     on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
         // Send response and restart AFTER client disconnects to ensure 200 reaches browser
         AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", WiFi.localIP().toString());
@@ -116,7 +117,15 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
         }
         } else {
         String line = "|__ FILE: ";
-        line += file.name();
+        if (typeName == "SPIFFS") {
+            #ifdef ESP32
+            line += file.path();
+            #elif defined(ESP8266)
+            line += file.fullName();
+            #endif
+        } else {
+            line += file.name();
+        }      
         line += " (";
         line += (unsigned long)file.size();
         line += " bytes)";
@@ -127,7 +136,7 @@ void AsyncFsWebServer::printFileList(fs::FS &fs, const char * dirname, uint8_t l
 }
 
 #if ESP_FS_WS_EDIT
-void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
+void AsyncFsWebServer::enableFsCodeEditor() {
     on("/status", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFsStatus(request); });
     on("/list", HTTP_GET, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileList(request); });
     on("/edit", HTTP_PUT, (ArRequestHandlerFunction)[this](AsyncWebServerRequest *request) { handleFileCreate(request); });
@@ -137,7 +146,6 @@ void AsyncFsWebServer::enableFsCodeEditor(FsInfoCallbackF fsCallback) {
         [this](AsyncWebServerRequest *request) { sendOK(request); },
         [this](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) { handleUpload(request, filename, index, data, len, final); }
     );
-    getFsInfo = fsCallback;
 }
 #endif
 
@@ -208,14 +216,35 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
 }
 
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {    
-    if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
-        request->redirect("/setup");
-        log_debug("Redirecting \"/\" to \"/setup\" (no index file found)");
+
+    // Check if authentication for all routes is turned on, and credentials are present:
+    if (m_authAll && m_pageUser != nullptr) {
+        if(!request->authenticate(m_pageUser, m_pagePswd))
+            return request->requestAuthentication();
+    }
+
+    String _url = request->url();
+
+    // Requested file not found, check if gzipped version exists
+    _url += ".gz";      
+    if (!m_filesystem->exists(_url)) {
+        log_debug("File %s not found, checking for index redirection", request->url().c_str());
+        
+        // File not found
+        if (request->url() == "/" && !m_filesystem->exists("/index.htm") && !m_filesystem->exists("/index.html")) {
+            request->redirect("/setup");
+            log_debug("Redirecting \"/\" to \"/setup\" (no index file found)");
+            return;
+        }
     }
     else {
-        request->send(404, "text/plain", "AsyncFsWebServer: resource not found");
-        log_debug("Resource %s not found\n", request->url().c_str());
+        log_debug("Serving gzipped file for %s", request->url().c_str());
+        request->redirect(_url);
+        return;
     }
+
+    request->send(404, "text/plain", "AsyncFsWebServer: resource not found");
+    log_debug("Resource %s not found", request->url().c_str());
 }
 
 
@@ -856,10 +885,22 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
         while (file) {
             if (!first) output += ",";
             first = false;
-            String filename = file.name();
-            if (filename.lastIndexOf("/") > -1) {
-                filename.remove(0, filename.lastIndexOf("/") + 1);
-            }
+            String filename;
+            if (typeName.equals("SPIFFS")) {
+                // SPIFFS returns full path and subfolders are unsupported, remove leading '/'                
+                #if defined(ESP32)
+                filename += file.path();
+                #elif defined(ESP8266)
+                filename += file.fullName();
+                #endif
+                filename.remove(0, 1);
+            } 
+            else {
+                filename = file.name();
+                if (filename.lastIndexOf("/") > -1) {
+                    filename.remove(0, filename.lastIndexOf("/") + 1);
+                }
+            }         
             AsyncFSWebServer::Json item;
             item.setString("type", (file.isDirectory()) ? "dir" : "file");
             item.setNumber("size", file.size());

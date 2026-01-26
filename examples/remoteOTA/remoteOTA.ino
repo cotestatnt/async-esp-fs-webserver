@@ -13,7 +13,7 @@
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM);
+AsyncFsWebServer server( FILESYSTEM, 80, "remoteOTA");
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -95,39 +95,11 @@ void doUpdate(const char* url, const char* version) {
 }
 
 ////////////////////////////////  Filesystem  /////////////////////////////////////////
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-  Serial.printf("\nListing directory: %s\n", dirname);
-  File root = fs.open(dirname, "r");
-  if(!root){
-    Serial.println("- failed to open directory");
-    return;
-  }
-  if(!root.isDirectory()){
-    Serial.println(" - not a directory");
-    return;
-  }
-  File file = root.openNextFile();
-  while(file){
-    if(file.isDirectory()){
-      if(levels){
-        #ifdef ESP8266
-        String path = file.fullName();
-        path.replace(file.name(), "");
-        #elif defined(ESP32)
-        String path = file.path();
-        #endif
-        listDir(fs, path.c_str(), levels -1);
-      }
-    } else {
-      Serial.printf("|__ FILE: %s (%d bytes)\n",file.name(), file.size());
-    }
-    file = root.openNextFile();
-  }
-}
+
 
 bool startFilesystem() {
   if (FILESYSTEM.begin()){
-    listDir(FILESYSTEM, "/", 1);
+    server.printFileList(FILESYSTEM, "/", 1, Serial);
     return true;
   }
   else {
@@ -190,18 +162,6 @@ void setup(){
     Serial.println("\nWiFi not connected! Starting AP mode...");
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
   }
-
-  /*
-  * Getting FS info (total and free bytes) is strictly related to
-  * filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-  */
-  #ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-  });
-  #endif
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();

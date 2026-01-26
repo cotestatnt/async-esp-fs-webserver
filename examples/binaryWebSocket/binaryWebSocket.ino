@@ -15,7 +15,7 @@
 #define FILESYSTEM LittleFS
 
 char const* hostname = "fsbrowser";
-AsyncFsWebServer server(80, FILESYSTEM, hostname);
+AsyncFsWebServer server(FILESYSTEM, 80, hostname);
 long unsigned int timer = 0; // used to determine when to send websocket packets
 
 // type declarations for websocket packet
@@ -208,14 +208,6 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
-
-#ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();  
-  });
-#endif
 
   // Init with custom WebSocket event handler and start server
   server.init(onWsEvent);

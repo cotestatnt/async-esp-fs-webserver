@@ -166,19 +166,8 @@ void setup() {
   server.addHTML(reload_btn_htm, "buttons", /*overwrite*/ false);
   server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);
 
-  // Enable ACE FS file web editor and add FS info callback function
-#if ESP_FS_WS_EDIT
-  #ifdef ESP32
-    server.enableFsCodeEditor([](fsInfo_t* fsInfo) {
-      fsInfo->fsName = "LittleFS";
-      fsInfo->totalBytes = LittleFS.totalBytes();
-      fsInfo->usedBytes = LittleFS.usedBytes();
-    });
-  #else
-    // ESP8266 core support LittleFS by default
-    server.enableFsCodeEditor();
-  #endif
-#endif
+  // Enable ACE FS file web editor
+  server.enableFsCodeEditor();
 
   // set /setup and /edit page authentication
   server.setAuthentication("admin", "admin");

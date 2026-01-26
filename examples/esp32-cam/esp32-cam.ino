@@ -11,7 +11,7 @@
 #endif
 
 #define FILESYSTEM SD_MMC
-AsyncFsWebServer server(80, FILESYSTEM);
+AsyncFsWebServer server(FILESYSTEM, 80);
 
 // Local include files
 #include "camera_pins.h"
@@ -78,10 +78,6 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-    fsInfo->totalBytes = SD_MMC.totalBytes();
-    fsInfo->usedBytes = SD_MMC.usedBytes();
-  });
 
   // Add custom handlers to webserver
   server.on("/getPicture", getPicture);

@@ -7,7 +7,7 @@
 struct tm Time;
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM, "myserver");
+AsyncFsWebServer server(FILESYSTEM, 80, "myserver");
 
 // Define built-in LED if not defined by board (eg. generic dev boards)
 #ifndef LED_BUILTIN
@@ -163,16 +163,7 @@ void setup() {
   server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);
 
   // Enable ACE FS file web editor and add FS info callback function    
-#ifdef ESP32
-  server.enableFsCodeEditor([](fsInfo_t* fsInfo) {
-    fsInfo->fsName = "LittleFS";
-    fsInfo->totalBytes = LittleFS.totalBytes();
-    fsInfo->usedBytes = LittleFS.usedBytes();
-  });
-#else
-  // ESP8266 core support LittleFS by default
   server.enableFsCodeEditor();
-#endif
 
   // set /setup and /edit page authentication
   server.setAuthentication("admin", "admin");

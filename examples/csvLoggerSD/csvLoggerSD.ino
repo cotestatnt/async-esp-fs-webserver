@@ -11,7 +11,7 @@
 #define PIN_MISO 11
 
 
-AsyncFsWebServer server(80, SD, "myServer");
+AsyncFsWebServer server(SD, 80, "myServer");
 bool captiveRun = false;
 struct tm ntpTime;
 const char* basePath = "/csv";
@@ -117,13 +117,6 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback fucntion
   server.enableFsCodeEditor();
-  #ifdef ESP32
-  server.setFsInfoCallback([](fsInfo_t* fsInfo) {
-      fsInfo->totalBytes = SD.totalBytes();
-      fsInfo->usedBytes = SD.usedBytes();
-      fsInfo->fsName = "SD";
-  });
-  #endif
 
   // Start server
   server.init();

@@ -4,7 +4,7 @@
 
 const char* hostname = "myserver";
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM, hostname);
+AsyncFsWebServer server(FILESYSTEM, 80, hostname);
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -77,18 +77,6 @@ bool startFilesystem() {
   }
   return false;
 }
-
-/*
-* Getting FS info (total and free bytes) is strictly related to
-* filesystem library used (LittleFS, FFat, SPIFFS etc etc) and ESP framework
-*/
-#ifdef ESP32
-void getFsInfo(fsInfo_t* fsInfo) {
-	fsInfo->fsName = "LittleFS";
-	fsInfo->totalBytes = LittleFS.totalBytes();
-	fsInfo->usedBytes = LittleFS.usedBytes();
-}
-#endif
 
 
 ////////////////////  Load application options from filesystem  ////////////////////
@@ -196,11 +184,7 @@ void setup() {
   server.setLogoBase64(base64_logo, "128", "128", /*overwrite file*/ false);
 
   // Enable ACE FS file web editor and add FS info callback function    
-#ifdef ESP32
-  server.enableFsCodeEditor(getFsInfo);
-#else
   server.enableFsCodeEditor();
-#endif
 
   // Inform user when config.json is saved via /edit or /upload
   server.setConfigSavedCallback(onConfigSaved);
