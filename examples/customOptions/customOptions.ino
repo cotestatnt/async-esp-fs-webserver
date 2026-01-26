@@ -41,6 +41,7 @@ AsyncFsWebServer::DropdownList dayOfWeek{ DROPDOWN_LABEL, days, 7, daySelected};
 // Add a slider in /setup page
 AsyncFsWebServer::Slider brightness{ BRIGHTNESS_LABEL, 0.0, 100.0, 1.0, 50.0 };
 
+
 static const char reload_btn_htm[] PROGMEM = R"EOF(
 <div class="btn-bar">
   <a class="btn" id="reload-btn">Reload options</a>
@@ -49,8 +50,7 @@ static const char reload_btn_htm[] PROGMEM = R"EOF(
 
 static const char reload_btn_script[] PROGMEM = R"EOF(
 /* Add click listener to button */
-document.getElementById('reload-btn').addEventListener('click', reload);
-function reload() {
+const reloadCfg = () => {
   console.log('Reload configuration options');
   fetch('/reload')
   .then((response) => {
@@ -63,7 +63,8 @@ function reload() {
   .catch((error) => {
     openModal('Error', 'Something goes wrong with your request');
   });
-}
+};
+document.getElementById('reload-btn').addEventListener('click', reloadCfg);
 )EOF";
 
 

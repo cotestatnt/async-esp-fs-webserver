@@ -33,8 +33,8 @@ class SetupConfigurator
     protected:
         uint8_t numOptions = 0;
         fs::FS* m_filesystem = nullptr;
-        AsyncFSWebServer::Json* m_doc = nullptr;
-        AsyncFSWebServer::Json* m_savedDoc = nullptr;  // Temporary storage for saved file values
+        CJSON::Json* m_doc = nullptr;
+        CJSON::Json* m_savedDoc = nullptr;  // Temporary storage for saved file values
 
         bool m_opened = false;
 
@@ -51,7 +51,7 @@ class SetupConfigurator
                         String content = file.readString();
                         file.close();
                         
-                        m_savedDoc = new AsyncFSWebServer::Json();
+                        m_savedDoc = new CJSON::Json();
                         if (!m_savedDoc->parse(content)) {
                             log_error("Failed to parse existing configuration");
                             delete m_savedDoc;
@@ -63,7 +63,7 @@ class SetupConfigurator
                 }
                 
                 // Create empty m_doc - will be populated in addOption() in the setup order
-                m_doc = new AsyncFSWebServer::Json();
+                m_doc = new CJSON::Json();
                 m_doc->setString("wifi-box", "");
                 m_doc->setBool("dhcp", false);
                 
@@ -346,7 +346,7 @@ class SetupConfigurator
                 return false;
             }
 
-            AsyncFSWebServer::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
+            CJSON::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
             if (sourceDoc == nullptr) {
                 log_error("No configuration document available for reading");
                 return false;
@@ -411,7 +411,7 @@ class SetupConfigurator
                 return false;
             }
 
-            AsyncFSWebServer::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
+            CJSON::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
             if (sourceDoc == nullptr) return false;
 
             double v;
@@ -559,7 +559,7 @@ class SetupConfigurator
             }
             
             // Prefer persisted values when available; fall back to current session doc
-            AsyncFSWebServer::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
+            CJSON::Json* sourceDoc = (m_savedDoc != nullptr) ? m_savedDoc : m_doc;
             
             if (sourceDoc == nullptr) {
                 log_error("No configuration document available for reading");

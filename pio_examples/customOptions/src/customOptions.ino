@@ -8,7 +8,7 @@
 struct tm Time;
 
 #define FILESYSTEM LittleFS
-AsyncFsWebServer server(80, FILESYSTEM, "myserver");
+AsyncFsWebServer server(FILESYSTEM, 80, "myserver");
 
 // Define built-in LED if not defined by board (eg. generic dev boards)
 #ifndef LED_BUILTIN
@@ -45,6 +45,7 @@ AsyncFsWebServer::DropdownList dayOfWeek{ DROPDOWN_LABEL, days, 7, daySelected};
 // Add a slider in /setup page
 AsyncFsWebServer::Slider brightness{ BRIGHTNESS_LABEL, 0.0, 100.0, 1.0, 50.0 };
 
+
 static const char reload_btn_htm[] PROGMEM = R"EOF(
 <div class="btn-bar">
   <a class="btn" id="reload-btn">Reload options</a>
@@ -53,8 +54,7 @@ static const char reload_btn_htm[] PROGMEM = R"EOF(
 
 static const char reload_btn_script[] PROGMEM = R"EOF(
 /* Add click listener to button */
-document.getElementById('reload-btn').addEventListener('click', reload);
-function reload() {
+const reloadCfg = () => {
   console.log('Reload configuration options');
   fetch('/reload')
   .then((response) => {
@@ -67,7 +67,8 @@ function reload() {
   .catch((error) => {
     openModal('Error', 'Something goes wrong with your request');
   });
-}
+};
+document.getElementById('reload-btn').addEventListener('click', reloadCfg);
 )EOF";
 
 
@@ -170,7 +171,7 @@ void setup() {
   server.enableFsCodeEditor();
 
   // set /setup and /edit page authentication
-  server.setAuthentication("admin", "admin");
+  //server.setAuthentication("admin", "admin");
 
   // Inform user when config.json is saved via /edit or /upload
   server.setConfigSavedCallback(onConfigSaved);

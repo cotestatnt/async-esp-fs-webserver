@@ -98,7 +98,7 @@ bool loadApplicationConfig() {
     File file = server.getConfigFile("r");
     String content = file.readString();
     file.close();
-    AsyncFSWebServer::Json json;
+    CJSON:Json json;
     if (!json.parse(content)) {
       Serial.println(F("Failed to parse JSON configuration."));
       return false;
