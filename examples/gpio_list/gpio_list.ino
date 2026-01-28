@@ -9,6 +9,10 @@ AsyncFsWebServer server(FILESYSTEM, 80);
 unsigned long lastGpioBroadcastMs = 0;
 const unsigned long GPIO_BROADCAST_INTERVAL_MS = 200; 
 
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
 
 // Define a struct for store all info about each gpio
 struct gpio_type {
