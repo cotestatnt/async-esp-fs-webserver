@@ -1,53 +1,33 @@
+
 #include <FS.h>
 #include <LittleFS.h>
-#include <ArduinoJson.h>
 #include <AsyncFsWebServer.h>   // https://github.com/cotestatnt/async-esp-fs-webserver/
 
 #define FILESYSTEM LittleFS
 AsyncFsWebServer server(FILESYSTEM, 80);
 
+unsigned long lastGpioBroadcastMs = 0;
+const unsigned long GPIO_BROADCAST_INTERVAL_MS = 200; 
+
+
 // Define a struct for store all info about each gpio
 struct gpio_type {
-  const char* type;
-  const char* label;
-  int pin;
-  bool level;
+  uint8_t type;
+  uint8_t pin;
+  bool level;  
+  const char* label;  
 };
 
 // Define an array of struct GPIO and initialize with values
 
-/* (ESP32-C3) */
-/*
-gpio_type gpios[NUM_GPIOS] = {
-  {"input", "INPUT 2", 2},
-  {"input", "INPUT 4", 4},
-  {"input", "INPUT 5", 5},
-  {"output", "OUTPUT 6", 6},
-  {"output", "OUTPUT 7", 7},
-  {"output", "LED BUILTIN", 3} // Led ON with signal HIGH
-};
-*/
-
-/* ESP8266 - Wemos D1-mini */
-/*
-  gpio_type gpios[] = {
-  {"input", "INPUT 5", D5},
-  {"input", "INPUT 6", D6},
-  {"input", "INPUT 7", D7},
-  {"output", "OUTPUT 2", D2},
-  {"output", "OUTPUT 3", D3},
-  {"output", "LED BUILTIN", LED_BUILTIN} // Led ON with signal LOW usually
-  };
-*/
-
 /* ESP32 - NodeMCU-32S */
 gpio_type gpios[] = {
-  {"input", "INPUT 18", 18},
-  {"input", "INPUT 19", 19},
-  {"input", "INPUT 21", 21},
-  {"output", "OUTPUT 4", 4},
-  {"output", "OUTPUT 5", 5},
-  {"output", "LED BUILTIN", 2} // Led ON with signal HIGH
+  {INPUT_PULLUP, 0, false, "GPIO 0"},  
+  {INPUT_PULLUP, 2, false, "GPIO 2"},
+  {INPUT_PULLUP, 12, false, "GPIO 12"},
+  {OUTPUT, 4, false, "GPIO 4"},
+  {OUTPUT, 5, false, "GPIO 5"},
+  {OUTPUT, LED_BUILTIN, false, "LED BUILTIN"}
 };
 
 
@@ -86,7 +66,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
 
 void parseMessage(const String json) {
   using namespace AsyncFSWebServer;
-  Json doc;
+  CJSON::Json doc;
   
   if (doc.parse(json)) {
     // If this is a "writeOut" command, set the pin level to value
@@ -115,37 +95,32 @@ void parseMessage(const String json) {
 }
 
 void updateGpioList(AsyncWebServerRequest *request) {
-  // Build JSON array manually since we need an array of objects
-  String json = "[";
-  
-  bool first = true;
+  using namespace AsyncFSWebServer;
+  CJSON::Json doc;
+
+  int index = 0;
   for (gpio_type &gpio : gpios) {
-    if (!first) json += ",";
-    first = false;    
-    json += "{\"type\":\"";
-    json += gpio.type;
-    json += "\",\"pin\":";
-    json += gpio.pin;
-    json += ",\"label\":\"";
-    json += gpio.label;
-    json += "\",\"level\":";
-    json += gpio.level;
-    json += "}";
+    String key = String(index++);
+    doc.ensureObject(key);
+    doc.setNumber(key, "type", gpio.type);
+    doc.setNumber(key, "pin", gpio.pin);
+    doc.setString(key, "label", String(gpio.label));
+    doc.setBool(key, "level", gpio.level);
   }
-  
-  json += "]";
-  
+
+  String json = doc.serialize();
+
   // Update client via websocket
   server.wsBroadcast(json.c_str());
 
   if (request != nullptr)
-    request->send(200, "text/plain", json);
+    request->send(200, "application/json", json);
 }
 
 bool updateGpioState() {
   // Iterate the array of GPIO struct and check level of inputs
   for (gpio_type &gpio : gpios) {
-    if (strcmp(gpio.type, "input") == 0) {
+    if (gpio.type != OUTPUT) {
       // Input value != from last read
       if (digitalRead(gpio.pin) != gpio.level) {
         gpio.level = digitalRead(gpio.pin);
@@ -167,7 +142,8 @@ void setup() {
     //FILESYSTEM.format();
     ESP.restart();
   }
-
+  
+   
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
@@ -191,18 +167,23 @@ void setup() {
   ));
 
   // GPIOs configuration
-  for (gpio_type &gpio : gpios) {
-    if (strcmp(gpio.type, "input") == 0)
-        pinMode(gpio.pin, INPUT_PULLUP);
-    else
-      pinMode(gpio.pin, OUTPUT);
+  for (gpio_type &gpio : gpios) {    
+    pinMode(gpio.pin, gpio.type);    
+    digitalWrite(gpio.pin, gpio.level);
   }
 }
 
 void loop() {
+  updateGpioState();
 
   // True on pin state change
-  if (updateGpioState()) {
-    updateGpioList(nullptr);   // Push new state to web clients via websocket
+  if (updateGpioState()) {    
+    if ( millis() - lastGpioBroadcastMs >= GPIO_BROADCAST_INTERVAL_MS) {
+      lastGpioBroadcastMs =  millis();
+      updateGpioList(nullptr);   // Push new state to web clients via websocket
+    }
   }
+
+  // Small delay to avoid busy loop
+  delay(10);
 }

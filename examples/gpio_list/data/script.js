@@ -80,33 +80,38 @@ function updateGpiosList(elems) {
   const list = document.querySelector('#gpio-list');
   list.innerHTML = "";
 
+  // Nel JSON, "type" è un valore numerico: OUTPUT = 1, INPUT_PULLUP = 2, ecc.
+  const MODE_OUTPUT = 1;
+
   // Draw all input rows
-  const inputs = Object.entries(elems).filter((item) => item[1].type === 'input');
+  const inputs = Object.entries(elems).filter((item) => item[1].type !== MODE_OUTPUT);
 
   inputs.forEach(el => {
     const obj = el[1];
+    const typeLbl = (obj.type === MODE_OUTPUT) ? 'output' : 'input';
     var lbl = obj.level ? `${svgLightOn} HIGH` : `${svgLightOff}  LOW`;
     // Create a single row with all columns
     var row = document.createElement('tr');
 	  row.innerHTML  = '<td>' + obj.label + '</td>';
     row.innerHTML += '<td>' + obj.pin + '</td>';
-    row.innerHTML += '<td style="text-align:center;">' + obj.type + '</td>';
-    row.innerHTML += `<td style="text-align:center;"><label id="pin-${obj}" for="">${lbl}</label></td>` ;
+    row.innerHTML += '<td style="text-align:center;">' + typeLbl + '</td>';
+    row.innerHTML += `<td style="text-align:center;"><label id="pin-${obj.pin}" for="">${lbl}</label></td>` ;
     // Append this row to list
     list.appendChild(row);
   });
 
   // Draw all output rows
-  const outputs = Object.entries(elems).filter((item) => item[1].type === 'output');
+  const outputs = Object.entries(elems).filter((item) => item[1].type === MODE_OUTPUT);
 
   outputs.forEach(el => {
     const obj = el[1];
+    const typeLbl = (obj.type === MODE_OUTPUT) ? 'output' : 'input';
     var lbl = obj.level ? ` checked>Turn OFF` : `>Turn ON`;
     // Create a single row with all columns
     var row = document.createElement('tr');
 	  row.innerHTML  = '<td>' + obj.label + '</td>';
     row.innerHTML += '<td>' + obj.pin + '</td>';
-    row.innerHTML += '<td style="text-align:center;">' + obj.type + '</td>';
+    row.innerHTML += '<td style="text-align:center;">' + typeLbl + '</td>';
     row.innerHTML += `<td><label id="lbl-${obj.pin}" for=""><input type="checkbox" id="pin-${obj.pin}" role="switch" data-pin=${obj.pin}${lbl}</label></td>`;
     // Append this row to list
     list.appendChild(row);
