@@ -45,6 +45,8 @@ struct WiFiConnectParams {
     IPAddress local_ip;
     IPAddress gateway;
     IPAddress subnet;
+    IPAddress dns1;       // Optional primary DNS for static IP
+    IPAddress dns2;       // Optional secondary DNS for static IP
     String host;
     uint32_t timeout = 0;
     uint32_t wdtLongTimeout = 0;

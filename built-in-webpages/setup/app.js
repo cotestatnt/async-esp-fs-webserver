@@ -167,6 +167,11 @@ const getParameters = () => {
       $('about').innerHTML = 'Created with ' + data.liburl;
       configFile = data.path;
 
+            // Pre-fill hostname field in WiFi box with current mDNS name
+            if ($('hostname')) {
+                $('hostname').value = data.hostname || '';
+            }
+
       fetch(`${esp}${configFile}`).then(r => r.json()).then(cfg => {
           if (cfg['img-logo']) {
               const logoPath = cfg['img-logo'];
@@ -336,8 +341,15 @@ window.applyCredential = (cred) => {
         $('ip').value = cred.ip;
         $('gateway').value = cred.gateway;
         $('subnet').value = cred.subnet;
+        $('dns1').value = cred.dns1 || '';
+        $('dns2').value = cred.dns2 || '';
     } else {
         hide('conf-wifi');
+        $('ip').value = '';
+        $('gateway').value = '';
+        $('subnet').value = '';
+        $('dns1').value = '';
+        $('dns2').value = '';
     }
     $('password').value = '';
 };
@@ -353,6 +365,8 @@ function saveParameters() {
       delete options.ip_address;
       delete options.gateway;
       delete options.subnet;
+      delete options.dns1;
+      delete options.dns2;
   }
   
   const blob = new Blob([JSON.stringify(options, null, 2)], { type: 'application/json' });
@@ -402,11 +416,17 @@ function doConnection(e, isRetry) {
   f.append("ssid", ssid);
   f.append("password", pass);
   f.append("persistent", $('persistent').checked);
+    const host = $('hostname') ? $('hostname').value.trim() : '';
+    if (host) f.append("hostname", host);
   // UPDATE: Logic using ID dhcp
   if(!$('dhcp').checked) {
       f.append("ip_address", $('ip').value);
       f.append("gateway", $('gateway').value);
       f.append("subnet", $('subnet').value);
+      const dns1 = $('dns1').value.trim();
+      const dns2 = $('dns2').value.trim();
+      if (dns1) f.append("dns1", dns1);
+      if (dns2) f.append("dns2", dns2);
   }
   if (isRetry) f.append("newSSID", true);
 

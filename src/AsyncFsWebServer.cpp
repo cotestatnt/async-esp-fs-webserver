@@ -101,7 +101,6 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
                 }
             }
         }
-        Serial.println(json_array.serialize());
         request->send(200, "application/json", json_array.serialize());
     });
     // Delete a single credential (by index) or clear all if no index is provided
@@ -427,39 +426,69 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 }
 
 void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
-    String ssid, pass;
-    IPAddress gateway, subnet, local_ip;
-    bool noDHCP = false;
-    bool newSSID = false;
+    // Use WiFiConnectParams as the main container for all connection options
+    WiFiConnectParams params;
+    String requestedHost;   // Optional hostname provided by the setup UI
 
+    // Optional static IP configuration
     if (request->hasArg("ip_address") && request->hasArg("subnet") && request->hasArg("gateway")) {
-        gateway.fromString(request->arg("gateway"));
-        subnet.fromString(request->arg("subnet"));
-        local_ip.fromString(request->arg("ip_address"));
-        noDHCP = true;
+        params.gateway.fromString(request->arg("gateway"));
+        params.subnet.fromString(request->arg("subnet"));
+        params.local_ip.fromString(request->arg("ip_address"));
+        params.noDHCP = true;
         log_debug("Static IP requested: %s, GW: %s, SN: %s",
-                 local_ip.toString().c_str(),
-                 gateway.toString().c_str(),
-                 subnet.toString().c_str());
+                 params.local_ip.toString().c_str(),
+                 params.gateway.toString().c_str(),
+                 params.subnet.toString().c_str());
+    } else {
+        params.noDHCP = false;
     }
 
+    // Optional per-SSID DNS configuration (if provided by client)
+    if (request->hasArg("dns1")) {
+        params.dns1.fromString(request->arg("dns1"));
+    } else {
+        params.dns1 = IPAddress(0, 0, 0, 0);
+    }
+
+    if (request->hasArg("dns2")) {
+        params.dns2.fromString(request->arg("dns2"));
+    } else {
+        params.dns2 = IPAddress(0, 0, 0, 0);
+    }
+
+    // Optional hostname override (for mDNS / shared hostname, max 32 chars)
+    if (request->hasArg("hostname")) {
+        requestedHost = request->arg("hostname");
+        requestedHost.trim();
+        if (requestedHost.length() > 32) {
+            requestedHost.remove(32); // limit to 32 chars
+        }
+        if (requestedHost.length()) {
+            m_host = requestedHost;
+            if (m_credentialManager) {
+                m_credentialManager->setHostname(m_host.c_str());
+            }
+        }
+    }
+
+    // Basic WiFi credentials
     if (request->hasArg("ssid"))
-        ssid = request->arg("ssid");
+        params.ssid = request->arg("ssid");
 
     if (request->hasArg("password"))
-        pass = request->arg("password");    
+        params.password = request->arg("password");
 
-    if (request->hasArg("newSSID")) {
-        newSSID = true;
-    }
+    // Flag for forcing a new SSID selection (captive portal use-case)
+    params.changeSSID = request->hasArg("newSSID");
 
     // If no password provided but a stored credential exists for this SSID,
     // reuse the stored password without exposing it to the client.
-    if (pass.length() == 0 && ssid.length() && m_credentialManager &&
-        m_credentialManager->checkSSIDExists(ssid.c_str())) {
-        String stored = m_credentialManager->getPassword(ssid.c_str());
+    if (params.password.length() == 0 && params.ssid.length() && m_credentialManager &&
+        m_credentialManager->checkSSIDExists(params.ssid.c_str())) {
+        String stored = m_credentialManager->getPassword(params.ssid.c_str());
         if (stored.length()) {
-            pass = stored;
+            params.password = stored;
         }
     }
 
@@ -467,26 +496,31 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     bool persistent = hasPersistentArg ? request->arg("persistent").equals("true") : true;
 
     if (hasPersistentArg) {
-        WiFiService::applyPersistentConfig(persistent, ssid, pass);
+        WiFiService::applyPersistentConfig(persistent, params.ssid, params.password);
     }
 
-    if (persistent && ssid.length() && pass.length() && m_credentialManager) {
+    // Persist this SSID (and its optional static IP/DNS) if requested
+    if (persistent && params.ssid.length() && params.password.length() && m_credentialManager) {
         WiFiCredential cred{};
-        strncpy(cred.ssid, ssid.c_str(), sizeof(cred.ssid) - 1);
+        strncpy(cred.ssid, params.ssid.c_str(), sizeof(cred.ssid) - 1);
         cred.ssid[sizeof(cred.ssid) - 1] = '\0';
 
-        if (noDHCP) {
-            cred.local_ip = local_ip;
-            cred.gateway = gateway;
-            cred.subnet = subnet;
+        if (params.noDHCP) {
+            cred.local_ip = params.local_ip;
+            cred.gateway = params.gateway;
+            cred.subnet = params.subnet;
+            cred.dns1 = params.dns1;
+            cred.dns2 = params.dns2;
         } else {
             cred.local_ip = IPAddress(0, 0, 0, 0);
             cred.gateway = IPAddress(0, 0, 0, 0);
             cred.subnet = IPAddress(0, 0, 0, 0);
+            cred.dns1 = IPAddress(0, 0, 0, 0);
+            cred.dns2 = IPAddress(0, 0, 0, 0);
         }
 
-        if (!m_credentialManager->updateCredential(cred, pass.c_str())) {
-            m_credentialManager->addCredential(cred, pass.c_str());
+        if (!m_credentialManager->updateCredential(cred, params.password.c_str())) {
+            m_credentialManager->addCredential(cred, params.password.c_str());
         }
     #if defined(ESP32)
         m_credentialManager->saveToNVS();
@@ -495,17 +529,9 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     #endif
     }
 
-    WiFiConnectParams params;
-    params.ssid = ssid;
-    params.password = pass;
-    params.changeSSID = newSSID;
-    params.noDHCP = noDHCP;
-    // Remember if this /connect was requested while we are
-    // serving the captive portal (AP mode).
+    // Remember if this /connect was requested while we are serving the
+    // captive portal (AP mode).
     params.fromApClient = m_isApMode;
-    params.local_ip = local_ip;
-    params.gateway = gateway;
-    params.subnet = subnet;
     params.host = m_host;
     params.timeout = m_timeout;
     params.wdtLongTimeout = AWS_LONG_WDT_TIMEOUT;
@@ -641,6 +667,14 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
         log_debug("%s", m_credentialManager->getDebugInfo().c_str());
     }
 #endif
+
+    // If a shared hostname was stored in CredentialManager, prefer it
+    if (m_credentialManager) {
+        String storedHost = m_credentialManager->getHostname();
+        if (storedHost.length()) {
+            m_host = storedHost;
+        }
+    }
 
     WiFiStartResult result = WiFiService::startWiFi(m_credentialManager, m_filesystem, ESP_FS_WS_CONFIG_FILE, timeout);
     if (result.action == WiFiStartAction::Connected) {

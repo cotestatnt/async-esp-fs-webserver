@@ -184,6 +184,11 @@ class AsyncFsWebServer : public AsyncWebServer
       // Set hostname if provided from constructor
       if (strlen(hostname))
         m_host = hostname;
+
+      // Sync hostname into shared CredentialManager
+      if (m_credentialManager) {
+        m_credentialManager->setHostname(m_host.c_str());
+      }
       
 #ifdef ESP32
         // Auto-configure getFsInfo for ESP32 filesystems
@@ -317,6 +322,11 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     bool startWiFi(uint32_t timeout, CallbackF fn=nullptr) ;
 
+    /**
+     * @brief Access shared CredentialManager instance (for advanced configuration)
+     */
+    inline CredentialManager* getCredentialManager() { return m_credentialManager; }
+
 
     [[deprecated("Use startWiFi(timeout) and if it fails, use startCaptivePortal(ssid, pswd) instead.")]]
     IPAddress startWiFi(uint32_t timeout, const char* ssid, const char* pswd, CallbackF fn = nullptr, const char* redirectTargetURL = nullptr) {
@@ -395,6 +405,9 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     inline void setHostname(const char * host) {
       m_host = host;
+      if (m_credentialManager) {
+        m_credentialManager->setHostname(host);
+      }
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////

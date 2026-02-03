@@ -113,7 +113,20 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
 
         if (params.noDHCP) {
             log_info("Manual config WiFi connection with IP: %s", params.local_ip.toString().c_str());
-            if (!WiFi.config(params.local_ip, params.gateway, params.subnet)) {
+
+            bool hasDns1 = params.dns1 != IPAddress(0, 0, 0, 0);
+            bool hasDns2 = params.dns2 != IPAddress(0, 0, 0, 0);
+
+            bool ok = false;
+            if (hasDns1 && hasDns2) {
+                ok = WiFi.config(params.local_ip, params.gateway, params.subnet, params.dns1, params.dns2);
+            } else if (hasDns1) {
+                ok = WiFi.config(params.local_ip, params.gateway, params.subnet, params.dns1);
+            } else {
+                ok = WiFi.config(params.local_ip, params.gateway, params.subnet);
+            }
+
+            if (!ok) {
                 log_error("STA Failed to configure");
             }
         }
@@ -203,8 +216,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
 WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs::FS* filesystem, const char* configFile, uint32_t timeout) {
     WiFiStartResult result;
     WiFi.mode(WIFI_STA);
-    String _ssid = "";
-    String _pass = "";
+    WiFiCredential* bestCred = nullptr;
 
     if (credentialManager) {
 #ifdef ESP32
@@ -212,14 +224,13 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
 #else
         credentialManager->loadFromFS();
 #endif
-
+        
         std::vector<WiFiCredential>* creds = credentialManager->getCredentials();
         if (creds && creds->size() > 0) {
             int networksFound = WiFi.scanNetworks();
             if (networksFound > 0) {
                 int32_t bestRSSI = -200;
-                WiFiCredential* bestCred = nullptr;
-
+                
                 for (int i = 0; i < networksFound; i++) {
                     String scannedSSID = WiFi.SSID(i);
                     int32_t scannedRSSI = WiFi.RSSI(i);
@@ -228,8 +239,6 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                             if (scannedRSSI > bestRSSI) {
                                 bestRSSI = scannedRSSI;
                                 bestCred = &(*creds)[j];
-                                _ssid = bestCred->ssid;
-                                _pass = credentialManager->getPassword(bestCred->ssid);
                             }
                             break;
                         }
@@ -244,7 +253,23 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                                  bestCred->local_ip.toString().c_str(),
                                  bestCred->gateway.toString().c_str(),
                                  bestCred->subnet.toString().c_str());
-                        if (!WiFi.config(bestCred->local_ip, bestCred->gateway, bestCred->subnet)) {
+
+                        IPAddress dns1 = bestCred->dns1;
+                        IPAddress dns2 = bestCred->dns2;
+
+                        bool hasDns1 = dns1 != IPAddress(0, 0, 0, 0);
+                        bool hasDns2 = dns2 != IPAddress(0, 0, 0, 0);
+
+                        bool ok = false;
+                        if (hasDns1 && hasDns2) {
+                            ok = WiFi.config(bestCred->local_ip, bestCred->gateway, bestCred->subnet, dns1, dns2);
+                        } else if (hasDns1) {
+                            ok = WiFi.config(bestCred->local_ip, bestCred->gateway, bestCred->subnet, dns1);
+                        } else {
+                            ok = WiFi.config(bestCred->local_ip, bestCred->gateway, bestCred->subnet);
+                        }
+
+                        if (!ok) {
                             log_error("Failed to configure static IP");
                         }
                     }
@@ -297,9 +322,10 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
         }
     }
 
-    if (_ssid.length() > 0) {
-        WiFi.begin(_ssid.c_str(), _pass.c_str());
-        log_debug("Connecting to %s, %s", _ssid.c_str(), _pass.c_str());
+    if (bestCred && strlen(bestCred->ssid)) {
+        WiFi.setHostname(credentialManager->getHostname().c_str());
+        WiFi.begin(bestCred->ssid, credentialManager->getPassword(bestCred->ssid).c_str());
+        log_debug("Connecting to %s", bestCred->ssid);
 
         int tryDelay = timeout / 10;
         int numberOfTries = 10;

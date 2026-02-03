@@ -7,10 +7,11 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const minify = require('@node-minify/core');
-const terser = require('@node-minify/terser');
-const cssnano = require('@node-minify/cssnano');
-const htmlMinifier = require('@node-minify/html-minifier');
+// node-minify v10+: CommonJS usage requires named exports
+const { minify } = require('@node-minify/core');
+const { terser } = require('@node-minify/terser');
+const { cssnano } = require('@node-minify/cssnano');
+const { htmlMinifier } = require('@node-minify/html-minifier');
 const converter = require('./stringConverter');
 const { createGzip, constants } = require('zlib');
 const { pipeline } = require('stream');
