@@ -113,10 +113,8 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
 
         if (params.noDHCP) {
             log_info("Manual config WiFi connection with IP: %s", params.local_ip.toString().c_str());
-
             bool hasDns1 = params.dns1 != IPAddress(0, 0, 0, 0);
             bool hasDns2 = params.dns2 != IPAddress(0, 0, 0, 0);
-
             bool ok = false;
             if (hasDns1 && hasDns2) {
                 ok = WiFi.config(params.local_ip, params.gateway, params.subnet, params.dns1, params.dns2);
@@ -129,8 +127,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
             if (!ok) {
                 log_error("STA Failed to configure");
             }
-        }
-        
+        }        
 
         DBG_OUTPUT_PORT.print("\n\n\nConnecting to ");
         DBG_OUTPUT_PORT.println(params.ssid);
@@ -223,8 +220,7 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
         credentialManager->loadFromNVS();
 #else
         credentialManager->loadFromFS();
-#endif
-        
+#endif        
         std::vector<WiFiCredential>* creds = credentialManager->getCredentials();
         if (creds && creds->size() > 0) {
             int networksFound = WiFi.scanNetworks();
@@ -244,7 +240,6 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                         }
                     }
                 }
-
                 WiFi.scanDelete();
 
                 if (bestCred != nullptr) {
@@ -256,10 +251,8 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
 
                         IPAddress dns1 = bestCred->dns1;
                         IPAddress dns2 = bestCred->dns2;
-
                         bool hasDns1 = dns1 != IPAddress(0, 0, 0, 0);
                         bool hasDns2 = dns2 != IPAddress(0, 0, 0, 0);
-
                         bool ok = false;
                         if (hasDns1 && hasDns2) {
                             ok = WiFi.config(bestCred->local_ip, bestCred->gateway, bestCred->subnet, dns1, dns2);
@@ -273,11 +266,10 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                             log_error("Failed to configure static IP");
                         }
                     }
-
-                    String plainPassword = credentialManager->getPassword(bestCred->ssid);
-                    if (plainPassword.length() > 0) {
+                    
+                    if (credentialManager->getPassword(bestCred->ssid).length() > 0) {
                         log_info("Connecting to %s (RSSI: %d dBm)...", bestCred->ssid, bestRSSI);
-                        WiFi.begin(bestCred->ssid, plainPassword.c_str());
+                        WiFi.begin(bestCred->ssid, credentialManager->getPassword(bestCred->ssid).c_str());
 
                         int tryDelay = timeout / 10;
                         int numberOfTries = 10;
@@ -316,7 +308,6 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                     }
                 }
             }
-
             result.action = WiFiStartAction::StartAp;
             return result;
         }
@@ -376,21 +367,9 @@ bool WiFiService::startAccessPoint(WiFiConnectParams& params, IPAddress& outIp) 
     delay(100);
     WiFi.mode(WIFI_AP);
 
-    IPAddress apIP(192, 168, 4, 1);
-    IPAddress gateway(192, 168, 4, 1);
-    IPAddress netmask(255, 255, 255, 0);
-
-    if (params.local_ip != IPAddress(0,0,0,0)) {
-        apIP = params.local_ip;        
-    }
-
-    if (params.gateway != IPAddress(0,0,0,0)) {     
-        gateway = params.gateway;
-    }
-
-    if (params.subnet != IPAddress(0,0,0,0)) {
-        netmask = params.subnet;
-    }
+    IPAddress apIP = params.local_ip ? params.local_ip : IPAddress(192, 168, 4, 1);
+    IPAddress gateway = params.gateway ? params.gateway : IPAddress(192, 168, 4, 1);
+    IPAddress netmask = params.subnet ? params.subnet : IPAddress(255, 255, 255, 0);
 
     // Configure AP IP parameters
     WiFi.softAPConfig(apIP, gateway, netmask);

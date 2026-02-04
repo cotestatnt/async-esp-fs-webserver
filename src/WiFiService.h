@@ -35,29 +35,27 @@ struct WiFiStartResult {
 };
 
 struct WiFiConnectParams {
+    bool fromApClient = false;                  // True if the /connect request was initiated by a client
+    bool changeSSID = false;                    // True to force SSID selection even if already connected
+    bool noDHCP = false;                        // True to use static IP configuration
+    IPAddress local_ip = IPAddress(0, 0, 0, 0);
+    IPAddress gateway = IPAddress(0, 0, 0, 0);
+    IPAddress subnet = IPAddress(0, 0, 0, 0);
+    IPAddress dns1 = IPAddress(0, 0, 0, 0);       // Optional primary DNS for static IP
+    IPAddress dns2 = IPAddress(0, 0, 0, 0);       // Optional secondary DNS for static IP    
+    uint32_t timeout = 0;                         // Connection timeout in milliseconds
+    uint32_t wdtLongTimeout = 0;                  // Long WDT timeout in milliseconds 
+    uint32_t wdtTimeout = 0;                      // Regular WDT timeout in milliseconds
     String ssid;
     String password;
-    bool changeSSID = false;
-    bool noDHCP = false;
-    // True if the /connect request was initiated by a client
-    // connected to the ESP's own AP (captive portal).
-    bool fromApClient = false;
-    IPAddress local_ip;
-    IPAddress gateway;
-    IPAddress subnet;
-    IPAddress dns1;       // Optional primary DNS for static IP
-    IPAddress dns2;       // Optional secondary DNS for static IP
     String host;
-    uint32_t timeout = 0;
-    uint32_t wdtLongTimeout = 0;
-    uint32_t wdtTimeout = 0;
 };
 
 struct WiFiConnectResult {
-    int status = 500;
-    String body;
     bool connected = false;
+    int status = 500;    
     IPAddress ip = IPAddress(0, 0, 0, 0);
+    String body;
 };
 
 class WiFiService {

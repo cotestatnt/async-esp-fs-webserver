@@ -427,7 +427,7 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 
 void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     // Use WiFiConnectParams as the main container for all connection options
-    WiFiConnectParams params;
+    WiFiConnectParams params = WiFiConnectParams(); // Inizializza tutti i campi della struct a valori di default
     String requestedHost;   // Optional hostname provided by the setup UI
 
     // Optional static IP configuration
@@ -440,22 +440,14 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
                  params.local_ip.toString().c_str(),
                  params.gateway.toString().c_str(),
                  params.subnet.toString().c_str());
-    } else {
-        params.noDHCP = false;
     }
 
     // Optional per-SSID DNS configuration (if provided by client)
-    if (request->hasArg("dns1")) {
+    if (request->hasArg("dns1")) 
         params.dns1.fromString(request->arg("dns1"));
-    } else {
-        params.dns1 = IPAddress(0, 0, 0, 0);
-    }
 
-    if (request->hasArg("dns2")) {
+    if (request->hasArg("dns2")) 
         params.dns2.fromString(request->arg("dns2"));
-    } else {
-        params.dns2 = IPAddress(0, 0, 0, 0);
-    }
 
     // Optional hostname override (for mDNS / shared hostname, max 32 chars)
     if (request->hasArg("hostname")) {
