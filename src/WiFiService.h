@@ -61,7 +61,6 @@ struct WiFiConnectResult {
 class WiFiService {
 public:
     static void setTaskWdt(uint32_t timeout);
-    static void applyPersistentConfig(bool persistentEnabled, const String& ssid, const String& pass);
     static WiFiScanResult scanNetworks();
     static WiFiConnectResult connectWithParams(const WiFiConnectParams& params);
     static WiFiStartResult startWiFi(CredentialManager* credentialManager, fs::FS* filesystem, const char* configFile, uint32_t timeout);    

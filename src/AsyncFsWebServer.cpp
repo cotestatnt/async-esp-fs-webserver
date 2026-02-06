@@ -91,11 +91,22 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
                     CJSON::Json item;
                     item.setNumber("index", static_cast<int>(i));
                     item.setString("ssid", c.ssid);
+
+                    // Static network configuration (if present)
                     if (c.local_ip != IPAddress(0, 0, 0, 0)) {
                         item.setString("ip", c.local_ip.toString());
                         item.setString("gateway", c.gateway.toString());
                         item.setString("subnet", c.subnet.toString());
+
+                        // Optional per-SSID DNS configuration
+                        if (c.dns1 != IPAddress(0, 0, 0, 0)) {
+                            item.setString("dns1", c.dns1.toString());
+                        }
+                        if (c.dns2 != IPAddress(0, 0, 0, 0)) {
+                            item.setString("dns2", c.dns2.toString());
+                        }
                     }
+
                     item.setNumber("hasPassword", c.password_len > 0 ? 1 : 0);
                     json_array.add(item);
                 }
@@ -467,7 +478,6 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     // Basic WiFi credentials
     if (request->hasArg("ssid"))
         params.ssid = request->arg("ssid");
-
     if (request->hasArg("password"))
         params.password = request->arg("password");
 
@@ -484,15 +494,26 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         }
     }
 
+    // Track if we had a working STA connection before this /connect.
+    // This is used to optionally restore the previous connection if the
+    // new one fails (e.g. wrong password), so the ESP does not remain unreachable indefinitely.
+    bool wasStaConnected = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP);
+    // By default, new credentials will be persisted to survive reboots, but the client can disable this if they want a temporary connection.
     bool hasPersistentArg = request->hasArg("persistent");
     bool persistent = hasPersistentArg ? request->arg("persistent").equals("true") : true;
+    WiFi.persistent(hasPersistentArg ? persistent : true);  // Set WiFi persistence based on client request (default true)
 
-    if (hasPersistentArg) {
-        WiFiService::applyPersistentConfig(persistent, params.ssid, params.password);
-    }
+    // Remember if this /connect was requested while we are serving the captive portal (AP mode).
+    params.fromApClient = m_isApMode;
+    params.host = m_host;
+    params.timeout = m_timeout;
+    params.wdtLongTimeout = AWS_LONG_WDT_TIMEOUT;
+    params.wdtTimeout = AWS_WDT_TIMEOUT;
+    WiFiConnectResult result = WiFiService::connectWithParams(params);
 
-    // Persist this SSID (and its optional static IP/DNS) if requested
-    if (persistent && params.ssid.length() && params.password.length() && m_credentialManager) {
+    // Persist this SSID (and its optional static IP/DNS) only after a successful connection, 
+    // to avoid storing wrong passwords or unreachable static configurations.
+    if (result.connected && persistent && params.ssid.length() && params.password.length() && m_credentialManager) {
         WiFiCredential cred{};
         strncpy(cred.ssid, params.ssid.c_str(), sizeof(cred.ssid) - 1);
         cred.ssid[sizeof(cred.ssid) - 1] = '\0';
@@ -510,7 +531,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             cred.dns1 = IPAddress(0, 0, 0, 0);
             cred.dns2 = IPAddress(0, 0, 0, 0);
         }
-
+        // Update existing credential if SSID already exists, otherwise add new credential
         if (!m_credentialManager->updateCredential(cred, params.password.c_str())) {
             m_credentialManager->addCredential(cred, params.password.c_str());
         }
@@ -521,20 +542,18 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     #endif
     }
 
-    // Remember if this /connect was requested while we are serving the
-    // captive portal (AP mode).
-    params.fromApClient = m_isApMode;
-    params.host = m_host;
-    params.timeout = m_timeout;
-    params.wdtLongTimeout = AWS_LONG_WDT_TIMEOUT;
-    params.wdtTimeout = AWS_WDT_TIMEOUT;
-
-    WiFiConnectResult result = WiFiService::connectWithParams(params);
+    // Set server IP to STA IP if connected, otherwise keep AP IP (for captive portal or fallback)
     if (result.connected) {
         m_serverIp = result.ip;
-        delay(500);  // Give client time to receive response before system changes
     }
-
+    // If we had a valid STA connection before and this new connection failed, 
+    // fall back directly to AP/captive portal mode so the ESP remains reachable even with wrong/invalid credentials.
+    else if (wasStaConnected && !params.fromApClient && strlen(m_apSSID) > 0) {
+        log_info("WiFi connect failed, starting AP mode: SSID=%s", m_apSSID);
+        startCaptivePortal(m_apSSID, m_apPassword, "/setup");
+    }
+    // Send the connection result back to the client (success or failure)
+    log_debug("WiFi connect result body: %s", result.body.c_str());
     const char* contentType = (result.status == 200) ? "text/html" : "text/plain";
     request->send(result.status, contentType, result.body);
 }

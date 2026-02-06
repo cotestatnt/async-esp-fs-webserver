@@ -1,6 +1,30 @@
 #include "WiFiService.h"
 #include "Json.h"
 
+// Helper: log the actual station network configuration as seen by the core
+// (independent from WiFiConnectParams / CredentialManager values).
+static void logCurrentStaNetworkConfig() {
+#if defined(ESP8266) || defined(ESP32)
+    auto mode = WiFi.getMode();
+    if (mode != WIFI_STA && mode != WIFI_AP_STA) {
+        return;
+    }
+
+    IPAddress ip   = WiFi.localIP();
+    IPAddress gw   = WiFi.gatewayIP();
+    IPAddress mask = WiFi.subnetMask();
+    IPAddress dns1 = WiFi.dnsIP(0);
+    IPAddress dns2 = WiFi.dnsIP(1);
+
+    log_info("[WiFi] Core STA config: IP=%s GW=%s SN=%s DNS1=%s DNS2=%s",
+             ip.toString().c_str(),
+             gw.toString().c_str(),
+             mask.toString().c_str(),
+             dns1.toString().c_str(),
+             dns2.toString().c_str());
+#endif
+}
+
 #if defined(ESP32)
 static inline void resetTaskWdtIfSubscribed() {
     if (esp_task_wdt_status(NULL) == ESP_OK) {
@@ -27,14 +51,6 @@ void WiFiService::setTaskWdt(uint32_t timeout) {
     ESP.wdtDisable();
     ESP.wdtEnable(timeout);
 #endif
-}
-
-void WiFiService::applyPersistentConfig(bool persistentEnabled, const String& ssid, const String& pass) {
-    if (!persistentEnabled) {
-        WiFi.persistent(false);
-        return;
-    }
-    WiFi.persistent(true);
 }
 
 WiFiScanResult WiFiService::scanNetworks() {
@@ -159,6 +175,10 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
         if (WiFi.status() == WL_CONNECTED) {
             result.ip = WiFi.localIP();
             result.connected = true;
+
+            // Debug: print the actual STA configuration as seen by the core
+            logCurrentStaNetworkConfig();
+
             DBG_OUTPUT_PORT.print("\nConnected to ");
             DBG_OUTPUT_PORT.print(params.ssid);
             DBG_OUTPUT_PORT.print(". IP address: ");
@@ -285,6 +305,8 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                                 return result;
                             case WL_CONNECTED:
                                 log_debug("[WiFi] WiFi is connected!  IP address: %s", WiFi.localIP().toString().c_str());
+                                // Debug: print the actual STA configuration as seen by the core
+                                logCurrentStaNetworkConfig();
                                 result.ip = WiFi.localIP();
                                 result.action = WiFiStartAction::Connected;
                                 return result;
@@ -333,6 +355,8 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
                 return result;
             case WL_CONNECTED:
                 log_debug("[WiFi] WiFi is connected!  IP address: %s", WiFi.localIP().toString().c_str());
+                // Debug: print the actual STA configuration as seen by the core
+                logCurrentStaNetworkConfig();
                 result.ip = WiFi.localIP();
                 result.action = WiFiStartAction::Connected;
                 return result;

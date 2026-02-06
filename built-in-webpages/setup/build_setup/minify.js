@@ -1,7 +1,7 @@
 // Finalize Nodejs Script
 // 1 - Append JS in HTML Document
 // 2 - Gzip HTML
-// 3 - Covert to Raw Bytes
+// 3 - Convert to Raw Bytes
 // 4 - ( Save to File: webpage.h ) in dist Folder
 
 const fs = require('fs');
@@ -17,8 +17,8 @@ const { createGzip, constants } = require('zlib');
 const { pipeline } = require('stream');
 const { createReadStream, createWriteStream } = require('fs');
 
-// Directory di output per i file .h generati
-// Percorso: repo-root/src/assets (relativo alla posizione di questo script)
+// Output folder for the generated .h files
+// Path: repo-root/src/assets (relative to the location of this script)
 const outputDir = path.resolve(__dirname, '../../../src/assets');
 
 function askOverwrite(filePath) {
@@ -66,8 +66,6 @@ async function build() {
     console.log('App JS minified');
 
     // 2. Minify JS (Creds)
-    // IMPORTANTE: non applichiamo applyMangle qui, per non rompere
-    // le funzioni globali e la logica condivisa con app.js.
     await minify({
       compressor: terser,
       input: '../creds.js',
