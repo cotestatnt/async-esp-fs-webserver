@@ -64,8 +64,6 @@ class SetupConfigurator
                 
                 // Create empty m_doc - will be populated in addOption() in the setup order
                 m_doc = new CJSON::Json();
-                m_doc->setString("wifi-box", "");
-                m_doc->setBool("dhcp", false);
                 
                 m_opened = true;
                 return true;
@@ -90,7 +88,7 @@ class SetupConfigurator
                     log_error("Error. File %s not created", ESP_FS_WS_CONFIG_FILE);
                     return false;
                 }
-                file.println("{\"wifi-box\": \"\", \"dhcp\": false}");
+                file.println("{}");
                 file.close();
             }
             log_debug("Config file %s OK", ESP_FS_WS_CONFIG_FILE);
@@ -176,6 +174,13 @@ class SetupConfigurator
                 return;
             }
             optionToFile(filename.c_str(), logo, overwrite);
+            addOption("img-logo", filename.c_str());
+        }
+
+        void setLogoSVG(const char* svg, bool overwrite = false) {
+            String filename = ESP_FS_WS_CONFIG_FOLDER;
+            filename += "/logo.svg";
+            optionToFile(filename.c_str(), svg, overwrite);
             addOption("img-logo", filename.c_str());
         }
 

@@ -1,5 +1,5 @@
 // UI Icons (Unicode)
-const ICONS = {
+const ICONS = { 
     lock: '🔒', unlock: '🔓', scan: '📡', connect: '📶',
     save: '💾', restart: '↻', eye: '🐵', noEye: '🙈',
     menu: '☰', del: '🗑️', clear: '✖', upload: '➜'
@@ -64,9 +64,6 @@ window.addEventListener('load', () => {
     getParameters();
     // loadCredentials called inside getParameters
 
-    const tpl = $('logo-tpl');
-    if (tpl) $('img-logo').appendChild(tpl.content.cloneNode(true));
-
     $('main-box').addEventListener('change', handleInputChange);
     $('main-box').addEventListener('input', (e) => {
         if (e.target.type === 'range' && e.target.classList.contains('opt-input')) {
@@ -108,7 +105,7 @@ window.addEventListener('load', () => {
         });
     }
 
-    // UPDATE: Listener per #dhcp
+    // DHCP toggle listener
     $('dhcp').onchange = function () {
         const action = this.checked ? 'add' : 'remove'; // Checked = Hide IP fields
         ['conf-wifi'].forEach(id => $(id)?.classList[action]('hide'));
@@ -175,25 +172,25 @@ const getParameters = () => {
                 $('hostname').value = data.hostname || '';
             }
 
+            // Custom logo and page title support 
             fetch(`${esp}${configFile}`).then(r => r.json()).then(cfg => {
-                if (cfg['img-logo']) {
-                    const logoPath = cfg['img-logo'];
-                    fetch(logoPath).then(r => r.text()).then(b64 => {
-                        const s = logoPath.replace(/[^\d_]/g, '').split('_');
-                        const img = newEl('img', { class: 'logo', src: `data:image/png;base64,${b64}`, style: `width:${s[0] || 64}px;height:${s[1] || 64}px` });
-                        $('img-logo').innerHTML = ''; $('img-logo').appendChild(img);
-                    });
-                    delete cfg['img-logo'];
+                const logoImg = $('img-logo')?.querySelector('img');
+                if (logoImg) {
+                    // Set logo source from config or use default
+                    logoImg.src = cfg['img-logo'] || 'config/logo.svg';
+                    // Remove loading class to show logo after src is set
+                    $('img-logo')?.classList.remove('loading');
+                    if (cfg['img-logo']) delete cfg['img-logo'];
                 }
-                if (cfg['name-logo']) {
-                    const safeName = cfg['name-logo'].replace(/(<([^>]+)>)/ig, '');
-                    $('name-logo').innerHTML = safeName; document.title = safeName;
-                    delete cfg['name-logo'];
+                if (cfg['page-title']) {
+                    const safeName = cfg['page-title'].replace(/(<([^>]+)>)/ig, '');
+                    $('page-title').innerHTML = safeName; document.title = safeName;
+                    delete cfg['page-title'];
                 }
                 options = cfg;
                 createOptionsBox(options);
                 hide('loader');
-                // UPDATE: Load credentials AFTER base config
+                // Load credentials after base config
                 loadCredentials();
             });
         });
@@ -267,15 +264,14 @@ const createNewBox = (idx, lbl) => {
 };
 
 const createOptionsBox = (raw) => {
-    // UPDATE: Logic ID dhcp
-    const isDhcp = raw.hasOwnProperty('dhcp') ? raw.dhcp : true;
-    $('dhcp').checked = isDhcp;
-    // If keys are missing (cleanup), they will be empty strings
-    ['ip', 'gateway', 'subnet'].forEach(k => $(k).value = raw[k === 'ip' ? 'ip_address' : k] || '');
-
-    // IsDhcp true -> Hide fields
-    const action = isDhcp ? 'add' : 'remove';
-    ['conf-wifi'].forEach(id => $(id)?.classList[action]('hide'));
+    // WiFi configuration is now handled by CredentialManager, not config.json
+    // Remove any legacy WiFi keys if present
+    delete raw.dhcp;
+    delete raw.ip_address;
+    delete raw.gateway;
+    delete raw.subnet;
+    delete raw.dns1;
+    delete raw.dns2;
 
     let nest = {};
     let boxId = 'wifi-box';
@@ -328,12 +324,12 @@ const loadCredentials = async () => {
     } catch (e) { console.error(e); }
 };
 
-// UPDATE: Global Function for creds.js logic
+// Global function for credentials.js logic
 window.applyCredential = (cred) => {
     $('ssid').value = cred.ssid || '';
     $('ssid-name').textContent = cred.ssid || 'SSID';
 
-    // IP presente e != 0.0.0.0 -> Static IP -> NO DHCP
+    // Check if credential has static IP (non-zero IP means static config)
     const isStatic = cred.ip && cred.ip !== '0.0.0.0';
     const isDhcp = !isStatic;
 
@@ -410,7 +406,7 @@ function getWiFiList() {
     }).catch(() => hide('loader'));
 }
 
-function doConnection(e, isRetry) {
+function doConnection(e, skipConfirm) {
     const ssid = $('ssid').value;
     const pass = $('password').value;
     if (!ssid || (!pass && !hasStoredCredentialFor(ssid))) return openModal('WiFi', 'Insert SSID & Password');
@@ -421,7 +417,7 @@ function doConnection(e, isRetry) {
     f.append("persistent", $('persistent').checked);
     const host = $('hostname') ? $('hostname').value.trim() : '';
     if (host) f.append("hostname", host);
-    // UPDATE: Logic using ID dhcp
+    // Static IP configuration when DHCP is disabled
     if (!$('dhcp').checked) {
         f.append("ip_address", $('ip').value);
         f.append("gateway", $('gateway').value);
@@ -431,33 +427,29 @@ function doConnection(e, isRetry) {
         if (dns1) f.append("dns1", dns1);
         if (dns2) f.append("dns2", dns2);
     }
-    if (isRetry) f.append("newSSID", true);
+    if (skipConfirm) f.append("confirmed", "true");
 
     show('loader');
     fetch('/connect', { method: 'POST', body: f })
         .then(r => r.text().then(msg => {
             hide('loader');
-            if (r.status !== 200) openModal('Error', msg);
-            else if (msg.includes('already')) openModal('WiFi', msg, () => doConnection(e, true));
-            else { openModal('WiFi', msg, restartESP); loadCredentials(); }
+            if (r.status !== 200) {
+                openModal('Error', msg);
+            }
+            else if (msg.includes('action-confirm-sta-change')) {
+                // Server requires confirmation for STA mode change
+                openModal('WiFi', msg, () => doConnection(e, true));
+            }
+            else if (msg.includes('action-restart-required')) {
+                // Connection succeeded, restart required
+                openModal('WiFi', msg, restartESP);
+            }
+            else if (msg.includes('action-async-applying')) {
+                // Connection is being applied asynchronously
+                openModal('WiFi', msg);
+                // Don't reload credentials here - they haven't been saved yet
+            }
         }))
-        .catch(() => {
-            hide('loader');
-            // If /connect fails because WiFi is being reconfigured, from the
-            // browser point of view it looks like a network error. In reality
-            // the ESP may already have reconnected with the new settings.
-            const host = (typeof window.espHostname === 'string' && window.espHostname.length)
-                ? window.espHostname
-                : 'hostname';
-            const url = `http://${host}.local/`;
-            openModal(
-                'WiFi',
-                'The HTTP connection was interrupted while the ESP was applying the new WiFi settings.' +
-                '<br><br>If you changed SSID, static IP or DNS this is expected: ' +
-                'wait a few seconds and then reconnect to the ESP on its new WiFi/address.' +
-                `<br><br>You can also try: <a href="${url}">${url}</a>`
-            );
-        });
 }
 
 function handleUpdate() {

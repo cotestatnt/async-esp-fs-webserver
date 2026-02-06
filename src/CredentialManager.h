@@ -48,8 +48,8 @@
 
 struct WiFiCredential {
     char ssid[33];                  // Max 32 char SSID + null
-    uint8_t password_encrypted[64]; // Encrypted password
-    uint16_t password_len;          // Length of encrypted data
+    uint8_t pwd_encrypted[64];      // Encrypted password
+    uint16_t pwd_len;               // Length of encrypted data
     IPAddress gateway;              // Optional static IP config
     IPAddress subnet;               // Optional static IP config    
     IPAddress local_ip;             // Optional static IP config

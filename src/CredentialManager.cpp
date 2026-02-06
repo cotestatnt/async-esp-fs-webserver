@@ -108,12 +108,12 @@ bool CredentialManager::addCredential(const WiFiCredential& credential, const ch
 
   // Encrypt password
   uint16_t encrypted_len = 0;
-  if (!encryptPassword(plaintext_password, cred.password_encrypted, encrypted_len)) {
+  if (!encryptPassword(plaintext_password, cred.pwd_encrypted, encrypted_len)) {
     log_error("Failed to encrypt password");
     return false;
   }
 
-  cred.password_len = encrypted_len;
+  cred.pwd_len = encrypted_len;
 
   m_credentials.push_back(cred);
   log_debug("Credential added: %s.", cred.ssid);
@@ -128,7 +128,7 @@ bool CredentialManager::removeCredential(uint8_t index) {
   }
 
   log_debug("Removing credential: %s", m_credentials[index].ssid);
-  memset(m_credentials[index].password_encrypted, 0, sizeof(m_credentials[index].password_encrypted));
+  memset(m_credentials[index].pwd_encrypted, 0, sizeof(m_credentials[index].pwd_encrypted));
   memset(m_credentials[index].ssid, 0, sizeof(m_credentials[index].ssid));
   m_credentials.erase(m_credentials.begin() + index);
   return true;
@@ -177,12 +177,12 @@ bool CredentialManager::updateCredential(const WiFiCredential& credential, const
 
   // Encrypt new password
   uint16_t encrypted_len = 0;
-  if (!encryptPassword(plaintext_password, cred.password_encrypted, encrypted_len)) {
+  if (!encryptPassword(plaintext_password, cred.pwd_encrypted, encrypted_len)) {
     log_error("Failed to encrypt password");
     return false;
   }
 
-  cred.password_len = encrypted_len;
+  cred.pwd_len = encrypted_len;
 
   // Update IP configuration from credential parameter
   cred.gateway = credential.gateway;
@@ -210,7 +210,7 @@ String CredentialManager::getPassword(uint8_t index) {
   const WiFiCredential &cred = m_credentials[index];
   char plaintext[65] = {0};
 
-  if (decryptPassword(cred.password_encrypted, cred.password_len, plaintext,
+  if (decryptPassword(cred.pwd_encrypted, cred.pwd_len, plaintext,
                       64)) {
     String result = plaintext;
     // Clean password from memory
@@ -252,7 +252,7 @@ bool CredentialManager::getIPConfiguration(uint8_t index, IPAddress& ip, IPAddre
 void CredentialManager::clearAll() {
   // Clean each credential
   for (auto &cred : m_credentials) {
-    memset(cred.password_encrypted, 0, sizeof(cred.password_encrypted));
+    memset(cred.pwd_encrypted, 0, sizeof(cred.pwd_encrypted));
     memset(cred.ssid, 0, sizeof(cred.ssid));
   }
   m_credentials.clear();
@@ -605,8 +605,7 @@ bool CredentialManager::saveToNVS(const char *nvs_namespace) {
 
     // Encrypted password key (as blob)
     String key_pass = "pass" + String(i);
-    err = nvs_set_blob(nvs_handle, key_pass.c_str(), cred.password_encrypted,
-                       cred.password_len);
+    err = nvs_set_blob(nvs_handle, key_pass.c_str(), cred.pwd_encrypted, cred.pwd_len);
     if (err != ESP_OK) {
       log_error("Failed to save password %d", i);
       nvs_close(nvs_handle);
@@ -615,7 +614,7 @@ bool CredentialManager::saveToNVS(const char *nvs_namespace) {
 
     // Password length
     String key_len = "len" + String(i);
-    err = nvs_set_u16(nvs_handle, key_len.c_str(), cred.password_len);
+    err = nvs_set_u16(nvs_handle, key_len.c_str(), cred.pwd_len);
     if (err != ESP_OK) {
       log_error("Failed to save password length %d", i);
       nvs_close(nvs_handle);
@@ -741,14 +740,13 @@ bool CredentialManager::loadFromNVS(const char *nvs_namespace) {
     // Read encrypted password
     String key_pass = "pass" + String(i);
     size_t blob_len = pass_len;
-    err = nvs_get_blob(nvs_handle, key_pass.c_str(), cred.password_encrypted,
-                       &blob_len);
+    err = nvs_get_blob(nvs_handle, key_pass.c_str(), cred.pwd_encrypted, &blob_len);
     if (err != ESP_OK) {
       log_error("Failed to load password %d", i);
       continue;
     }
 
-    cred.password_len = pass_len;
+    cred.pwd_len = pass_len;
 
     // Read Static IP Configuration - Gateway
     String key_gw = "gw" + String(i);
@@ -862,7 +860,7 @@ String CredentialManager::getDebugInfo() const {
       info += " | IP: DHCP";
     }
     
-    info += " | Encrypted len: " + String(m_credentials[i].password_len) + "\n";
+    info += " | Encrypted len: " + String(m_credentials[i].pwd_len) + "\n";
   }
 
   info += "=====================================\n";

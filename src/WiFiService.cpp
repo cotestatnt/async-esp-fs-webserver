@@ -110,34 +110,22 @@ WiFiScanResult WiFiService::scanNetworks() {
 
 WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params) {
     WiFiConnectResult result;
-    if (WiFi.status() == WL_CONNECTED && !params.changeSSID && WiFi.getMode() != WIFI_AP) {
-        String resp;
-        resp.reserve(512);
-        resp  = "ESP is already connected to <b>";
-        resp += WiFi.SSID();
-        resp += "</b> WiFi!<br>Do you want close this connection and attempt to connect to <b>";
-        resp += params.ssid;
-        resp += "</b>?<br><br><i>Note:<br>Flash stored WiFi credentials will be updated.<br>The ESP will no longer be reachable from this web page due to the change of WiFi network.<br>To find out the new IP address, check the serial monitor or your router.<br></i>";
-        result.status = 200;
-        result.body = resp;
-        return result;
-    }
 
-    if (params.ssid.length()) {
+    if (strlen(params.creds.ssid)) {
         setTaskWdt(params.wdtLongTimeout);
         WiFi.mode(WIFI_AP_STA);
 
-        if (params.noDHCP) {
-            log_info("Manual config WiFi connection with IP: %s", params.local_ip.toString().c_str());
-            bool hasDns1 = params.dns1 != IPAddress(0, 0, 0, 0);
-            bool hasDns2 = params.dns2 != IPAddress(0, 0, 0, 0);
+        if (!params.dhcp) {
+            log_info("Manual config WiFi connection with IP: %s", params.creds.local_ip.toString().c_str());
+            bool hasDns1 = params.creds.dns1 != IPAddress(0, 0, 0, 0);
+            bool hasDns2 = params.creds.dns2 != IPAddress(0, 0, 0, 0);
             bool ok = false;
             if (hasDns1 && hasDns2) {
-                ok = WiFi.config(params.local_ip, params.gateway, params.subnet, params.dns1, params.dns2);
+                ok = WiFi.config(params.creds.local_ip, params.creds.gateway, params.creds.subnet, params.creds.dns1, params.creds.dns2);
             } else if (hasDns1) {
-                ok = WiFi.config(params.local_ip, params.gateway, params.subnet, params.dns1);
+                ok = WiFi.config(params.creds.local_ip, params.creds.gateway, params.creds.subnet, params.creds.dns1);
             } else {
-                ok = WiFi.config(params.local_ip, params.gateway, params.subnet);
+                ok = WiFi.config(params.creds.local_ip, params.creds.gateway, params.creds.subnet);
             }
 
             if (!ok) {
@@ -146,14 +134,8 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
         }        
 
         DBG_OUTPUT_PORT.print("\n\n\nConnecting to ");
-        DBG_OUTPUT_PORT.println(params.ssid);
-        WiFi.begin(params.ssid.c_str(), params.password.c_str());
-
-        if (WiFi.status() == WL_CONNECTED && params.changeSSID) {
-            log_info("Disconnect from current WiFi network");
-            WiFi.disconnect();
-            delay(10);
-        }
+        DBG_OUTPUT_PORT.println(params.creds.ssid);
+        WiFi.begin(params.creds.ssid, params.password.c_str());
 
         uint32_t beginTime = millis();
         while (WiFi.status() != WL_CONNECTED) {
@@ -180,7 +162,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
             logCurrentStaNetworkConfig();
 
             DBG_OUTPUT_PORT.print("\nConnected to ");
-            DBG_OUTPUT_PORT.print(params.ssid);
+            DBG_OUTPUT_PORT.print(params.creds.ssid);
             DBG_OUTPUT_PORT.print(". IP address: ");
             DBG_OUTPUT_PORT.println(result.ip);
             String serverLoc = F("http://");
@@ -191,7 +173,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
             serverLoc += "/setup";
             String resp;
             resp  = "ESP successfully connected to ";
-            resp += params.ssid;
+            resp += params.creds.ssid;
             resp += " WiFi network.";
 
             if (params.fromApClient) {
@@ -205,7 +187,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
                 resp += params.host;
                 resp += ".local/setup'>http://";
                 resp += params.host;
-                resp += ".local/setup</a></i><br><p style='text-align: center'>Do you want to proceed with a ESP restart right now?</p>";
+                resp += ".local/setup</a></i><br><p style='text-align: center'>Do you want to proceed with a ESP restart right now?</p><div id='action-restart-required'></div>";
             } else {
                 // Case 2: request came from a client already on the same WiFi as the ESP (pure SSID switch). 
                 // After the switch this page will no longer reach the device until the client changes WiFi as well.
@@ -215,7 +197,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
                 resp += params.host;
                 resp += ".local</a> (or the new IP: ";
                 resp += result.ip.toString();
-                resp += ") to reach the ESP again.</i><br><p style='text-align: center'>Do you want to proceed with a ESP restart right now?</p>";
+                resp += ") to reach the ESP again.</i><br><p style='text-align: center'>Do you want to proceed with a ESP restart right now?</p><div id='action-restart-required'></div>";
             }
             result.status = 200;
             result.body = resp;
@@ -391,14 +373,14 @@ bool WiFiService::startAccessPoint(WiFiConnectParams& params, IPAddress& outIp) 
     delay(100);
     WiFi.mode(WIFI_AP);
 
-    IPAddress apIP = params.local_ip ? params.local_ip : IPAddress(192, 168, 4, 1);
-    IPAddress gateway = params.gateway ? params.gateway : IPAddress(192, 168, 4, 1);
-    IPAddress netmask = params.subnet ? params.subnet : IPAddress(255, 255, 255, 0);
+    IPAddress apIP = params.creds.local_ip != IPAddress(0,0,0,0) ? params.creds.local_ip : IPAddress(192, 168, 4, 1);
+    IPAddress gateway = params.creds.gateway != IPAddress(0,0,0,0) ? params.creds.gateway : IPAddress(192, 168, 4, 1);
+    IPAddress netmask = params.creds.subnet != IPAddress(0,0,0,0) ? params.creds.subnet : IPAddress(255, 255, 255, 0);
 
     // Configure AP IP parameters
     WiFi.softAPConfig(apIP, gateway, netmask);
 
-    if (!WiFi.softAP(params.ssid.c_str(), params.password.c_str())) {
+    if (!WiFi.softAP(params.creds.ssid, params.password.c_str())) {
         log_error("Captive portal failed to start: WiFi.softAP() failed!");
         return false;
     }

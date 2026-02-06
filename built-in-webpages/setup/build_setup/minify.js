@@ -159,6 +159,24 @@ async function build() {
         })
     });
 
+    // 7. Gzip Logo -> logo_svg.h
+    await new Promise((resolve, reject) => {
+        const gzip = createGzip({ level: constants.Z_BEST_COMPRESSION });
+        const source = createReadStream('../logo.svg');
+        const destination = createWriteStream('./min/logo.svg.gz');
+
+      pipeline(source, gzip, destination, async (err) => {
+            if (err) return reject(err);
+            try {
+                const c_array = converter.toString(fs.readFileSync('./min/logo.svg.gz'), 16, '_aclogo_svg');
+          const targetPath = path.join(outputDir, 'logo_svg.h');
+          await writeWithConfirm(targetPath, c_array);
+                console.log('Logo SVG processed');
+                resolve();
+            } catch(e) { reject(e); }
+        })
+    });
+
   } catch (err) {
     console.error('Build failed:', err);
   }

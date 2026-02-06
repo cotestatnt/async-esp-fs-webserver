@@ -35,20 +35,14 @@ struct WiFiStartResult {
 };
 
 struct WiFiConnectParams {
+    WiFiCredential creds;                       // WiFi credentials (ssid, encrypted password, IP config, DNS)
     bool fromApClient = false;                  // True if the /connect request was initiated by a client
-    bool changeSSID = false;                    // True to force SSID selection even if already connected
-    bool noDHCP = false;                        // True to use static IP configuration
-    IPAddress local_ip = IPAddress(0, 0, 0, 0);
-    IPAddress gateway = IPAddress(0, 0, 0, 0);
-    IPAddress subnet = IPAddress(0, 0, 0, 0);
-    IPAddress dns1 = IPAddress(0, 0, 0, 0);       // Optional primary DNS for static IP
-    IPAddress dns2 = IPAddress(0, 0, 0, 0);       // Optional secondary DNS for static IP    
-    uint32_t timeout = 0;                         // Connection timeout in milliseconds
-    uint32_t wdtLongTimeout = 0;                  // Long WDT timeout in milliseconds 
-    uint32_t wdtTimeout = 0;                      // Regular WDT timeout in milliseconds
-    String ssid;
-    String password;
-    String host;
+    bool dhcp = true;                           // True to use DHCP, false for static IP
+    String password;                            // Plaintext password (temporary, not stored in credential)
+    String host;                                // Hostname for mDNS
+    uint32_t timeout = 0;                       // Connection timeout in milliseconds
+    uint32_t wdtLongTimeout = 0;                // Long WDT timeout in milliseconds 
+    uint32_t wdtTimeout = 0;                    // Regular WDT timeout in milliseconds
 };
 
 struct WiFiConnectResult {

@@ -58,6 +58,7 @@ class Print;
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
     #include "assets/setup_htm.h"
     #include "assets/creds_js.h"
+    #include "assets/logo_svg.h"
     #include "CredentialManager.h"    
     #include "SetupConfig.hpp" 
 #endif
@@ -454,7 +455,7 @@ class AsyncFsWebServer : public AsyncWebServer
       return ESP_FS_WS_CONFIG_FILE;
     }
 
-    void setSetupPageTitle(const char* title) { getSetupConfigurator()->addOption("name-logo", title); }
+    void setSetupPageTitle(const char* title) { getSetupConfigurator()->addOption("page-title", title); }
     void addHTML(const char* html, const char* id, bool ow = false) {getSetupConfigurator()->addHTML(html, id, ow);}
     void addCSS(const char* css, const char* id, bool ow = false){getSetupConfigurator()->addCSS(css, id, ow);}
     void addJavascript(const char* script, const char* id, bool ow = false) {getSetupConfigurator()->addJavascript(script, id, ow);}
@@ -464,6 +465,9 @@ class AsyncFsWebServer : public AsyncWebServer
     void addOptionBox(const char* title) { getSetupConfigurator()->addOption("param-box", title); }
     void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
       getSetupConfigurator()->setLogoBase64(logo, w, h, ow);
+    }
+    void setLogoSVG(const char* svg, bool ow = false) {
+      getSetupConfigurator()->setLogoSVG(svg, ow);
     }
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){

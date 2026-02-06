@@ -148,11 +148,13 @@ void setup() {
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
     Serial.println("\nWiFi not connected! Starting AP mode...");
-    server.startCaptivePortal("ESP_AP", "123456789", "/setup");
+    server.startCaptivePortal("ESP_AP", "123456789");
   }
 
   // Add custom page handler
   server.on("/reload", HTTP_GET, handleLoadOptions);
+
+  server.setSetupPageTitle("Custom Options Example");
 
   // Configure /setup page and start Web Server
   server.addOptionBox("My Options");
