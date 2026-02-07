@@ -45,25 +45,23 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
         request->send(response);
     });
 
-    // Handler for serving the default logo (Gzipped SVG from PROGMEM)
+    on("/setup", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleSetup(request); });
+    
+    // Serve default logo from PROGMEM when no custom logo exists on filesystem
     on("/config/logo.svg", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        // Check if custom logo exists in filesystem first
-        if (!m_filesystem->exists("/config/logo.svg")) {
-            // Serve built-in logo from PROGMEM
+        if (!m_filesystem->exists("/config/logo.svg") && 
+            !m_filesystem->exists("/config/logo.svg.gz") &&
+            !m_filesystem->exists("/config/logo.png") &&
+            !m_filesystem->exists("/config/logo.jpg") &&
+            !m_filesystem->exists("/config/logo.gif")) {
             AsyncWebServerResponse *response = request->beginResponse(200, "image/svg+xml", (uint8_t*)_aclogo_svg, sizeof(_aclogo_svg));
             response->addHeader("Content-Encoding", "gzip");
             response->addHeader("Cache-Control", "public, max-age=86400");
             request->send(response);
-        }
-        else {
-            // Serve custom logo from filesystem
-            AsyncWebServerResponse *response = request->beginResponse(*m_filesystem, "/config/logo.svg", "image/svg+xml");
-            response->addHeader("Cache-Control", "public, max-age=86400");
-            request->send(response);
+        } else {
+            request->send(404);  // Let serveStatic handle it
         }
     });
-
-    on("/setup", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleSetup(request); });
     on("/connect", HTTP_POST, [this](AsyncWebServerRequest *request) { this->doWifiConnection(request); });
     on("/scan", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleScanNetworks(request); });
     on("/getStatus", HTTP_GET, [this](AsyncWebServerRequest *request) { this->getStatus(request); });
@@ -366,6 +364,17 @@ void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     doc.setString("hostname", m_host);
     doc.setString("path", String(ESP_FS_WS_CONFIG_FILE).substring(1));   // remove first '/'
     doc.setString("liburl", LIB_URL);
+    
+    // Add logo and page title for immediate availability (avoid layout shift during load)
+    String logoPath = "";
+    String pageTitle = "";
+    if (getSetupConfigurator()->getOptionValue("img-logo", logoPath) && logoPath.length() > 0) {
+        doc.setString("img-logo", logoPath);
+    }
+    if (getSetupConfigurator()->getOptionValue("page-title", pageTitle) && pageTitle.length() > 0) {
+        doc.setString("page-title", pageTitle);
+    }
+    
     String reply = doc.serialize();
     request->send(200, "application/json", reply);
 }
@@ -820,7 +829,7 @@ void AsyncFsWebServer::handleFileEdit(AsyncWebServerRequest *request) {
         if(!request->authenticate(m_pageUser, m_pagePswd))
             return request->requestAuthentication();
     }
-    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acedit_min_htm, sizeof(_acedit_min_htm));
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acedit_htm, sizeof(_acedit_htm));
     response->addHeader("Content-Encoding", "gzip");
     request->send(response);
 }

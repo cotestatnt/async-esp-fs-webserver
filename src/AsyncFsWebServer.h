@@ -463,11 +463,11 @@ class AsyncFsWebServer : public AsyncWebServer
     void addDropdownList(DropdownList &def){ getSetupConfigurator()->addDropdownList(def); }
     void addSlider(Slider &def){ getSetupConfigurator()->addSlider(def); }
     void addOptionBox(const char* title) { getSetupConfigurator()->addOption("param-box", title); }
-    void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
-      getSetupConfigurator()->setLogoBase64(logo, w, h, ow);
+    void setSetupPageLogo(const uint8_t* imageData, size_t imageSize, const char* mimeType = "image/png", bool ow = false) {
+      getSetupConfigurator()->setSetupPageLogo(imageData, imageSize, mimeType, ow);
     }
-    void setLogoSVG(const char* svg, bool ow = false) {
-      getSetupConfigurator()->setLogoSVG(svg, ow);
+    void setSetupPageLogo(const char* svgText, bool ow = false) {
+      getSetupConfigurator()->setSetupPageLogo(svgText, ow);
     }
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){

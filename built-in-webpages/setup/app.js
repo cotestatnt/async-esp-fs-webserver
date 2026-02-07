@@ -150,6 +150,50 @@ window.addEventListener('load', () => {
         'svg-clear': ICONS.clear, 'svg-update': ICONS.upload
     };
     for (const [id, ico] of Object.entries(map)) if ($(id)) $(id).textContent = ico;
+
+    // Dynamic header layout: place topnav inline after firmware span on large screens,
+    // keep original stacked layout (with hamburger behavior) on small screens.
+    let topNavOriginalParent = null;
+    let topNavNextSibling = null;
+
+    const updateHeaderLayout = () => {
+        const header = document.querySelector('header.ctn');
+        const title = header ? header.querySelector('.title') : null;
+        const heading = title ? title.querySelector('.heading') : null;
+        const topnav = $('top-nav');
+        if (!header || !heading || !topnav) return;
+
+        const isMobile = window.matchMedia('(max-width: 608px)').matches;
+
+        if (isMobile) {
+            // Restore original position below the title for small screens
+            if (!topNavOriginalParent) {
+                topNavOriginalParent = header;
+                topNavNextSibling = title ? title.nextSibling : null;
+            }
+            if (topnav.parentElement !== topNavOriginalParent) {
+                if (topNavNextSibling) {
+                    topNavOriginalParent.insertBefore(topnav, topNavNextSibling);
+                } else {
+                    topNavOriginalParent.appendChild(topnav);
+                }
+            }
+            topnav.classList.remove('inline-header');
+        } else {
+            // On larger screens, move nav inline into the heading (after firmware span)
+            if (!topNavOriginalParent) {
+                topNavOriginalParent = topnav.parentElement;
+                topNavNextSibling = topnav.nextSibling;
+            }
+            if (topnav.parentElement !== heading) {
+                heading.appendChild(topnav);
+            }
+            topnav.classList.add('inline-header');
+        }
+    };
+
+    updateHeaderLayout();
+    window.addEventListener('resize', updateHeaderLayout);
 });
 
 const getParameters = () => {
@@ -172,27 +216,54 @@ const getParameters = () => {
                 $('hostname').value = data.hostname || '';
             }
 
-            // Custom logo and page title support 
+            // Apply logo and title immediately from getStatus (if available)
+            const logoImg = $('img-logo')?.querySelector('img');
+            if (data['img-logo'] && logoImg) {
+                logoImg.src = data['img-logo'];
+                $('img-logo')?.classList.remove('loading');
+            }
+            if (data['page-title']) {
+                const safeName = data['page-title'].replace(/(<([^>]+)>)/ig, '');
+                $('page-title').innerHTML = safeName;
+                document.title = safeName;
+            }
+
+            // Custom logo and page title support from config.json (fallback if not in getStatus)
             fetch(`${esp}${configFile}`).then(r => r.json()).then(cfg => {
-                const logoImg = $('img-logo')?.querySelector('img');
-                if (logoImg) {
-                    // Set logo source from config or use default
+                // Only apply logo if not already set from getStatus
+                if (!data['img-logo'] && logoImg) {
                     logoImg.src = cfg['img-logo'] || 'config/logo.svg';
-                    // Remove loading class to show logo after src is set
                     $('img-logo')?.classList.remove('loading');
-                    if (cfg['img-logo']) delete cfg['img-logo'];
                 }
-                if (cfg['page-title']) {
+                if (cfg['img-logo']) delete cfg['img-logo'];
+                
+                // Only apply title if not already set from getStatus
+                if (!data['page-title'] && cfg['page-title']) {
                     const safeName = cfg['page-title'].replace(/(<([^>]+)>)/ig, '');
-                    $('page-title').innerHTML = safeName; document.title = safeName;
-                    delete cfg['page-title'];
+                    $('page-title').innerHTML = safeName;
+                    document.title = safeName;
                 }
+                if (cfg['page-title']) delete cfg['page-title'];
+                
                 options = cfg;
                 createOptionsBox(options);
                 hide('loader');
+                // Initial boot loading complete: show header content
+                document.body.classList.remove('boot-loading');
                 // Load credentials after base config
                 loadCredentials();
+                
+                // Emit event for custom scripts that need to wait for full page initialization
+                window.dispatchEvent(new Event('setupPageReady'));
+            })
+            .catch(() => {
+                hide('loader');
+                document.body.classList.remove('boot-loading');
             });
+        })
+        .catch(() => {
+            hide('loader');
+            document.body.classList.remove('boot-loading');
         });
 };
 

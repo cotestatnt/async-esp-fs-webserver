@@ -7,23 +7,21 @@
   <link href="style.css" rel="stylesheet">
   <script src="app.js" defer></script>
 </head>
-<body>
+<body class="boot-loading">
   <main id="main-box">
-  <header class="ctn">
+  <header class="ctn header-main">
     <div class="title">
       <div id="img-logo" class="loading"><img class="logo" alt="Logo"></div>
       <div class="heading">
         <h1 id="page-title">ESP FS Web Server</h1>
-        <span id="esp-ip"></span><br>
-        <span id="esp-mode"></span> - v<span id="firmware"></span>
+        <div id="esp-ip"></div>
+        <div><span id="esp-mode"></span> - v<span id="firmware"></span></div>
       </div>
     </div>
     <div class="topnav" id="top-nav">
-      <a class="a-link icon" id="hum-btn">
-        <div class="svg svg-menu-icon"><span id="svg-menu"></span></div>
-      </a>
-      <span id="nav-link"><a id="set-wifi" class="a-link active" data-box="wifi-box">WiFi Setup</a></span>
-      <span id="upd-link"><a id="set-update" class="a-link" data-box="update-box">Update & FS</a></span>
+      <a class="a-link icon" id="hum-btn"><div class="svg svg-menu-icon"><span id="svg-menu"></span></div></a>
+      <div id="nav-link"><a id="set-wifi" class="a-link active" data-box="wifi-box">WiFi Setup</a></div>
+      <div id="upd-link"><a id="set-update" class="a-link" data-box="update-box">Update & FS</a></div>
     </div>
   </header>
 
@@ -165,12 +163,13 @@
   </div>
   </main>
   
-  <div class="loader hide" id="loader">
+  <div class="loader" id="loader">
   <div class="loading">Loading...</div>
   <div class="spinH spin-1H"></div>
   <div class="spinH spin-2H"></div>
   <div class="spinH spin-3H"></div>
   <div class="spinH spin-4H"></div>
+  <div class="spinH spin-5H"></div>
   </div>
   
   <details id="modal-message">
