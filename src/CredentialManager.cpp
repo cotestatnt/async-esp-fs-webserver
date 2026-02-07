@@ -416,7 +416,7 @@ void CredentialManager::setFilesystem(fs::FS* fs) {
 
 // Save credentials to FS in a simple binary format:
 // [uint8_t count][char hostname[33]] then for each credential:
-// [char ssid[33]][uint16_t password_len][uint8_t password_encrypted[64]]
+// [char ssid[33]][uint16_t pwd_len][uint8_t pwd_encrypted[64]]
 // [uint32_t gateway][uint32_t subnet][uint32_t local_ip]
 // [uint32_t dns1][uint32_t dns2]
 bool CredentialManager::saveToFS(const char* filepath) {
@@ -445,8 +445,8 @@ bool CredentialManager::saveToFS(const char* filepath) {
     const WiFiCredential &cred = m_credentials[i];
 
     file.write((const uint8_t*)cred.ssid, sizeof(cred.ssid));
-    file.write((const uint8_t*)&cred.password_len, sizeof(cred.password_len));
-    file.write((const uint8_t*)cred.password_encrypted, sizeof(cred.password_encrypted));
+    file.write((const uint8_t*)&cred.pwd_len, sizeof(cred.pwd_len));
+    file.write((const uint8_t*)cred.pwd_encrypted, sizeof(cred.pwd_encrypted));
 
     uint32_t gw_addr = cred.gateway;
     uint32_t sn_addr = cred.subnet;
@@ -506,9 +506,9 @@ bool CredentialManager::loadFromFS(const char* filepath) {
     WiFiCredential cred{};
 
     if (file.read((uint8_t*)cred.ssid, sizeof(cred.ssid)) != sizeof(cred.ssid)) break;
-    if (file.read((uint8_t*)&cred.password_len, sizeof(cred.password_len)) != sizeof(cred.password_len)) break;
-    if (cred.password_len == 0 || cred.password_len > sizeof(cred.password_encrypted)) break;
-    if (file.read((uint8_t*)cred.password_encrypted, sizeof(cred.password_encrypted)) != sizeof(cred.password_encrypted)) break;
+    if (file.read((uint8_t*)&cred.pwd_len, sizeof(cred.pwd_len)) != sizeof(cred.pwd_len)) break;
+    if (cred.pwd_len == 0 || cred.pwd_len > sizeof(cred.pwd_encrypted)) break;
+    if (file.read((uint8_t*)cred.pwd_encrypted, sizeof(cred.pwd_encrypted)) != sizeof(cred.pwd_encrypted)) break;
 
     uint32_t gw_addr = 0;
     uint32_t sn_addr = 0;
@@ -524,7 +524,7 @@ bool CredentialManager::loadFromFS(const char* filepath) {
     // Optional per-credential DNS (backward compatible)
     uint32_t dns1_addr_cred = 0;
     uint32_t dns2_addr_cred = 0;
-    if (file.available() >= sizeof(dns1_addr_cred) + sizeof(dns2_addr_cred)) {
+    if ((unsigned int)file.available() >= sizeof(dns1_addr_cred) + sizeof(dns2_addr_cred)) {
       if (file.read((uint8_t*)&dns1_addr_cred, sizeof(dns1_addr_cred)) == sizeof(dns1_addr_cred) &&
           file.read((uint8_t*)&dns2_addr_cred, sizeof(dns2_addr_cred)) == sizeof(dns2_addr_cred)) {
         cred.dns1 = IPAddress(dns1_addr_cred);
