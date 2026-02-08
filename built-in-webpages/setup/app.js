@@ -2,7 +2,7 @@
 const ICONS = { 
     lock: '🔒', unlock: '🔓', scan: '📡', connect: '📶',
     save: '💾', restart: '↻', eye: '🐵', noEye: '🙈',
-    menu: '☰', del: '🗑️', clear: '✖', upload: '➜'
+    menu: '☰', del: '🗑️', clear: '✖', upload: '✅'
 };
 
 // Global Variables
@@ -125,7 +125,7 @@ window.addEventListener('load', () => {
 
     // Disable submit button until a firmware file is selected
     if ($('update-btn')) {
-        $('update-btn').setAttribute('aria-disabled', 'true');
+        $('update-btn').classList.add('is-loading');
     }
 
     $('file-input').onchange = function () {
@@ -139,7 +139,7 @@ window.addEventListener('load', () => {
 
         // Enable submit button now that a file is selected
         if ($('update-btn')) {
-            $('update-btn').setAttribute('aria-disabled', 'false');
+           $('update-btn').classList.remove('is-loading');
         }
     };
 
@@ -447,9 +447,10 @@ function saveParameters() {
         .then(() => openModal('Save', `<br>Saved config to <b>/${configFile}</b>`))
         .catch(e => openModal('Error', `Save failed: ${e}`));
 }
-
 function getWiFiList() {
-    show('loader');
+    const btn = $('scan-wifi');
+    btn.classList.add('is-loading');
+
     fetch(`${esp}scan`).then(r => r.json()).then(data => {
         if (data.reload) setTimeout(getWiFiList, 2000);
         data.sort((a, b) => b.strength - a.strength);
@@ -473,7 +474,7 @@ function getWiFiList() {
         });
         list.appendChild(frag);
         show('wifi-table');
-        hide('loader');
+        btn.classList.remove('is-loading');
     }).catch(() => hide('loader'));
 }
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -43,9 +43,9 @@
           <label for="ssid" class="input-label">SSID</label>
           <div class="pswd">
               <input type="text" placeholder="Enter your WiFI SSID name" id="ssid" class="opt-input">
-              <span class="show-hide-wrap" id="show-hide-networks">
-                  <a class="show-hide hide chevron-networks" id="show-networks">â–¼</a>
-              </span>
+                <span class="show-hide-wrap" id="show-hide-networks">
+                  <a class="show-hide hide chevron-networks" id="show-networks">▼</a>
+                </span>
           </div>
         </div>
         <div class="tf-wrapper">
@@ -128,8 +128,8 @@
         <div class="firmware">
           <label for="file-input" id="fw-label" class="fw-upload">Select firmware binary file</label>
           <input id="file-input" type="file">
-          <a id="update-btn" class="btn submit icon-btn" title="Upload firmware">
-            <div class="svg"><span id="svg-update"></span></div>
+          <a id="update-btn" class="btn is-loading submit icon-btn" title="Upload firmware">
+            <span id="svg-update"></span>
           </a>
         </div>
       	<div class="progress-wrap hide" id="progress-wrap" data-progress-style="fill-back">
