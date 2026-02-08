@@ -9,19 +9,12 @@ static void logCurrentStaNetworkConfig() {
     if (mode != WIFI_STA && mode != WIFI_AP_STA) {
         return;
     }
-
-    IPAddress ip   = WiFi.localIP();
-    IPAddress gw   = WiFi.gatewayIP();
-    IPAddress mask = WiFi.subnetMask();
-    IPAddress dns1 = WiFi.dnsIP(0);
-    IPAddress dns2 = WiFi.dnsIP(1);
-
     log_info("[WiFi] Core STA config: IP=%s GW=%s SN=%s DNS1=%s DNS2=%s",
-             ip.toString().c_str(),
-             gw.toString().c_str(),
-             mask.toString().c_str(),
-             dns1.toString().c_str(),
-             dns2.toString().c_str());
+             WiFi.localIP().toString().c_str(),
+             WiFi.gatewayIP().toString().c_str(),
+             WiFi.subnetMask().toString().c_str(),
+             WiFi.dnsIP(0).toString().c_str(),
+             WiFi.dnsIP(1).toString().c_str());
 #endif
 }
 
