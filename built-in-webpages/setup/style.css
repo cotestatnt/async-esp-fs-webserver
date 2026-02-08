@@ -130,12 +130,6 @@ select { width: 92.5%; background-color: var(--c-bg); }
 /* Stable header during boot loading: keep header visible but avoid big jumps */
 .header-main { min-height: 130px; }
 
-/* Reserve horizontal space for dynamic header text so layout doesn't jump */
-#esp-ip, #esp-mode, #firmware {
-  display: inline-block;
-  min-width: 13ch;   /* enough for typical values, reduces resize when filled */
-}
-
 /* Sliders */
 .slider-wrapper { display: flex; align-items: center; gap: 14px; width: 92.5%; background-color: var(--c-bg); border-radius: 8px;  border: 1px solid var(--c-txt-lt)}
 .slider-wrapper .slider {
