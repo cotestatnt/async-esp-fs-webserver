@@ -47,7 +47,7 @@ AsyncFsWebServer::Slider brightness{ BRIGHTNESS_LABEL, 0.0, 100.0, 1.0, 50.0 };
 
 
 static const char reload_btn_htm[] PROGMEM = R"EOF(
-<div class="btn-bar">
+<div class="bar">
   <a class="btn" id="reload-btn">Reload options</a>
 </div>
 )EOF";
@@ -356,15 +356,15 @@ void setup() {
 
   // Configure /setup page and start Web Server
   server.addOptionBox("My Options");
-  server.addOption(BOOL_LABEL, boolVar);
-  server.addOption(BOOL_LABEL2, boolVar2);
+  server.addHTML(reload_btn_htm, "buttons", /*overwrite*/ false);
   server.addOption(LED_LABEL, ledPin);
   server.addOption(LONG_LABEL, longVar);
   server.addOption(FLOAT_LABEL, floatVar, 1.0, 100.0, 0.01);
   server.addOption(STRING_LABEL, stringVar);
+  server.addOption(BOOL_LABEL, boolVar, false, false);
+  server.addOption(BOOL_LABEL2, boolVar2, false, false);
   server.addDropdownList(dayOfWeek);
   server.addSlider(brightness);  
-  server.addHTML(reload_btn_htm, "buttons", /*overwrite*/ false);
   server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);
 
   // Enable ACE FS file web editor

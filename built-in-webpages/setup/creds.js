@@ -1,107 +1,144 @@
-// creds.js - Gestione dinamica delle credenziali WiFi
-// Richiede che app.js sia caricato prima
-
+/**
+ * Render WiFi credential tabs or dropdown based on screen size
+ */
 window.renderCredentialTabs = () => {
-  const container = $('wifi-cred-tabs');
-  if (!container) return;
-  container.innerHTML = '';
+  const credTabs = $("wifi-cred-tabs");
+  if (!credTabs) return;
 
-  // Calcolo dinamico dello spazio disponibile (per layout desktop)
-  const box = $('wifi-box');
-  const totalWidth = box.offsetWidth || Math.min(window.innerWidth, 840);
-  const maxTabs = Math.floor((totalWidth - 60) / 140); // 140px stimati per tab
+  credTabs.innerHTML = "";
+  const wifiBoxWidth = $("wifi-box").offsetWidth || Math.min(window.innerWidth, 840);
+  const maxTabsPerRow = Math.floor((wifiBoxWidth - 60) / 140);
 
-  // Viewport piccolo/medio: usa sempre un menu a tendina
-  const isMobile = window.matchMedia('(max-width: 608px)').matches;
-
-  if (isMobile) {
-    const sel = newEl('select', { class: 'opt-input', style: 'margin-bottom:10px' });
+  // Mobile: Use dropdown select
+  if (window.matchMedia("(max-width: 608px)").matches) {
+    const select = newEl("select", { class: "in", style: "margin-bottom:10px" });
     wifiCredentials.forEach((cred, idx) => {
-      const opt = newEl('option', { value: idx });
-      opt.textContent = cred.ssid || '(empty SSID)';
-      if (idx === selectedCredentialIndex) opt.selected = true;
-      sel.appendChild(opt);
+      const option = newEl("option", { value: idx });
+      option.textContent = cred.ssid || "(empty SSID)";
+      if (idx === selectedCredentialIndex) option.selected = true;
+      select.appendChild(option);
     });
-    sel.addEventListener('change', (e) => {
+    select.addEventListener("change", (e) => {
       selectedCredentialIndex = parseInt(e.target.value);
       window.applyCredential(wifiCredentials[selectedCredentialIndex]);
     });
-    container.appendChild(sel);
-  } else if (wifiCredentials.length > maxTabs) {
-    // Desktop: troppe credenziali, usa comunque una select
-    const sel = newEl('select', { class: 'opt-input', style: 'margin-bottom:10px' });
+    credTabs.appendChild(select);
+  }
+  // Tablet: Use dropdown if too many credentials
+  else if (wifiCredentials.length > maxTabsPerRow) {
+    const select = newEl("select", { class: "in", style: "margin-bottom:10px" });
     wifiCredentials.forEach((cred, idx) => {
-      const opt = newEl('option', { value: idx });
-      opt.textContent = cred.ssid || '(empty SSID)';
-      if (idx === selectedCredentialIndex) opt.selected = true;
-      sel.appendChild(opt);
+      const option = newEl("option", { value: idx });
+      option.textContent = cred.ssid || "(empty SSID)";
+      if (idx === selectedCredentialIndex) option.selected = true;
+      select.appendChild(option);
     });
-    sel.addEventListener('change', (e) => {
+    select.addEventListener("change", (e) => {
       selectedCredentialIndex = parseInt(e.target.value);
       window.applyCredential(wifiCredentials[selectedCredentialIndex]);
     });
-    container.appendChild(sel);
-  } else {
-    // Desktop: spazio sufficiente, mostra i tab come prima
+    credTabs.appendChild(select);
+  }
+  // Desktop: Use button tabs
+  else {
     wifiCredentials.forEach((cred, idx) => {
-      const btn = newEl('button', { class: 'cred-tab' });
-      btn.textContent = cred.ssid || '(empty SSID)';
-
-      if (idx === selectedCredentialIndex) btn.classList.add('active');
-
-      btn.onclick = (e) => {
-        const siblings = container.querySelectorAll('.cred-tab');
-        siblings.forEach(s => s.classList.remove('active'));
-        e.target.classList.add('active');
-
+      const tabBtn = newEl("button", { class: "tab" });
+      tabBtn.textContent = cred.ssid || "(empty SSID)";
+      if (idx === selectedCredentialIndex) tabBtn.classList.add("active");
+      tabBtn.onclick = (e) => {
+        credTabs.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+        e.target.classList.add("active");
         selectedCredentialIndex = idx;
         window.applyCredential(cred);
       };
-      container.appendChild(btn);
+      credTabs.appendChild(tabBtn);
     });
   }
 
-  // Mostra/Nascondi pulsanti di gestione
-  const hasCreds = wifiCredentials.length > 0;
-  const actions = ['delete-cred', 'clear-creds', 'cred-actions-inline'];
-  actions.forEach(id => {
-    const el = $(id);
-    if (el) hasCreds ? el.classList.remove('hide') : el.classList.add('hide');
+  // Toggle visibility of credential action buttons
+  const hasCredentials = wifiCredentials.length > 0;
+  ["delete-cred", "clear-creds", "cred-actions-inline"].forEach(elemId => {
+    const elem = $(elemId);
+    if (elem) {
+      if (hasCredentials) {
+        elem.classList.remove("hide");
+      } else {
+        elem.classList.add("hide");
+      }
+    }
   });
 };
 
-// Rende la vista tab/select responsive a cambi di dimensione/orientamento
-window.addEventListener('resize', () => {
-  if (!wifiCredentials || !wifiCredentials.length) return;
-  if (typeof renderCredentialTabs === 'function') renderCredentialTabs();
+/**
+ * Re-render credential tabs on window resize
+ */
+window.addEventListener("resize", () => {
+  if (wifiCredentials && wifiCredentials.length && typeof renderCredentialTabs === "function") {
+    renderCredentialTabs();
+  }
 });
 
+/**
+ * Delete selected WiFi credential
+ */
 window.deleteSelectedCredential = () => {
-  if (selectedCredentialIndex < 0 || selectedCredentialIndex >= wifiCredentials.length) return;
+  if (selectedCredentialIndex < 0 || selectedCredentialIndex >= wifiCredentials.length) {
+    return;
+  }
+
   const cred = wifiCredentials[selectedCredentialIndex];
-
-  // Usa la funzione openModal globale di app.js
-  openModal('Delete WiFi', `Delete <b>${cred.ssid}</b>?`, async () => {
-    try {
-      await fetch(`${esp}wifi/credentials?index=${selectedCredentialIndex}`, { method: 'DELETE' });
-      // Ricarica le credenziali usando la funzione globale
-      await loadCredentials(); 
-      closeModal(false);
-    } catch (err) {
-      openModal('Error', 'Failed to delete');
+  openModal(
+    "Delete WiFi",
+    `Delete <b>${cred.ssid}</b>?`,
+    async () => {
+      try {
+        await fetch(`${esp}wifi/credentials?index=${selectedCredentialIndex}`, {
+          method: "DELETE"
+        });
+        await loadCredentials();
+        closeModal(false);
+      } catch (err) {
+        openModal("Error", "Failed to delete");
+      }
     }
-  });
+  );
 };
 
+/**
+ * Delete all WiFi credentials
+ */
 window.clearAllCredentials = () => {
-  if (!wifiCredentials.length) return;
-  openModal('Clear All', 'Delete all WiFi credentials?', async () => {
-    try {
-      await fetch(`${esp}wifi/credentials`, { method: 'DELETE' });
-      await loadCredentials();
-      closeModal(false);
-    } catch (err) {
-      openModal('Error', 'Failed to clear');
+  if (wifiCredentials.length === 0) return;
+
+  openModal(
+    "Clear All",
+    "Delete all WiFi credentials?",
+    async () => {
+      try {
+        await fetch(`${esp}wifi/credentials`, {
+          method: "DELETE"
+        });
+        await loadCredentials();
+        closeModal(false);
+      } catch (err) {
+        openModal("Error", "Failed to clear");
+      }
     }
-  });
+  );
 };
+
+/**
+ * Attach event handlers to credential action buttons
+ * Called immediately when script loads (not waiting for DOMContentLoaded)
+ */
+(() => {
+  const deleteBtn = $("delete-cred");
+  const clearBtn = $("clear-creds");
+
+  if (deleteBtn) {
+    deleteBtn.onclick = window.deleteSelectedCredential;
+  }
+  if (clearBtn) {
+    clearBtn.onclick = window.clearAllCredentials;
+  }
+})();

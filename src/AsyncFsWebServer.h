@@ -159,7 +159,7 @@ class AsyncFsWebServer : public AsyncWebServer
     // Lazy initialization: create setup object only when first needed
     SetupConfigurator* getSetupConfigurator() {
       if (!setup) {
-        setup = new SetupConfigurator(m_filesystem);
+        setup = new SetupConfigurator(m_filesystem, m_port, m_host);
       }
       return setup;
     }
@@ -455,19 +455,23 @@ class AsyncFsWebServer : public AsyncWebServer
       return ESP_FS_WS_CONFIG_FILE;
     }
 
-    void setSetupPageTitle(const char* title) { getSetupConfigurator()->addOption("page-title", title); }
+    void setSetupPageTitle(const char* title) { getSetupConfigurator()->setSetupPageTitle(title); }
     void addHTML(const char* html, const char* id, bool ow = false) {getSetupConfigurator()->addHTML(html, id, ow);}
     void addCSS(const char* css, const char* id, bool ow = false){getSetupConfigurator()->addCSS(css, id, ow);}
     void addJavascript(const char* script, const char* id, bool ow = false) {getSetupConfigurator()->addJavascript(script, id, ow);}
     void addDropdownList(const char *lbl, const char** a, size_t size){getSetupConfigurator()->addDropdownList(lbl, a, size);}    
     void addDropdownList(DropdownList &def){ getSetupConfigurator()->addDropdownList(def); }
     void addSlider(Slider &def){ getSetupConfigurator()->addSlider(def); }
-    void addOptionBox(const char* title) { getSetupConfigurator()->addOption("param-box", title); }
+    void addOptionBox(const char* title) { getSetupConfigurator()->addOptionBox(title); }
     void setSetupPageLogo(const uint8_t* imageData, size_t imageSize, const char* mimeType = "image/png", bool ow = false) {
       getSetupConfigurator()->setSetupPageLogo(imageData, imageSize, mimeType, ow);
     }
     void setSetupPageLogo(const char* svgText, bool ow = false) {
       getSetupConfigurator()->setSetupPageLogo(svgText, ow);
+    }
+    // boolean option overload with per-option grouping control
+    void addOption(const char *lbl, bool val, bool hidden = false, bool grouped = true) {
+      getSetupConfigurator()->addOption(lbl, val, hidden, grouped);
     }
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){

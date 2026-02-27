@@ -41,9 +41,8 @@ AsyncFsWebServer::DropdownList dayOfWeek{ DROPDOWN_LABEL, days, 7, daySelected};
 // Add a slider in /setup page
 AsyncFsWebServer::Slider brightness{ BRIGHTNESS_LABEL, 0.0, 100.0, 1.0, 50.0 };
 
-
 static const char reload_btn_htm[] PROGMEM = R"EOF(
-<div class="btn-bar">
+<div class="bar">
   <a class="btn" id="reload-btn">Reload options</a>
 </div>
 )EOF";
