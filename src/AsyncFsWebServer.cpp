@@ -36,14 +36,39 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     }
     onUpdate();
 
+    // Handler for serving the isolated credentials script (Gzipped from PROGMEM)
+    on("/creds.js", HTTP_GET, [this](AsyncWebServerRequest *request) {              
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_accreds_js, sizeof(_accreds_js));
+        response->addHeader("Content-Encoding", "gzip");
+        response->addHeader("X-Config-File", ESP_FS_WS_CONFIG_FILE);
+        response->addHeader("Cache-Control", "public, max-age=86400");
+        request->send(response);
+    });
+
     on("/setup", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleSetup(request); });
+    
+    // Serve default logo from PROGMEM when no custom logo exists on filesystem
+    on("/config/logo.svg", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        if (!m_filesystem->exists("/config/logo.svg") && 
+            !m_filesystem->exists("/config/logo.svg.gz") &&
+            !m_filesystem->exists("/config/logo.png") &&
+            !m_filesystem->exists("/config/logo.jpg") &&
+            !m_filesystem->exists("/config/logo.gif")) {
+            AsyncWebServerResponse *response = request->beginResponse(200, "image/svg+xml", (uint8_t*)_aclogo_svg, sizeof(_aclogo_svg));
+            response->addHeader("Content-Encoding", "gzip");
+            response->addHeader("Cache-Control", "public, max-age=86400");
+            request->send(response);
+        } else {
+            request->send(404);  // Let serveStatic handle it
+        }
+    });
     on("/connect", HTTP_POST, [this](AsyncWebServerRequest *request) { this->doWifiConnection(request); });
     on("/scan", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleScanNetworks(request); });
     on("/getStatus", HTTP_GET, [this](AsyncWebServerRequest *request) { this->getStatus(request); });
     on("/clear_config", HTTP_GET, [this](AsyncWebServerRequest *request) { this->clearConfig(request); });
     // Simple WiFi status endpoint
-    on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncFSWebServer::Json doc;
+    on(AsyncURIMatcher::exact("/wifi"), HTTP_GET, [](AsyncWebServerRequest *request) {
+        CJSON::Json doc;
         doc.setString("ssid", WiFi.SSID());
         doc.setNumber("rssi", WiFi.RSSI());
         request->send(200, "application/json", doc.serialize());
@@ -68,6 +93,63 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
             #endif
         });
         request->send(response);
+    });    
+
+    // WiFi credentials management (no plaintext passwords exposed)
+    on(AsyncURIMatcher::exact("/wifi/credentials"), HTTP_GET, [this](AsyncWebServerRequest *request) {
+        CJSON::Json json_array;
+        json_array.createArray();
+        if (m_credentialManager) {
+            std::vector<WiFiCredential>* creds = m_credentialManager->getCredentials();
+            if (creds) {
+                for (size_t i = 0; i < creds->size(); ++i) {
+                    const WiFiCredential &c = (*creds)[i];
+                    CJSON::Json item;
+                    item.setNumber("index", static_cast<int>(i));
+                    item.setString("ssid", c.ssid);
+
+                    // Static network configuration (if present)
+                    if (c.local_ip != IPAddress(0, 0, 0, 0)) {
+                        item.setString("ip", c.local_ip.toString());
+                        item.setString("gateway", c.gateway.toString());
+                        item.setString("subnet", c.subnet.toString());
+
+                        // Optional per-SSID DNS configuration
+                        if (c.dns1 != IPAddress(0, 0, 0, 0)) {
+                            item.setString("dns1", c.dns1.toString());
+                        }
+                        if (c.dns2 != IPAddress(0, 0, 0, 0)) {
+                            item.setString("dns2", c.dns2.toString());
+                        }
+                    }
+
+                    item.setNumber("hasPassword", c.pwd_len > 0 ? 1 : 0);
+                    json_array.add(item);
+                }
+            }
+        }
+        request->send(200, "application/json", json_array.serialize());
+    });
+    // Delete a single credential (by index) or clear all if no index is provided
+    on("/wifi/credentials", HTTP_DELETE, [this](AsyncWebServerRequest *request) {
+        if (!m_credentialManager) {
+            request->send(404, "text/plain", "Credential manager not available");
+            return;
+        }
+        bool ok = false;
+        if (request->hasArg("index")) {
+            int idx = request->arg("index").toInt();
+            ok = m_credentialManager->removeCredential(static_cast<uint8_t>(idx));
+        } else {
+            m_credentialManager->clearAll();
+            ok = true;
+        }
+#if defined(ESP32)
+        m_credentialManager->saveToNVS();
+#elif defined(ESP8266)
+        m_credentialManager->saveToFS();
+#endif
+        request->send(ok ? 200 : 400, "text/plain", ok ? "OK" : "Invalid index");
     });
 #endif
     
@@ -266,7 +348,7 @@ void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
 
 #if ESP_FS_WS_SETUP
 void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
-    AsyncFSWebServer::Json doc;
+    CJSON::Json doc;
     doc.setString("firmware", m_version);
     String mode;
     if (WiFi.status() == WL_CONNECTED) {
@@ -282,6 +364,17 @@ void AsyncFsWebServer::getStatus(AsyncWebServerRequest *request) {
     doc.setString("hostname", m_host);
     doc.setString("path", String(ESP_FS_WS_CONFIG_FILE).substring(1));   // remove first '/'
     doc.setString("liburl", LIB_URL);
+    
+    // Add logo and page title for immediate availability (avoid layout shift during load)
+    String logoPath = "";
+    String pageTitle = "";
+    if (getSetupConfigurator()->getOptionValue("img-logo", logoPath) && logoPath.length() > 0) {
+        doc.setString("img-logo", logoPath);
+    }
+    if (getSetupConfigurator()->getOptionValue("page-title", pageTitle) && pageTitle.length() > 0) {
+        doc.setString("page-title", pageTitle);
+    }
+    
     String reply = doc.serialize();
     request->send(200, "application/json", reply);
 }
@@ -294,75 +387,12 @@ void AsyncFsWebServer::clearConfig(AsyncWebServerRequest *request) {
 }
 
 
-
 void AsyncFsWebServer::handleScanNetworks(AsyncWebServerRequest *request) {
     log_info("Start scan WiFi networks");
-    
-    int res = WiFi.scanComplete();
-    log_debug("WiFi.scanComplete() returned: %d", res);
-
-    // Check for scan in progress or failed
-    // ESP32 core 3.3.4+: uses WIFI_SCAN_RUNNING and WIFI_SCAN_FAILED constants
-    // Older cores: use -1 and -2 respectively
-    #ifdef WIFI_SCAN_RUNNING
-        // New core (3.3.4+) - use constants
-        if (res == WIFI_SCAN_RUNNING) {
-            log_info("Scan still in progress...");
-            request->send(200, "application/json", "{\"reload\" : 1}");
-            return;
-        }
-        
-        if (res == WIFI_SCAN_FAILED) {
-            log_info("Scan failed, starting new scan...");
-            WiFi.scanNetworks(true);
-            request->send(200, "application/json", "{\"reload\" : 1}");
-            return;
-        }
-    #else
-        // Old core - use numeric values
-        if (res == -2) {
-            log_info("Scan not initiated, starting new scan...");
-            WiFi.scanNetworks(true);
-            request->send(200, "application/json", "{\"reload\" : 1}");
-            return;
-        }
-        
-        if (res == -1) {
-            log_info("Scan still in progress...");
-            request->send(200, "application/json", "{\"reload\" : 1}");
-            return;
-        }
-    #endif
-    
-    // res >= 0: Scan completed with res networks found
-    if (res >= 0) {
-        log_info("Scan completed! Number of networks: %d", res);
-        // Build JSON array manually
-        String json;
-        json.reserve(res * 100);
-        json = "[";
-        for (int i = 0; i < res; ++i) {
-            if (i > 0) json += ",";
-            AsyncFSWebServer::Json item;
-            item.setNumber("strength", WiFi.RSSI(i));
-            item.setString("ssid", WiFi.SSID(i));
-            #if defined(ESP8266)
-            item.setString("security", AUTH_OPEN ? "none" : "enabled");
-            #elif defined(ESP32)
-            item.setString("security", WIFI_AUTH_OPEN ? "none" : "enabled");
-            #endif
-            json += item.serialize();
-        }
-        json += "]";
-        request->send(200, "application/json", json);
-        log_debug("%s", json.c_str());
-
-        WiFi.scanDelete();
-        // Start a new scan for next request
-        WiFi.scanNetworks(true);
-        return;
-    }
+    WiFiScanResult scan = WiFiService::scanNetworks();
+    request->send(200, "application/json", scan.json);
 }
+
 
 bool AsyncFsWebServer::createDirFromPath(const String& path) {
     String dir;
@@ -434,174 +464,187 @@ void AsyncFsWebServer::handleUpload(AsyncWebServerRequest *request, String filen
 }
 
 void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
-    String ssid, pass;
-    IPAddress gateway, subnet, local_ip;
-    bool config = false,  newSSID = false;
-    String resp;
+    // Use WiFiConnectParams as the main container for all connection options
+    WiFiConnectParams params = WiFiConnectParams();
+    String requestedHost;   // Optional hostname provided by the setup UI
 
+    // Optional static IP configuration
     if (request->hasArg("ip_address") && request->hasArg("subnet") && request->hasArg("gateway")) {
-        gateway.fromString(request->arg("gateway"));
-        subnet.fromString(request->arg("subnet"));
-        local_ip.fromString(request->arg("ip_address"));
-        config = true;
+        params.creds.gateway.fromString(request->arg("gateway"));
+        params.creds.subnet.fromString(request->arg("subnet"));
+        params.creds.local_ip.fromString(request->arg("ip_address"));
+        params.dhcp = false;
+        log_debug("Static IP requested: %s, GW: %s, SN: %s",
+                 params.creds.local_ip.toString().c_str(),
+                 params.creds.gateway.toString().c_str(),
+                 params.creds.subnet.toString().c_str());
+        log_debug("params.dhcp set to: %d", params.dhcp);
     }
 
-    if (request->hasArg("ssid"))
-        ssid = request->arg("ssid");
+    // Optional per-SSID DNS configuration (if provided by client)
+    if (request->hasArg("dns1")) 
+        params.creds.dns1.fromString(request->arg("dns1"));
 
+    if (request->hasArg("dns2")) 
+        params.creds.dns2.fromString(request->arg("dns2"));
+
+    // Optional hostname override (for mDNS / shared hostname, max 32 chars)
+    if (request->hasArg("hostname")) {
+        requestedHost = request->arg("hostname");
+        requestedHost.trim();
+        if (requestedHost.length() > 32) {
+            requestedHost.remove(32); // limit to 32 chars
+        }
+        if (requestedHost.length()) {
+            m_host = requestedHost;
+            if (m_credentialManager) {
+                m_credentialManager->setHostname(m_host.c_str());
+            }
+        }
+    }
+
+    // Basic WiFi credentials
+    if (request->hasArg("ssid")) {
+        String ssid = request->arg("ssid");
+        strncpy(params.creds.ssid, ssid.c_str(), sizeof(params.creds.ssid) - 1);
+        params.creds.ssid[sizeof(params.creds.ssid) - 1] = '\0';
+    }
     if (request->hasArg("password"))
-        pass = request->arg("password");
+        params.password = request->arg("password");
 
-    if (request->hasArg("newSSID")) {
-        newSSID = true;
+    // If no password provided but a stored credential exists for this SSID,
+    // reuse the stored password without exposing it to the client.
+    if (params.password.length() == 0 && strlen(params.creds.ssid) && m_credentialManager &&
+        m_credentialManager->checkSSIDExists(params.creds.ssid)) {
+        String stored = m_credentialManager->getPassword(params.creds.ssid);
+        if (stored.length()) {
+            params.password = stored;
+        }
     }
 
-    /*
-    *  If we are already connected and a new SSID is needed, once the ESP will join the new network,
-    *  /setup web page will no longer be able to communicate with ESP and therefore
-    *  it will not be possible to inform the user about the new IP address.\
-    *  Inform and prompt the user for a confirmation (if OK, the next request will force disconnect variable)
-    */
-    if (WiFi.status() == WL_CONNECTED && !newSSID && WiFi.getMode() != WIFI_AP) {
-        log_debug("WiFi status %d", WiFi.status());
-        resp.reserve(512);
-        resp  = "ESP is already connected to <b>";
-        resp += WiFi.SSID();
-        resp += "</b> WiFi!<br>Do you want close this connection and attempt to connect to <b>";
-        resp += ssid;
-        resp += "</b>?<br><br><i>Note:<br>Flash stored WiFi credentials will be updated.<br>The ESP will no longer be reachable from this web page due to the change of WiFi network.<br>To find out the new IP address, check the serial monitor or your router.<br></i>";
-        request->send(200, "application/json", resp);
+    // Track if we had a working STA connection before this /connect
+    // (used to decide fallbacks on failure).
+    bool wasStaConnected = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP);
+
+    // By default, new credentials will be persisted to survive reboots,
+    // but the client can disable this if they want a temporary connection.
+    bool hasPersistentArg = request->hasArg("persistent");
+    bool persistent = hasPersistentArg ? request->arg("persistent").equals("true") : true;
+    WiFi.persistent(hasPersistentArg ? persistent : true);  // default true
+
+    // Remember if this /connect was requested while we are serving the captive portal (AP mode).
+    params.fromApClient = m_isApMode;
+    params.host = m_host;
+    params.timeout = m_timeout;
+    params.wdtLongTimeout = AWS_LONG_WDT_TIMEOUT;
+    params.wdtTimeout = AWS_WDT_TIMEOUT;
+
+    // In AP/captive-portal mode we can still safely perform the
+    // connection synchronously and return the detailed HTML result, because the AP interface remains up.
+    if (params.fromApClient) {
+        WiFiConnectResult result = WiFiService::connectWithParams(params);
+
+        if (result.connected && persistent && strlen(params.creds.ssid) && params.password.length() && m_credentialManager) {
+            // Credential is already populated in params.credential, just need to configure it based on dhcp flag
+            if (params.dhcp) {
+                // Clear static IP config for DHCP mode
+                params.creds.local_ip = IPAddress(0, 0, 0, 0);
+                params.creds.gateway = IPAddress(0, 0, 0, 0);
+                params.creds.subnet = IPAddress(0, 0, 0, 0);
+                params.creds.dns1 = IPAddress(0, 0, 0, 0);
+                params.creds.dns2 = IPAddress(0, 0, 0, 0);
+            }
+            // Static IP config already set in params.creds if dhcp == false
+            if (!m_credentialManager->updateCredential(params.creds, params.password.c_str())) {
+                m_credentialManager->addCredential(params.creds, params.password.c_str());
+            }
+        #if defined(ESP32)
+            m_credentialManager->saveToNVS();
+        #elif defined(ESP8266)
+            m_credentialManager->saveToFS();
+        #endif
+        }
+
+        if (result.connected) {
+            m_serverIp = result.ip;
+        }
+
+        log_debug("WiFi connect result body: %s", result.body.c_str());
+        const char* contentType = (result.status == 200) ? "text/html" : "text/plain";
+        request->send(result.status, contentType, result.body);
         return;
     }
 
-    if (request->hasArg("persistent")) {
-        if (request->arg("persistent").equals("false")) {
-            WiFi.persistent(false);
-            #if defined(ESP8266)
-                struct station_config stationConf;
-                wifi_station_get_config_default(&stationConf);
-                // Clear previous configuration
-                memset(&stationConf, 0, sizeof(stationConf));
-                wifi_station_set_config(&stationConf);
-            #elif defined(ESP32)
-                wifi_config_t stationConf;
-                esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-                if (err == ESP_OK) {
-                    // Clear previuos configuration
-                    memset(&stationConf, 0, sizeof(stationConf));
-                    // Store actual configuration
-                    memcpy(&stationConf.sta.ssid, ssid.c_str(), ssid.length());
-                    memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
-                    err = esp_wifi_set_config(WIFI_IF_STA, &stationConf);
-                    if (err) {
-                        log_error("Set WiFi config: %s", esp_err_to_name(err));
-                    }
-                }
-            #endif
-        }
-        else {
-            // Store current WiFi configuration in flash
-            WiFi.persistent(true);
-#if defined(ESP8266)
-            struct station_config stationConf;
-            wifi_station_get_config_default(&stationConf);
-            // Clear previous configuration
-            memset(&stationConf, 0, sizeof(stationConf));
-            os_memcpy(&stationConf.ssid, ssid.c_str(), ssid.length());
-            os_memcpy(&stationConf.password, pass.c_str(), pass.length());
-            wifi_set_opmode(STATION_MODE);
-            wifi_station_set_config(&stationConf);
-#elif defined(ESP32)
-            wifi_config_t stationConf;
-            esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &stationConf);
-            if (err == ESP_OK) {
-                // Clear previuos configuration
-                memset(&stationConf, 0, sizeof(stationConf));
-                // Store actual configuration
-                memcpy(&stationConf.sta.ssid, ssid.c_str(), ssid.length());
-                memcpy(&stationConf.sta.password, pass.c_str(), pass.length());
-                err = esp_wifi_set_config(WIFI_IF_STA, &stationConf);
-                if (err) {
-                    log_error("Set WiFi config: %s", esp_err_to_name(err));
-                }
-            }
-#endif
-        }
+    // STA mode: if already connected, always ask for confirmation before reconfiguring
+    bool userConfirmed = request->hasArg("confirmed") && request->arg("confirmed").equals("true");
+    
+    if (!userConfirmed && WiFi.status() == WL_CONNECTED) {
+        String resp;
+        resp.reserve(512);
+        resp = "<div id='action-confirm-sta-change'></div>";
+        resp += "You are about to apply new WiFi configuration for <b>";
+        resp += String(params.creds.ssid);
+        resp += "</b>.<br><br><i>Note: This page may lose connection during the reconfiguration.</i>";
+        resp += "<br><br>Do you want to proceed?";
+        request->send(200, "text/html", resp);
+        return;
     }
 
-    // Connect to the provided SSID
-    if (ssid.length() && pass.length()) {
-        setTaskWdt(AWS_LONG_WDT_TIMEOUT);
-        WiFi.mode(WIFI_AP_STA);
+    // User confirmed: proceed with connection, 
+    // but first set up the disconnect handler to attempt connection after response is sent (to avoid HTTP timeouts)
+    
+    // Attempt connection AFTER sending response
+    request->onDisconnect([this, request, params, wasStaConnected]() mutable {        
+        WiFiConnectResult result = WiFiService::connectWithParams(params);
+        log_debug("Connection result: connected=%d", result.connected);
 
-        // Manual connection setup
-        if (config) {
-            log_info("Manual config WiFi connection with IP: %s", local_ip.toString().c_str());
-            if (!WiFi.config(local_ip, gateway, subnet)) {
-                log_error("STA Failed to configure");
+        // Save credentials ONLY if connection succeeded
+        if (result.connected && strlen(params.creds.ssid) && params.password.length() && m_credentialManager) {
+            if (params.dhcp) {
+                // Clear static IP config for DHCP mode
+                params.creds.local_ip = IPAddress(0, 0, 0, 0);
+                params.creds.gateway = IPAddress(0, 0, 0, 0);
+                params.creds.subnet = IPAddress(0, 0, 0, 0);
+                params.creds.dns1 = IPAddress(0, 0, 0, 0);
+                params.creds.dns2 = IPAddress(0, 0, 0, 0);
+                log_debug("Saving DHCP config");
+            } else {
+                log_debug("Saving static IP: IP=%s, GW=%s, SN=%s, DNS1=%s, DNS2=%s",
+                         params.creds.local_ip.toString().c_str(), 
+                         params.creds.gateway.toString().c_str(),
+                         params.creds.subnet.toString().c_str(),
+                         params.creds.dns1.toString().c_str(),
+                         params.creds.dns2.toString().c_str());
             }
-        }
 
-        Serial.print("\n\n\nConnecting to ");
-        Serial.println(ssid);
-        WiFi.begin(ssid.c_str(), pass.c_str());
-
-        if (WiFi.status() == WL_CONNECTED && newSSID) {
-            log_info("Disconnect from current WiFi network");
-            WiFi.disconnect();
-            delay(10);
-        }
-
-        uint32_t beginTime = millis();
-        while (WiFi.status() != WL_CONNECTED) {
-            delay(250);
-            Serial.print("*");
-#if defined(ESP8266)
-            ESP.wdtFeed();
-#else
-            esp_task_wdt_reset();
-#endif
-            if (millis() - beginTime > m_timeout) {
-                request->send(408, "text/plain", "<br><br>Connection timeout!<br>Check password or try to restart ESP.");
-                delay(100);
-                Serial.println("\nWiFi connect timeout!");;
-                break;
+            if (!m_credentialManager->updateCredential(params.creds, params.password.c_str())) {
+                m_credentialManager->addCredential(params.creds, params.password.c_str());
             }
+        #if defined(ESP32)
+            m_credentialManager->saveToNVS();
+        #elif defined(ESP8266)
+            m_credentialManager->saveToFS();
+        #endif
         }
-        // reply to client
-        if (WiFi.status() == WL_CONNECTED) {
-            // WiFi.softAPdisconnect();
 
-            m_serverIp = WiFi.localIP();
-            Serial.print(F("\nConnected to Wifi! IP address: "));
-            Serial.println(m_serverIp);
-            String serverLoc = F("http://");
-            for (int i = 0; i < 4; i++) {
-                if (i) serverLoc += ".";
-                serverLoc += m_serverIp[i];
-            }
-            serverLoc += "/setup";
-            resp  = "ESP successfully connected to ";
-            resp += ssid;
-            resp += " WiFi network. <br><b>Restart ESP now?</b><br><br><i>Note: disconnect your browser from ESP AP and then reload <a href='";
-            resp += serverLoc;
-            resp += "'>";
-            resp += serverLoc;
-            resp += "</a> or <a href='http://";
-            resp += m_host;
-            resp += ".local'>http://";
-            resp += m_host;
-            resp += ".local</a></i>";
-
-            log_debug("%s", resp.c_str());
-            request->send(200, "application/json", resp);
-            delay(500);  // Give client time to receive response before system changes
-            setTaskWdt(AWS_WDT_TIMEOUT);
-            return;
+        if (result.connected) {
+            m_serverIp = result.ip;
         }
-    }
-    setTaskWdt(AWS_WDT_TIMEOUT);
-    request->send(401, "text/plain", "Wrong credentials provided");
+        else if (wasStaConnected && !params.fromApClient && strlen(m_apSSID) > 0) {
+            log_info("WiFi connect failed, starting AP mode: SSID=%s", m_apSSID);
+            startCaptivePortal(m_apSSID, m_apPassword, "/setup");
+        }
+    });
+
+    // Send response FIRST to avoid HTTP timeout
+    String resp;
+    resp.reserve(512);
+    resp = "<div id='action-async-applying'></div>";
+    resp += "WiFi configuration applying for <b>";
+    resp += String(params.creds.ssid);
+    resp += "</b>.<br><br>";
+    resp += "<i>The ESP is reconnecting...<br>Please reload this page after a few seconds.</i>";
+    request->send(200, "text/html", resp);
 }
 
 void AsyncFsWebServer::onUpdate() {
@@ -704,147 +747,79 @@ void AsyncFsWebServer::onUpdate() {
 
 #endif //ESP_FS_WS_SETUP
 
-bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
-    // Check if we need to config wifi connection
-    IPAddress local_ip, subnet, gateway;
+bool AsyncFsWebServer::startMDNSResponder() {
+#if ESP_FS_WS_MDNS
+    return WiFiService::startMDNSResponder(m_dnsServer, m_host, m_port, m_serverIp);
+#else
+    return true;
+#endif
+}
 
-#if ESP_FS_WS_SETUP
-    File file = m_filesystem->open(ESP_FS_WS_CONFIG_FILE, "r");
-    if (file) {
-        // If file is present, load actual configuration
-        AsyncFSWebServer::Json doc;
-        String content = "";
-        while (file.available()) {
-            content += (char)file.read();
-        }
-        file.close();
-        if (doc.parse(content)) {
-            bool dhcp = false;
-            if (doc.getBool("dhcp", dhcp) && dhcp == true) {
-                String gw, sn, ip;
-                if (doc.getString("gateway", gw)) gateway.fromString(gw);
-                if (doc.getString("subnet", sn)) subnet.fromString(sn);
-                if (doc.getString("ip_address", ip)) local_ip.fromString(ip);
-                log_info("Manual config WiFi connection with IP: %s\n", local_ip.toString().c_str());
-                if (!WiFi.config(local_ip, gateway, subnet)) {
-                    log_error("STA Failed to configure");
-                }
-                delay(100);
-            }
-        } else {
-            log_error("Failed to parse WiFi config file");
-        }
+bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {    
+#ifdef ESP32
+    if (m_credentialManager && m_credentialManager->loadFromNVS()) {
+        log_debug("Credentials loaded from NVS");
+        log_debug("%s", m_credentialManager->getDebugInfo().c_str());
+    }
+#else
+    if (m_credentialManager && m_credentialManager->loadFromFS()) {
+        log_debug("Credentials loaded from filesystem");
+        log_debug("%s", m_credentialManager->getDebugInfo().c_str());
     }
 #endif
 
-    WiFi.mode(WIFI_STA);
-#if defined(ESP8266)
-    struct station_config conf;
-    wifi_station_get_config_default(&conf);
-    const char* _ssid = reinterpret_cast<const char*>(conf.ssid);
-    const char* _pass = reinterpret_cast<const char*>(conf.password);
-#elif defined(ESP32)
-    wifi_config_t conf;
-    esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &conf);
-    if (err) {
-        log_error("Get WiFi config: %s", esp_err_to_name(err));
-        return false;
-    }
-    const char* _ssid = reinterpret_cast<const char*>(conf.sta.ssid);
-    const char* _pass = reinterpret_cast<const char*>(conf.sta.password);
-#endif
-
-    if (strlen(_ssid) && strlen(_pass)) {
-        WiFi.begin(_ssid, _pass);
-        log_debug("Connecting to %s, %s", _ssid, _pass);
-
-        // Will try for some time
-        int tryDelay = timeout / 10;
-        int numberOfTries = 10;
-
-        // Wait for the WiFi event
-        while (true) {
-            switch (WiFi.status()) {
-            case WL_NO_SSID_AVAIL:   log_debug("[WiFi] SSID not found"); break;
-            case WL_CONNECTION_LOST: log_debug("[WiFi] Connection was lost"); break;
-            case WL_SCAN_COMPLETED:  log_debug("[WiFi] Scan is completed"); break;
-            case WL_DISCONNECTED:    log_debug("[WiFi] WiFi is disconnected"); break;
-            case WL_CONNECT_FAILED:
-                log_debug("[WiFi] Failed - WiFi not connected!");
-                return false;
-            case WL_CONNECTED:
-                log_debug("[WiFi] WiFi is connected!  IP address: %s", WiFi.localIP().toString().c_str());
-                m_serverIp = WiFi.localIP();
-                // Ensure AP mode flag reflects current station connection
-                m_isApMode = false;
-                #if ESP_FS_WS_MDNS
-                // Station connected: stop mDNS to save memory (kept only for AP verification)
-                MDNS.end();
-                #endif
-                return true;
-            default:
-                log_debug("[WiFi] WiFi Status: %d", WiFi.status());
-                break;
-            }
-            delay(tryDelay);
-            if (numberOfTries <= 0) {
-                log_debug("[WiFi] Failed to connect to WiFi!");
-                WiFi.disconnect();  // Use disconnect function to force stop trying to connect
-                // Keep AP flag unchanged here; caller may start AP later
-                return false;
-            }
-            else {
-                numberOfTries--;
-            }
+    // If a shared hostname was stored in CredentialManager, prefer it
+    if (m_credentialManager) {
+        String storedHost = m_credentialManager->getHostname();
+        if (storedHost.length()) {
+            m_host = storedHost;
         }
+    }
+
+    WiFiStartResult result = WiFiService::startWiFi(m_credentialManager, m_filesystem, ESP_FS_WS_CONFIG_FILE, timeout);
+    if (result.action == WiFiStartAction::Connected) {
+        m_serverIp = result.ip;
+        m_isApMode = false;
+    #if ESP_FS_WS_MDNS
+        WiFiService::startMDNSOnly(m_host, m_port);
+        log_info("mDNS started on http://%s.local", m_host.c_str());
+    #endif
+        return true;
+    }
+
+    if (result.action == WiFiStartAction::StartAp && strlen(m_apSSID) > 0) {
+        log_info("Starting AP mode: SSID=%s", m_apSSID);
+        startCaptivePortal(m_apSSID, m_apPassword, "/setup");
+        return true;
     }
     return false;
 }
 
 
-
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
-    // Start AP mode
-    delay(100);
-    WiFi.mode(WIFI_AP);
-    
-    // Configure IP address, gateway and netmask for AP mode
-    IPAddress apIP(192, 168, 4, 1);
-    IPAddress netmask(255, 255, 255, 0);
-    WiFi.softAPConfig(apIP, apIP, netmask);
-    
-    if (!WiFi.softAP(ssid, pass)) {
-        log_error("Captive portal failed to start: WiFi.softAP() failed!");
-        return false;
-    }
-    m_serverIp = WiFi.softAPIP();
-    m_isApMode = true;
-
-    m_dnsServer = new DNSServer();
-    m_dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
-    if (! m_dnsServer->start(53, "*", m_serverIp)) {
-        log_error("Captive portal failed to start: no sockets for DNS server available!");
-        return false;
-    }
-    m_captive = new CaptiveRequestHandler(redirectTargetURL);
-    addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
-    
-    #if ESP_FS_WS_MDNS
-    // Start MDNS only in AP mode for connection verification to the captive SSID
-    if (!MDNS.begin(m_host.c_str())){
-        log_error("MDNS responder not started");
-    } else {
-        log_debug("MDNS responder started %s (AP mode)", m_host.c_str());
-        MDNS.addService("http", "tcp", m_port);
-        MDNS.setInstanceName("async-fs-webserver");
-    }
-    #endif
-
-    log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
-
-    return true;
+    WiFiConnectParams params;
+    strncpy(params.creds.ssid, ssid, sizeof(params.creds.ssid) - 1);
+    params.creds.ssid[sizeof(params.creds.ssid) - 1] = '\0';
+    params.password = pass;     
+    return startCaptivePortal(params, redirectTargetURL);
 }
 
+
+bool AsyncFsWebServer::startCaptivePortal(WiFiConnectParams& params, const char *redirectTargetURL) {
+    // Start AP mode
+    if (!WiFiService::startAccessPoint(params, m_serverIp)) {
+        return false;
+    }
+    m_isApMode = true;
+    // Start DNS server
+    this->startMDNSResponder();
+    // Captive portal server to redirect all requests to the AP IP
+    m_captive = new CaptiveRequestHandler(redirectTargetURL);
+    addHandler(m_captive).setFilter(ON_AP_FILTER); //only when requested from AP
+
+    log_info("Captive portal started. Redirecting all requests to %s", redirectTargetURL);
+    return true;
+}
 
 // edit page, in usefull in some situation, but if you need to provide only a web interface, you can disable
 #if ESP_FS_WS_EDIT
@@ -854,7 +829,7 @@ void AsyncFsWebServer::handleFileEdit(AsyncWebServerRequest *request) {
         if(!request->authenticate(m_pageUser, m_pagePswd))
             return request->requestAuthentication();
     }
-    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acedit_min_htm, sizeof(_acedit_min_htm));
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/html", (uint8_t*)_acedit_htm, sizeof(_acedit_htm));
     response->addHeader("Content-Encoding", "gzip");
     request->send(response);
 }
@@ -901,7 +876,7 @@ void AsyncFsWebServer::handleFileList(AsyncWebServerRequest *request)
                     filename.remove(0, filename.lastIndexOf("/") + 1);
                 }
             }         
-            AsyncFSWebServer::Json item;
+            CJSON::Json item;
             item.setString("type", (file.isDirectory()) ? "dir" : "file");
             item.setNumber("size", file.size());
             item.setString("name", filename);
@@ -1053,7 +1028,7 @@ void AsyncFsWebServer::handleFsStatus(AsyncWebServerRequest *request)
     if (getFsInfo != nullptr) {
         getFsInfo(&info);
     }
-    AsyncFSWebServer::Json doc;
+    CJSON::Json doc;
     doc.setString("type", info.fsName);
     doc.setString("isOk", m_filesystem_ok ? "true" : "false");
 

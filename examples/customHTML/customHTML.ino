@@ -180,8 +180,14 @@ void setup() {
 
   // Add custom page title to /setup
   server.setSetupPageTitle("Custom HTML Web Server");
-  // Add custom logo to /setup page with custom size
-  server.setLogoBase64(base64_logo, "128", "128", /*overwrite file*/ false);
+
+  // Set custom logo for /setup page using a raster image (png, jpg, bmp), 
+  // with the method below, but remember to set the proper mime type for the image
+  // (use the provided python script to convert your image to byte array with proper format and size for best results)
+  server.setSetupPageLogo(custom_logo, sizeof(custom_logo), /*mime type*/ "image/png", /*overwrite*/ false);
+
+  // As alternative use the content of SVG file as text for logo
+  // server.setSetupPageLogo(custom_logo_svg, /*overwrite*/ false); 
 
   // Enable ACE FS file web editor and add FS info callback function    
   server.enableFsCodeEditor();

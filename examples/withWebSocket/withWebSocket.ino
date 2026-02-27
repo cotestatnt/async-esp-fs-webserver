@@ -98,7 +98,7 @@ bool loadApplicationConfig() {
     File file = server.getConfigFile("r");
     String content = file.readString();
     file.close();
-    AsyncFSWebServer::Json json;
+    CJSON::Json json;
     if (!json.parse(content)) {
       Serial.println(F("Failed to parse JSON configuration."));
       return false;
@@ -153,7 +153,7 @@ void setup() {
 
   // Enable ACE FS file web editor and add FS info callback function
   server.enableFsCodeEditor();
-  
+
   // Init with custom WebSocket event handler and start server
   server.init(onWsEvent);
 

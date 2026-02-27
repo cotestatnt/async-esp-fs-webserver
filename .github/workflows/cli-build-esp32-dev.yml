@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
-      - release/*
+      - dev
       
   pull_request:
 
@@ -18,6 +17,7 @@ concurrency:
 jobs:
   arduino-esp32:
     name: ESP32 (arduino-cli) (shard=${{ matrix.shard }})
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_BUILDS == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -48,14 +48,14 @@ jobs:
       - name: Install core
         run: arduino-cli core install --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json esp32:esp32
 
-      - name: Install ArduinoJson
-        run: arduino-cli lib install ArduinoJson
-
       - name: Install AsyncTCP (ESP32)
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.3.7
+        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/AsyncTCP#v3.4.10
 
       - name: Install ESPAsyncWebServer
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer#v3.7.3
+        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/ESP32Async/ESPAsyncWebServer#v3.9.5
+
+      - name: Install ArduinoJson
+        run: arduino-cli lib install ArduinoJson
 
       - name: Install Arduino-MySQL
         run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/cotestatnt/Arduino-MySQL
@@ -63,7 +63,7 @@ jobs:
       - name: Install Arduino_MFRC522v2
         run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/OSSLibraries/Arduino_MFRC522v2
 
-      - name: Install PubSubCLient
+      - name: Install PubSubClient
         run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/knolleary/pubsubclient        
 
       - name: Build Examples
@@ -146,7 +146,7 @@ jobs:
     name: ESP32 (arduino-cli) - Final report
     runs-on: ubuntu-latest
     needs: arduino-esp32
-    if: always()
+    if: always() && needs.arduino-esp32.result != 'skipped'
     steps:
       - name: Download all reports
         uses: actions/download-artifact@v4

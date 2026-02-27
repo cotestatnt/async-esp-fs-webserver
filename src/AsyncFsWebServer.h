@@ -3,13 +3,14 @@
 
 #include <FS.h>
 #include <DNSServer.h>
-#include "SerialLog.h"
-#include "Version.h"
+
 #include "ESPAsyncWebServer.h"
 #include "Json.h"
+#include "WiFiService.h"
+#include "SerialLog.h"
+#include "Version.h"
 
 class Print;
-
 
 #ifdef ESP32
   // Arduino-ESP32 v3 splits networking primitives into a dedicated core library.
@@ -49,13 +50,16 @@ class Print;
 #endif
 
 #if ESP_FS_WS_EDIT_HTM
-    #include "edit_htm.h"
+    #include "assets/edit_htm.h"
 #endif
 
 #if ESP_FS_WS_SETUP_HTM
     #define ESP_FS_WS_CONFIG_FOLDER "/config"
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
-    #include "setup_htm.h"
+    #include "assets/setup_htm.h"
+    #include "assets/creds_js.h"
+    #include "assets/logo_svg.h"
+    #include "CredentialManager.h"    
     #include "SetupConfig.hpp" 
 #endif
 
@@ -94,6 +98,9 @@ class AsyncFsWebServer : public AsyncWebServer
     AsyncWebSocket* m_ws = nullptr;
     AsyncWebHandler *m_captive = nullptr;
     DNSServer* m_dnsServer = nullptr;
+
+    char m_apSSID[33] = {0};
+    char m_apPassword[65] = {0};
     bool m_isApMode = false;
     bool m_authAll = false;
   
@@ -144,6 +151,7 @@ class AsyncFsWebServer : public AsyncWebServer
     ConfigSavedCallbackF m_configSavedCallback = nullptr;  // Callback for config file saves
 
     IPAddress m_serverIp = IPAddress(192, 168, 4, 1);
+    CredentialManager *m_credentialManager = nullptr;
 
 #if ESP_FS_WS_SETUP
     SetupConfigurator* setup = nullptr;
@@ -151,7 +159,7 @@ class AsyncFsWebServer : public AsyncWebServer
     // Lazy initialization: create setup object only when first needed
     SetupConfigurator* getSetupConfigurator() {
       if (!setup) {
-        setup = new SetupConfigurator(m_filesystem);
+        setup = new SetupConfigurator(m_filesystem, m_port, m_host);
       }
       return setup;
     }
@@ -163,12 +171,25 @@ class AsyncFsWebServer : public AsyncWebServer
     template <typename T>
     AsyncFsWebServer(T &fs, uint16_t port, const char* hostname = "") : AsyncWebServer(port), m_filesystem(&fs)
     {
-      m_port = port;
-      // setup is lazily initialized when first needed (lazy initialization)
+      m_port = port;      
+
+      if (!m_credentialManager) {
+        log_error("Credential manager not initialized");        
+        m_credentialManager = new CredentialManager();
+        m_credentialManager->begin();
+        #ifdef ESP8266        
+        m_credentialManager->setFilesystem(m_filesystem);  // Set FS for persistence
+        #endif
+      }     
 
       // Set hostname if provided from constructor
       if (strlen(hostname))
         m_host = hostname;
+
+      // Sync hostname into shared CredentialManager
+      if (m_credentialManager) {
+        m_credentialManager->setHostname(m_host.c_str());
+      }
       
 #ifdef ESP32
         // Auto-configure getFsInfo for ESP32 filesystems
@@ -202,7 +223,7 @@ class AsyncFsWebServer : public AsyncWebServer
             info->usedBytes = fs.usedBytes();
             info->fsName = this->typeName;
         };
-#endif
+#endif    
     }
 
     // Class destructor
@@ -217,6 +238,7 @@ class AsyncFsWebServer : public AsyncWebServer
       if(m_ws) delete m_ws;
       if(m_captive) delete m_captive;
       if(m_dnsServer) delete m_dnsServer;
+      if (m_credentialManager) delete m_credentialManager;
 #if ESP_FS_WS_SETUP
       if(setup) delete setup;  // Only delete if it was lazily initialized
 #endif
@@ -301,6 +323,11 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     bool startWiFi(uint32_t timeout, CallbackF fn=nullptr) ;
 
+    /**
+     * @brief Access shared CredentialManager instance (for advanced configuration)
+     */
+    inline CredentialManager* getCredentialManager() { return m_credentialManager; }
+
 
     [[deprecated("Use startWiFi(timeout) and if it fails, use startCaptivePortal(ssid, pswd) instead.")]]
     IPAddress startWiFi(uint32_t timeout, const char* ssid, const char* pswd, CallbackF fn = nullptr, const char* redirectTargetURL = nullptr) {
@@ -314,7 +341,28 @@ class AsyncFsWebServer : public AsyncWebServer
     /*
      * Redirect to captive portal if we got a request for another domain.
     */
-    bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL);
+    bool startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL = "/setup");
+    bool startCaptivePortal(WiFiConnectParams& params, const char *redirectTargetURL = "/setup");
+
+    /*
+      Set AP SSID and Password (backward compatibility)
+    */
+    void setAP(const char *ssid, const char *pass) {
+      strlcpy(m_apSSID, ssid, sizeof(m_apSSID));
+      strlcpy(m_apPassword, pass, sizeof(m_apPassword));
+    }
+
+    /*
+    * Setup and start mDNS responder
+    */
+    bool startMDNSResponder();
+
+    /*
+    * Need to be run in loop to handle DNS requests
+    */
+    inline void updateDNS() {
+      m_dnsServer->processNextRequest();
+    }
 
     /*
      * get instance of current websocket handler (enabled at runtime)
@@ -343,13 +391,6 @@ class AsyncFsWebServer : public AsyncWebServer
     }
 
     /*
-    * Need to be run in loop to handle DNS requests
-    */
-    inline void updateDNS() {
-      m_dnsServer->processNextRequest();
-    }
-
-    /*
     * Set current firmware version (shown in /setup webpage)
     */
     inline void setFirmwareVersion(const char* version) {
@@ -365,6 +406,9 @@ class AsyncFsWebServer : public AsyncWebServer
     */
     inline void setHostname(const char * host) {
       m_host = host;
+      if (m_credentialManager) {
+        m_credentialManager->setHostname(host);
+      }
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -411,16 +455,23 @@ class AsyncFsWebServer : public AsyncWebServer
       return ESP_FS_WS_CONFIG_FILE;
     }
 
-    void setSetupPageTitle(const char* title) { getSetupConfigurator()->addOption("name-logo", title); }
+    void setSetupPageTitle(const char* title) { getSetupConfigurator()->setSetupPageTitle(title); }
     void addHTML(const char* html, const char* id, bool ow = false) {getSetupConfigurator()->addHTML(html, id, ow);}
     void addCSS(const char* css, const char* id, bool ow = false){getSetupConfigurator()->addCSS(css, id, ow);}
     void addJavascript(const char* script, const char* id, bool ow = false) {getSetupConfigurator()->addJavascript(script, id, ow);}
     void addDropdownList(const char *lbl, const char** a, size_t size){getSetupConfigurator()->addDropdownList(lbl, a, size);}    
     void addDropdownList(DropdownList &def){ getSetupConfigurator()->addDropdownList(def); }
     void addSlider(Slider &def){ getSetupConfigurator()->addSlider(def); }
-    void addOptionBox(const char* title) { getSetupConfigurator()->addOption("param-box", title); }
-    void setLogoBase64(const char* logo, const char* w = "128", const char* h = "128", bool ow = false) {
-      getSetupConfigurator()->setLogoBase64(logo, w, h, ow);
+    void addOptionBox(const char* title) { getSetupConfigurator()->addOptionBox(title); }
+    void setSetupPageLogo(const uint8_t* imageData, size_t imageSize, const char* mimeType = "image/png", bool ow = false) {
+      getSetupConfigurator()->setSetupPageLogo(imageData, imageSize, mimeType, ow);
+    }
+    void setSetupPageLogo(const char* svgText, bool ow = false) {
+      getSetupConfigurator()->setSetupPageLogo(svgText, ow);
+    }
+    // boolean option overload with per-option grouping control
+    void addOption(const char *lbl, bool val, bool hidden = false, bool grouped = true) {
+      getSetupConfigurator()->addOption(lbl, val, hidden, grouped);
     }
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){

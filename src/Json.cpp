@@ -2,7 +2,7 @@
 #include <cstring>
 #include <stdlib.h>
 
-using namespace AsyncFSWebServer;
+using namespace CJSON;
 
 Json::Json() : root(nullptr) {}
 Json::~Json()
@@ -141,6 +141,51 @@ String Json::serialize(bool pretty) const
     s.reserve(256);
     serializeNode(root, s, pretty, 0);
     return s;
+}
+
+// --------- Construction helpers for nested structures ---------
+bool Json::createObject()
+{
+    if (root) cJSON_Delete(root);
+    root = cJSON_CreateObject();
+    return root != nullptr;
+}
+
+bool Json::createArray()
+{
+    if (root) cJSON_Delete(root);
+    root = cJSON_CreateArray();
+    return root != nullptr;
+}
+
+bool Json::add(const Json& child)
+{
+    if (!root || !cJSON_IsArray(root)) return false;
+    // Deep copy child root into this array
+    cJSON* copy = nullptr;
+    if (child.root) {
+        copy = cJSON_Duplicate(child.root, /*recurse*/1);
+    } else {
+        copy = cJSON_CreateNull();
+    }
+    if (!copy) return false;
+    cJSON_AddItemToArray(root, copy);
+    return true;
+}
+
+bool Json::set(const String& key, const Json& child)
+{
+    if (!root || !cJSON_IsObject(root)) return false;
+    cJSON_DeleteItemFromObjectCaseSensitive(root, key.c_str());
+    cJSON* copy = nullptr;
+    if (child.root) {
+        copy = cJSON_Duplicate(child.root, /*recurse*/1);
+    } else {
+        copy = cJSON_CreateNull();
+    }
+    if (!copy) return false;
+    cJSON_AddItemToObject(root, key.c_str(), copy);
+    return true;
 }
 
 bool Json::hasObject(const String &key) const
@@ -306,78 +351,6 @@ bool Json::getNumber(const String &key, double &out) const
     return false;
 }
 
-
-// bool Json::getNumber(const String &key, float &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<float>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, int8_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<int8_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, uint8_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<uint8_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, int16_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<int16_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, uint16_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<uint16_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, int32_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<int32_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, uint32_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<uint32_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, int64_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<int64_t>(tmp);
-//     return true;
-// }
-
-// bool Json::getNumber(const String &key, uint64_t &out) const
-// {
-//     double tmp;
-//     if (!getNumber(key, tmp)) return false;
-//     out = static_cast<uint64_t>(tmp);
-//     return true;
-// }
 
 // Object-scoped key helpers
 bool Json::getString(const String &objName, const String &key, String &out) const
