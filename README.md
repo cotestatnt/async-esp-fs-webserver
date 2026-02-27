@@ -15,6 +15,7 @@ Install the following dependencies. Remove any previously installed clones or ol
 - [docs/SetupAndWiFi.md](docs/SetupAndWiFi.md)
 - [docs/FileEditorAndFS.md](docs/FileEditorAndFS.md)
 - [docs/WebSocket.md](docs/WebSocket.md)
+- [docs/LogoAndTitle.md](docs/LogoAndTitle.md) - Custom logo and page title configuration
 
 **Note**:
 Starting from version 2.0.0, the ESP32 Arduino core introduced **LittleFS**, like ESP8266. The examples in this library are written to use it by default on both platforms. Change this if you prefer other file systems.

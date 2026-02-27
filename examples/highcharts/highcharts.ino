@@ -105,7 +105,7 @@ void loop() {
 
     time_t now = time(nullptr);
     using namespace AsyncFSWebServer;
-    Json doc;
+    CJSON::Json doc;
     doc.setBool("addPoint", true);
     doc.setNumber("timestamp", (double)now);
 #ifdef ESP32
