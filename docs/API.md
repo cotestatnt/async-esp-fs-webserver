@@ -90,6 +90,20 @@ Options and setup UI:
 void setSetupPageTitle(const char* title);
 void addOptionBox(const char* title);
 
+// attach a comment string to an existing option element
+// For most controls the comment is rendered in a separate line under the input.
+// Boolean (checkbox) fields use a <span> so the text stays on the same line.
+void addComment(const char *lbl, const char *comment);
+
+// convenience overload: add an option and comment in one call
+// bool-specific version avoids confusion with the templated overload
+void addOption(const char *lbl, bool val, const char *comment, bool hidden = false, bool grouped = true);
+
+// templated variant for other types
+// note: bools are excluded via SFINAE
+template <typename T, typename std::enable_if<!std::is_same<T, bool>::value, int>::type = 0>
+void addOption(const char *lbl, T val, const char *comment);
+
 template <typename T>
 void addOption(const char *lbl, T val, bool hidden=false, double min=MIN_F, double max=MAX_F, double st=1.0);
 

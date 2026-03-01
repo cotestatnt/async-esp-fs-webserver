@@ -357,12 +357,14 @@ void setup() {
   // Configure /setup page and start Web Server
   server.addOptionBox("My Options");
   server.addHTML(reload_btn_htm, "buttons", /*overwrite*/ false);
-  server.addOption(LED_LABEL, ledPin);
-  server.addOption(LONG_LABEL, longVar);
+  server.addOption(LED_LABEL, ledPin, "This is the LED pin number");
+  server.addOption(LONG_LABEL, longVar, "This is a long integer value");
   server.addOption(FLOAT_LABEL, floatVar, 1.0, 100.0, 0.01);
   server.addOption(STRING_LABEL, stringVar);
+  // Boolean options are grouped in a single section by default, but you can override this behavior.
   server.addOption(BOOL_LABEL, boolVar, false, false);
-  server.addOption(BOOL_LABEL2, boolVar2, false, false);
+  // Boolean option with a custom label is not grouped with other boolean options in any case.
+  server.addOption(BOOL_LABEL2, boolVar2, "This is a boolean value");
   server.addDropdownList(dayOfWeek);
   server.addSlider(brightness);  
   server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);

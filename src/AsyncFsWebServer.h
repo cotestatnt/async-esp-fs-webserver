@@ -9,6 +9,7 @@
 #include "WiFiService.h"
 #include "SerialLog.h"
 #include "Version.h"
+#include <type_traits>
 
 class Print;
 
@@ -473,15 +474,36 @@ class AsyncFsWebServer : public AsyncWebServer
     void addOption(const char *lbl, bool val, bool hidden = false, bool grouped = true) {
       getSetupConfigurator()->addOption(lbl, val, hidden, grouped);
     }
+
+    // specialized bool overload that also accepts a comment string
+    void addOption(const char *lbl, bool val, const char *comment,
+                   bool hidden = false, bool grouped = false) {
+      getSetupConfigurator()->addOption(lbl, val, hidden, grouped);
+      addComment(lbl, comment);
+    }
+
     template <typename T>
     void addOption(const char *lbl, T val, double min, double max, double st){
       getSetupConfigurator()->addOption(lbl, val, false, min, max, st);
     }
+
     template <typename T>
     void addOption(const char *lbl, T val, bool hidden = false,  double min = MIN_F,
       double max = MAX_F, double st = 1.0) {
       getSetupConfigurator()->addOption(lbl, val, hidden, min, max, st);
     }
+
+    // Overload for options with comments (added as metadata to be displayed under the input in the UI)
+    // disable for bool so the bool-specific overload is used instead
+    template <typename T, typename std::enable_if<!std::is_same<T, bool>::value, int>::type = 0>
+    void addOption(const char *lbl, T val, const char* comment) {
+      getSetupConfigurator()->addOption(lbl, val, false, MIN_F, MAX_F, 1.0);
+      addComment(lbl, comment);
+    }
+
+    // Associate a short comment with a configuration element (displayed under the input)
+    void addComment(const char *lbl, const char *comment) { getSetupConfigurator()->addComment(lbl, comment); }
+
     template <typename T>
     bool getOptionValue(const char *lbl, T &var) { return getSetupConfigurator()->getOptionValue(lbl, var);}
     template <typename T>

@@ -800,6 +800,62 @@ class SetupConfigurator
             startNewSection(boxTitle);
         }
 
+        /**
+         * @brief Add a comment string associated with an existing element
+         * The comment will be stored in the element object under key "comment".
+         * When the frontend renders the option it will append a <div class="cmt">.
+         */
+        void addComment(const char *tag, const char *comment) {
+            if (m_doc == nullptr) {
+                if (!openConfiguration()) {
+                    log_error("Error! /setup configuration not possible");
+                    return;
+                }
+            }
+            String ct = String(comment);
+            bool found = false;
+            // search in current elements (active section)
+            {
+                cJSON* arr = m_currentElements.getRoot();
+                if (arr && cJSON_IsArray(arr)) {
+                    for (cJSON* el = arr->child; el; el = el->next) {
+                        cJSON* lbl = cJSON_GetObjectItemCaseSensitive(el, "label");
+                        if (lbl && cJSON_IsString(lbl) && String(lbl->valuestring) == tag) {
+                            cJSON_DeleteItemFromObjectCaseSensitive(el, "comment");
+                            cJSON_AddStringToObject(el, "comment", comment);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            // also search in previously built sections
+            if (!found) {
+                cJSON* secs = m_sectionsArray.getRoot();
+                if (secs && cJSON_IsArray(secs)) {
+                    for (cJSON* sec = secs->child; sec && !found; sec = sec->next) {
+                        cJSON* elems = cJSON_GetObjectItemCaseSensitive(sec, "elements");
+                        if (elems && cJSON_IsArray(elems)) {
+                            for (cJSON* el = elems->child; el; el = el->next) {
+                                cJSON* lbl = cJSON_GetObjectItemCaseSensitive(el, "label");
+                                if (lbl && cJSON_IsString(lbl) && String(lbl->valuestring) == tag) {
+                                    cJSON_DeleteItemFromObjectCaseSensitive(el, "comment");
+                                    cJSON_AddStringToObject(el, "comment", comment);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // fallback: write to root document so it won't be lost
+            if (!found) {
+                m_doc->setString(tag, "comment", ct);
+            }
+        }
+
+
         /*
             Add custom option to config webpage (float values)
         */

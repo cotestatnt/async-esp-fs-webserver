@@ -113,4 +113,7 @@ void loop() {
     String msg = doc.serialize();
     server.wsBroadcast(msg.c_str());
   }
+
+  // Nothing else to do in loop, all handled by async callbacks. 
+  delay(10);
 }

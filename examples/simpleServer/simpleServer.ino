@@ -5,6 +5,7 @@
 AsyncFsWebServer server(LittleFS, 80, "myServer");
 uint16_t testInt = 150;
 float testFloat = 123.456f;
+bool testBool = true;
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -32,6 +33,7 @@ bool loadApplicationConfig() {
     // Test "options" values
     server.getOptionValue("Test int variable", testInt);
     server.getOptionValue("Test float variable", testFloat);
+    server.getOptionValue("Test bool variable", testBool);
     return true;
   }
   return false;
@@ -60,6 +62,7 @@ void setup() {
     if (loadApplicationConfig()) {
       Serial.printf("Stored \"testInt\" value: %d\n", testInt);
       Serial.printf("Stored \"testFloat\" value: %3.3f\n", testFloat);
+      Serial.printf("Stored \"testBool\" value: %s\n", testBool?"true":"false");
     }
   } else
     Serial.println("LittleFS error!");
@@ -74,6 +77,10 @@ void setup() {
   server.addOptionBox("Custom options");
   server.addOption("Test int variable", testInt);
   server.addOption("Test float variable", (double)testFloat, 0.0, 100.0, 0.001);
+  // add a helpful comment beneath the float slider
+  server.addComment("Test float variable", "Use this to adjust the intensity (0-100)");
+  // add a helpful comment direclty (boolean comment appears inline by default)
+  server.addOption("Test bool variable", testBool, "Enable/disable feature");
   server.setSetupPageTitle("Simple Async ESP FS WebServer");
 
   // Enable ACE FS file web editor and add FS info callback function
