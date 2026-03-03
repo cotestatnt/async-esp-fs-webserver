@@ -363,13 +363,28 @@ void setup() {
   server.addOption(LONG_LABEL, longVar, "This is a long integer value");
   server.addOption(FLOAT_LABEL, floatVar, 1.0, 100.0, 0.01);
   server.addOption(STRING_LABEL, stringVar);
-  
-  server.addOptionBox("My Options 2");
   // Boolean option with a custom label is not grouped with other boolean options in any case.
   server.addOption(BOOL_LABEL2, boolVar2, "Enable this options");
   server.addDropdownList(dayOfWeek);
   server.addSlider(brightness);  
   server.addJavascript(reload_btn_script, "js", /*overwrite*/ false);
+
+  bool boolLED1ENABLE, boolLED2ENABLE, boolLED3ENABLE, boolLED4ENABLE;
+  byte byteLED1PIN, byteLED2PIN, byteLED3PIN, byteLED4PIN;
+
+  server.addOptionBox("LEDs");
+
+  server.addOption("LED1 enable", boolLED1ENABLE, "Enable LED1");
+  server.addOption("LED1 PIN", byteLED1PIN);
+
+  server.addOption("LED2 enable", boolLED2ENABLE , "Enable LED2");
+  server.addOption("LED2 PIN", byteLED2PIN);
+
+  server.addOption("LED3 enable", boolLED3ENABLE, "Enable LED3");
+  server.addOption("LED3 PIN", byteLED3PIN);
+
+  server.addOption("LED4 enable", boolLED4ENABLE, "Enable LED4");
+  server.addOption("LED4 PIN", byteLED4PIN);
 
   // Enable ACE FS file web editor
   server.enableFsCodeEditor();

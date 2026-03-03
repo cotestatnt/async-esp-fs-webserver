@@ -916,10 +916,8 @@ class SetupConfigurator
             if (readSavedBool(current)) valueFromSaved = true;
             elem.setString("type", "boolean");
             elem.setBool("value", current);
-
-            if (!grouped) {
-                elem.setBool("group", false);
-            }
+            elem.setBool("group", grouped);
+            
             if (hidden) {
                 elem.setBool("hidden", true);
             }
