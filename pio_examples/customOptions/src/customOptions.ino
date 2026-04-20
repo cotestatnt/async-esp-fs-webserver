@@ -325,6 +325,7 @@ void handleLoadOptions(AsyncWebServerRequest *request) {
 
 void setup() {
   Serial.begin(115200);
+  pinMode(BOOT_PIN, INPUT_PULLUP);
 
   // FILESYSTEM INIT
   if (startFilesystem()){
@@ -418,9 +419,25 @@ void loop() {
   static bool buttonPressed = false;
   
   if (digitalRead(BOOT_PIN) == LOW) {
+
+    if (server.saveOptionValue(LONG_LABEL, millis())) {
+        Serial.println("\nOption saved successfully!");
+        server.closeSetupConfiguration();  // Close configuration to free resources
+    }
+    else {
+        Serial.println("\nFailed to save option!");
+    }
+    delay(1000); // Debounce delay
+    return; // Skip the rest of the loop to avoid multiple saves while button is pressed
+
     if (!buttonPressed) {
       buttonPressed = true;
       buttonPressStart = millis();
+
+      if (server.saveOptionValue(LONG_LABEL, millis())) {
+        Serial.println("\nOption saved successfully!");
+        server.closeSetupConfiguration();  // Close configuration to free resources
+      } 
     } 
     else if (millis() - buttonPressStart >= 5000) {
       Serial.println("\nClearing application options...");

@@ -418,9 +418,9 @@ class AsyncFsWebServer : public AsyncWebServer
 #if ESP_FS_WS_SETUP    
 
     // Public alias to dropdown definition type (available only when /setup is enabled)
-    using DropdownList = AsyncFSWebServer::DropdownList;
+    using DropdownList = SetupConfig::DropdownList;
     // Public alias to slider definition type
-    using Slider = AsyncFSWebServer::Slider;
+    using Slider = SetupConfig::Slider;
 
     /*
     * Set callback function to be called when configuration file is saved via /edit POST
