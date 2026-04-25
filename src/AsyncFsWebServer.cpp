@@ -1,5 +1,9 @@
 #include "AsyncFsWebServer.h"
 
+#if defined(ESP8266)
+#include <Schedule.h>
+#endif
+
 
 void setTaskWdt(uint32_t timeout) {
   #if defined(ESP32)
@@ -539,9 +543,57 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     params.wdtLongTimeout = AWS_LONG_WDT_TIMEOUT;
     params.wdtTimeout = AWS_WDT_TIMEOUT;
 
-    // In AP/captive-portal mode we can still safely perform the
-    // connection synchronously and return the detailed HTML result, because the AP interface remains up.
+    // In AP/captive-portal mode ESP32 can still perform the connection
+    // synchronously and return the detailed HTML result. On ESP8266 the
+    // blocking connect loop yields into the core, so defer it out of the
+    // HTTP handler.
     if (params.fromApClient) {
+#if defined(ESP8266)
+        auto applyApConnection = [this, params, persistent]() mutable {
+            WiFiConnectResult result = WiFiService::connectWithParams(params);
+            log_debug("WiFi connect result body: %s", result.body.c_str());
+
+            if (result.connected && persistent && strlen(params.creds.ssid) && params.password.length() && m_credentialManager) {
+                if (params.dhcp) {
+                    params.creds.local_ip = IPAddress(0, 0, 0, 0);
+                    params.creds.gateway = IPAddress(0, 0, 0, 0);
+                    params.creds.subnet = IPAddress(0, 0, 0, 0);
+                    params.creds.dns1 = IPAddress(0, 0, 0, 0);
+                    params.creds.dns2 = IPAddress(0, 0, 0, 0);
+                }
+
+                if (!m_credentialManager->updateCredential(params.creds, params.password.c_str())) {
+                    m_credentialManager->addCredential(params.creds, params.password.c_str());
+                }
+            #if defined(ESP32)
+                m_credentialManager->saveToNVS();
+            #elif defined(ESP8266)
+                m_credentialManager->saveToFS();
+            #endif
+            }
+
+            if (result.connected) {
+                m_serverIp = result.ip;
+            }
+        };
+
+        String resp;
+        resp.reserve(640);
+        resp = "<div id='action-async-applying'></div>";
+        resp += "WiFi configuration applying for <b>";
+        resp += String(params.creds.ssid);
+        resp += "</b>.<br><br>";
+        resp += "<i>The ESP is reconnecting while keeping the access point alive.<br>";
+        resp += "Wait a few seconds, then disconnect from the ESP access point and open ";
+        resp += "<a href='http://";
+        resp += m_host;
+        resp += ".local/setup'>http://";
+        resp += m_host;
+        resp += ".local/setup</a> on the target WiFi.</i>";
+        request->send(200, "text/html", resp);
+        schedule_function(std::move(applyApConnection));
+        return;
+#else
         WiFiConnectResult result = WiFiService::connectWithParams(params);
 
         if (result.connected && persistent && strlen(params.creds.ssid) && params.password.length() && m_credentialManager) {
@@ -573,6 +625,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
         const char* contentType = (result.status == 200) ? "text/html" : "text/plain";
         request->send(result.status, contentType, result.body);
         return;
+#endif
     }
 
     // STA mode: if already connected, always ask for confirmation before reconfiguring
@@ -593,8 +646,7 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
     // User confirmed: proceed with connection, 
     // but first set up the disconnect handler to attempt connection after response is sent (to avoid HTTP timeouts)
     
-    // Attempt connection AFTER sending response
-    request->onDisconnect([this, request, params, wasStaConnected]() mutable {        
+    auto applyConnection = [this, params, wasStaConnected]() mutable {
         WiFiConnectResult result = WiFiService::connectWithParams(params);
         log_debug("Connection result: connected=%d", result.connected);
 
@@ -634,6 +686,17 @@ void AsyncFsWebServer::doWifiConnection(AsyncWebServerRequest *request) {
             log_info("WiFi connect failed, starting AP mode: SSID=%s", m_apSSID);
             startCaptivePortal(m_apSSID, m_apPassword, "/setup");
         }
+    };
+
+    // Attempt connection AFTER sending response. On ESP8266, keep the disconnect
+    // handler short and schedule the blocking connect loop after it returns to
+    // avoid re-entering the async core from inside onDisconnect() via delay().
+    request->onDisconnect([applyConnection = std::move(applyConnection)]() mutable {
+#if defined(ESP8266)
+        schedule_function(std::move(applyConnection));
+#else
+        applyConnection();
+#endif
     });
 
     // Send response FIRST to avoid HTTP timeout
