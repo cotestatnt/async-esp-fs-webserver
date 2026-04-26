@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "C:/Users/Tolentino/Documents/Arduino/libraries/esp-fs-webserver"
+		}
+	],
+	"settings": {}
+}

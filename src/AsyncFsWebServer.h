@@ -58,7 +58,6 @@ class Print;
     #define ESP_FS_WS_CONFIG_FOLDER "/config"
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
     #include "assets/setup_htm.h"
-    #include "assets/creds_js.h"
     #include "assets/logo_svg.h"
     #include "CredentialManager.h"    
     #include "SetupConfig.hpp" 
@@ -97,6 +96,9 @@ class AsyncFsWebServer : public AsyncWebServer
 {
   protected:
     AsyncWebSocket* m_ws = nullptr;
+#if ESP_FS_WS_SETUP
+    AsyncWebSocket* m_setupWs = nullptr;
+#endif
     AsyncWebHandler *m_captive = nullptr;
     DNSServer* m_dnsServer = nullptr;
 
@@ -110,10 +112,6 @@ class AsyncFsWebServer : public AsyncWebServer
 
 #if ESP_FS_WS_SETUP    
     void handleSetup(AsyncWebServerRequest *request);
-    void getStatus(AsyncWebServerRequest *request);
-    void clearConfig(AsyncWebServerRequest *request);        
-    void doWifiConnection(AsyncWebServerRequest *request);
-    void handleScanNetworks(AsyncWebServerRequest *request);
     void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);    
     void onUpdate();
 #endif
@@ -156,6 +154,18 @@ class AsyncFsWebServer : public AsyncWebServer
 
 #if ESP_FS_WS_SETUP
     SetupConfigurator* setup = nullptr;
+    void initSetupWebSocket();
+  void releaseSetupWebSocketIfIdle();
+    void handleSetupWebSocket(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
+    void handleSetupWebSocketMessage(AsyncWebSocketClient *client, const uint8_t *data, size_t len);
+    void sendSetupWsResponse(AsyncWebSocketClient *client, const String& reqId, bool ok, const char *name, const String& payload = String(), const String& error = String());
+    void sendSetupWsEvent(AsyncWebSocketClient *client, const char *name, const String& payload = String());
+    void sendSetupWsEventById(uint32_t clientId, const char *name, const String& payload = String());
+    String buildSetupStatusPayload() const;
+    String buildSetupConfigPayload() const;
+    String buildSetupCredentialsPayload() const;
+    bool saveSetupConfigJson(const String& jsonText);
+    void runSetupWifiConnect(uint32_t clientId, WiFiConnectParams params, bool persistent, bool allowApFallback, bool fromApClient);
     
     // Lazy initialization: create setup object only when first needed
     SetupConfigurator* getSetupConfigurator() {
