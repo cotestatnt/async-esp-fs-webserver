@@ -23,6 +23,8 @@ Starting from version 2.0.0, the ESP32 Arduino core introduced **LittleFS**, lik
 ## WiFi and options manager
 Thanks to the built-in **/setup** page (about 8 KB of program space), you can scan and set WiFi credentials and other freely configurable parameters.
 
+Built-in `/setup` and `/edit` page sources are shared with the sync library and are maintained in `C:\Cloud\fs-webserver-shared-pages`. Regenerate the embedded headers from that repository instead of editing generated files in `src/assets` directly.
+
 ![image](docs/wifi_manager.png)
 
 ![image](docs/options_manager.png)

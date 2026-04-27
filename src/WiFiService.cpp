@@ -104,21 +104,21 @@ WiFiScanResult WiFiService::scanNetworks() {
 WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params) {
     WiFiConnectResult result;
 
-    if (strlen(params.creds.ssid)) {
+    if (strlen(params.config.ssid)) {
         setTaskWdt(params.wdtLongTimeout);
         WiFi.mode(WIFI_AP_STA);
 
         if (!params.dhcp) {
-            log_info("Manual config WiFi connection with IP: %s", params.creds.local_ip.toString().c_str());
-            bool hasDns1 = params.creds.dns1 != IPAddress(0, 0, 0, 0);
-            bool hasDns2 = params.creds.dns2 != IPAddress(0, 0, 0, 0);
+            log_info("Manual config WiFi connection with IP: %s", params.config.local_ip.toString().c_str());
+            bool hasDns1 = params.config.dns1 != IPAddress(0, 0, 0, 0);
+            bool hasDns2 = params.config.dns2 != IPAddress(0, 0, 0, 0);
             bool ok = false;
             if (hasDns1 && hasDns2) {
-                ok = WiFi.config(params.creds.local_ip, params.creds.gateway, params.creds.subnet, params.creds.dns1, params.creds.dns2);
+                ok = WiFi.config(params.config.local_ip, params.config.gateway, params.config.subnet, params.config.dns1, params.config.dns2);
             } else if (hasDns1) {
-                ok = WiFi.config(params.creds.local_ip, params.creds.gateway, params.creds.subnet, params.creds.dns1);
+                ok = WiFi.config(params.config.local_ip, params.config.gateway, params.config.subnet, params.config.dns1);
             } else {
-                ok = WiFi.config(params.creds.local_ip, params.creds.gateway, params.creds.subnet);
+                ok = WiFi.config(params.config.local_ip, params.config.gateway, params.config.subnet);
             }
 
             if (!ok) {
@@ -127,8 +127,8 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
         }        
 
         DBG_OUTPUT_PORT.print("\n\n\nConnecting to ");
-        DBG_OUTPUT_PORT.println(params.creds.ssid);
-        WiFi.begin(params.creds.ssid, params.password.c_str());
+    DBG_OUTPUT_PORT.println(params.config.ssid);
+    WiFi.begin(params.config.ssid, params.password.c_str());
 
         uint32_t beginTime = millis();
         while (WiFi.status() != WL_CONNECTED) {
@@ -155,7 +155,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
             logCurrentStaNetworkConfig();
 
             DBG_OUTPUT_PORT.print("\nConnected to ");
-            DBG_OUTPUT_PORT.print(params.creds.ssid);
+            DBG_OUTPUT_PORT.print(params.config.ssid);
             DBG_OUTPUT_PORT.print(". IP address: ");
             DBG_OUTPUT_PORT.println(result.ip);
             String serverLoc = F("http://");
@@ -166,7 +166,7 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
             serverLoc += "/setup";
             String resp;
             resp  = "ESP successfully connected to ";
-            resp += params.creds.ssid;
+            resp += params.config.ssid;
             resp += " WiFi network.";
 
             if (params.fromApClient) {
@@ -215,7 +215,15 @@ WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs:
         credentialManager->loadFromNVS();
 #else
         credentialManager->loadFromFS();
-#endif        
+    #endif
+    #ifdef BOARD_HAS_SDIO_ESP_HOSTED
+        WiFi.setPins(BOARD_SDIO_ESP_HOSTED_CLK, BOARD_SDIO_ESP_HOSTED_CMD, BOARD_SDIO_ESP_HOSTED_D0,
+                BOARD_SDIO_ESP_HOSTED_D1, BOARD_SDIO_ESP_HOSTED_D2, BOARD_SDIO_ESP_HOSTED_D3,
+                BOARD_SDIO_ESP_HOSTED_RESET);
+        WiFi.STA.begin();
+        WiFi.mode(WIFI_STA);
+        WiFi.disconnect(false, true, 1000); // needed for scanNetworks to work
+    #endif
         std::vector<WiFiCredential>* creds = credentialManager->getCredentials();
         if (creds && creds->size() > 0) {
             int networksFound = WiFi.scanNetworks();
@@ -366,14 +374,14 @@ bool WiFiService::startAccessPoint(WiFiConnectParams& params, IPAddress& outIp) 
     delay(100);
     WiFi.mode(WIFI_AP);
 
-    IPAddress apIP = params.creds.local_ip != IPAddress(0,0,0,0) ? params.creds.local_ip : IPAddress(192, 168, 4, 1);
-    IPAddress gateway = params.creds.gateway != IPAddress(0,0,0,0) ? params.creds.gateway : IPAddress(192, 168, 4, 1);
-    IPAddress netmask = params.creds.subnet != IPAddress(0,0,0,0) ? params.creds.subnet : IPAddress(255, 255, 255, 0);
+    IPAddress apIP = params.config.local_ip != IPAddress(0,0,0,0) ? params.config.local_ip : IPAddress(192, 168, 4, 1);
+    IPAddress gateway = params.config.gateway != IPAddress(0,0,0,0) ? params.config.gateway : IPAddress(192, 168, 4, 1);
+    IPAddress netmask = params.config.subnet != IPAddress(0,0,0,0) ? params.config.subnet : IPAddress(255, 255, 255, 0);
 
     // Configure AP IP parameters
     WiFi.softAPConfig(apIP, gateway, netmask);
 
-    if (!WiFi.softAP(params.creds.ssid, params.password.c_str())) {
+    if (!WiFi.softAP(params.config.ssid, params.password.c_str())) {
         log_error("Captive portal failed to start: WiFi.softAP() failed!");
         return false;
     }

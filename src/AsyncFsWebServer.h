@@ -55,7 +55,7 @@ class Print;
 #endif
 
 #if ESP_FS_WS_SETUP_HTM
-    #define ESP_FS_WS_CONFIG_FOLDER "/config"
+  #define ESP_FS_WS_CONFIG_FOLDER "/setup"
     #define ESP_FS_WS_CONFIG_FILE ESP_FS_WS_CONFIG_FOLDER "/config.json"
     #include "assets/setup_htm.h"
     #include "assets/logo_svg.h"
@@ -109,6 +109,7 @@ class AsyncFsWebServer : public AsyncWebServer
   
     void notFound(AsyncWebServerRequest *request);
     void handleFileName(AsyncWebServerRequest *request);
+    void handleIndex(AsyncWebServerRequest *request);
 
 #if ESP_FS_WS_SETUP    
     void handleSetup(AsyncWebServerRequest *request);

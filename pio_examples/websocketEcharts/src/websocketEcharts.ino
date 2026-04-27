@@ -10,7 +10,7 @@
 
 #define FILESYSTEM LittleFS
 
-AsyncFsWebServer server(FILESYSTEM, 80, "mywebserver");
+AsyncFsWebServer server(FILESYSTEM, 80);
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2

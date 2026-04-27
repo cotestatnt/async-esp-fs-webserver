@@ -81,6 +81,14 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     on("*", HTTP_HEAD, [this](AsyncWebServerRequest *request) { this->handleFileName(request); });
 
 #if ESP_FS_WS_SETUP
+    ConfigUpgrader upgrader(m_filesystem, ESP_FS_WS_CONFIG_FILE);
+    bool migratedLegacySetupStorage = false;
+    upgrader.migrateLegacySetupStorage("/config/config.json", "/config", ESP_FS_WS_CONFIG_FOLDER, &migratedLegacySetupStorage);
+    if (migratedLegacySetupStorage) {
+        ESP.restart();
+        return false;
+    }
+
     m_filesystem_ok = getSetupConfigurator()->checkConfigFile();
     if (getSetupConfigurator()->isOpened()) {
         log_debug("Config file %s closed", ESP_FS_WS_CONFIG_FILE);
@@ -95,12 +103,13 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
     on("/setup", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleSetup(request); });
     
     // Serve default logo from PROGMEM when no custom logo exists on filesystem
-    on("/config/logo.svg", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        if (!m_filesystem->exists("/config/logo.svg") && 
-            !m_filesystem->exists("/config/logo.svg.gz") &&
-            !m_filesystem->exists("/config/logo.png") &&
-            !m_filesystem->exists("/config/logo.jpg") &&
-            !m_filesystem->exists("/config/logo.gif")) {
+    on(ESP_FS_WS_CONFIG_FOLDER "/logo.svg", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        const String logoBase = String(ESP_FS_WS_CONFIG_FOLDER) + "/logo";
+        if (!m_filesystem->exists(logoBase + ".svg") && 
+            !m_filesystem->exists(logoBase + ".svg.gz") &&
+            !m_filesystem->exists(logoBase + ".png") &&
+            !m_filesystem->exists(logoBase + ".jpg") &&
+            !m_filesystem->exists(logoBase + ".gif")) {
             AsyncWebServerResponse *response = request->beginResponse(200, "image/svg+xml", (uint8_t*)_aclogo_svg, sizeof(_aclogo_svg));
             response->addHeader("Content-Encoding", "gzip");
             response->addHeader("Cache-Control", "public, max-age=86400");
@@ -133,6 +142,7 @@ bool AsyncFsWebServer::init(AwsEventHandler wsHandle) {
 
 #endif
     
+    on("/", HTTP_GET, [this](AsyncWebServerRequest *request) { this->handleIndex(request); });
     onNotFound([this](AsyncWebServerRequest *request) { this->notFound(request); });
     serveStatic("/", *m_filesystem, "/").setDefaultFile("index.htm");
 
@@ -381,7 +391,7 @@ void AsyncFsWebServer::handleSetupWebSocketMessage(AsyncWebSocketClient *client,
             cJSON *dns2 = cJSON_GetObjectItemCaseSensitive(payload, "dns2");
 
             if (cJSON_IsString(ssid) && ssid->valuestring) {
-                strlcpy(params.creds.ssid, ssid->valuestring, sizeof(params.creds.ssid));
+                strlcpy(params.config.ssid, ssid->valuestring, sizeof(params.config.ssid));
             }
             if (cJSON_IsString(password) && password->valuestring) {
                 params.password = password->valuestring;
@@ -404,16 +414,16 @@ void AsyncFsWebServer::handleSetupWebSocketMessage(AsyncWebSocketClient *client,
             confirmed = cJSON_IsBool(confirmedNode) && cJSON_IsTrue(confirmedNode);
 
             if (!params.dhcp) {
-                if (cJSON_IsString(ip) && ip->valuestring) params.creds.local_ip.fromString(ip->valuestring);
-                if (cJSON_IsString(gateway) && gateway->valuestring) params.creds.gateway.fromString(gateway->valuestring);
-                if (cJSON_IsString(subnet) && subnet->valuestring) params.creds.subnet.fromString(subnet->valuestring);
-                if (cJSON_IsString(dns1) && dns1->valuestring) params.creds.dns1.fromString(dns1->valuestring);
-                if (cJSON_IsString(dns2) && dns2->valuestring) params.creds.dns2.fromString(dns2->valuestring);
+                if (cJSON_IsString(ip) && ip->valuestring) params.config.local_ip.fromString(ip->valuestring);
+                if (cJSON_IsString(gateway) && gateway->valuestring) params.config.gateway.fromString(gateway->valuestring);
+                if (cJSON_IsString(subnet) && subnet->valuestring) params.config.subnet.fromString(subnet->valuestring);
+                if (cJSON_IsString(dns1) && dns1->valuestring) params.config.dns1.fromString(dns1->valuestring);
+                if (cJSON_IsString(dns2) && dns2->valuestring) params.config.dns2.fromString(dns2->valuestring);
             }
         }
 
-        if (params.password.length() == 0 && strlen(params.creds.ssid) && m_credentialManager && m_credentialManager->checkSSIDExists(params.creds.ssid)) {
-            String stored = m_credentialManager->getPassword(params.creds.ssid);
+        if (params.password.length() == 0 && strlen(params.config.ssid) && m_credentialManager && m_credentialManager->checkSSIDExists(params.config.ssid)) {
+            String stored = m_credentialManager->getPassword(params.config.ssid);
             if (stored.length()) {
                 params.password = stored;
             }
@@ -429,7 +439,7 @@ void AsyncFsWebServer::handleSetupWebSocketMessage(AsyncWebSocketClient *client,
         if (!params.fromApClient && !confirmed && WiFi.status() == WL_CONNECTED) {
             cJSON *confirmPayload = cJSON_CreateObject();
             cJSON_AddBoolToObject(confirmPayload, "confirmRequired", true);
-            cJSON_AddStringToObject(confirmPayload, "ssid", params.creds.ssid);
+            cJSON_AddStringToObject(confirmPayload, "ssid", params.config.ssid);
             cJSON_Delete(root);
             sendSetupWsResponse(client, reqIdStr, true, nameStr.c_str(), serializeJsonDocument(confirmPayload));
             return;
@@ -613,21 +623,21 @@ bool AsyncFsWebServer::saveSetupConfigJson(const String& jsonText) {
 }
 
 void AsyncFsWebServer::runSetupWifiConnect(uint32_t clientId, WiFiConnectParams params, bool persistent, bool allowApFallback, bool fromApClient) {
-    sendSetupWsEventById(clientId, "wifi.connect.started", String("{\"ssid\":\"") + params.creds.ssid + "\"}");
+    sendSetupWsEventById(clientId, "wifi.connect.started", String("{\"ssid\":\"") + params.config.ssid + "\"}");
 
     auto connectJob = [this, clientId, params, persistent, allowApFallback, fromApClient]() mutable {
         WiFiConnectResult result = WiFiService::connectWithParams(params);
 
-        if (result.connected && persistent && strlen(params.creds.ssid) && params.password.length() && m_credentialManager) {
+        if (result.connected && persistent && strlen(params.config.ssid) && params.password.length() && m_credentialManager) {
             if (params.dhcp) {
-                params.creds.local_ip = IPAddress(0, 0, 0, 0);
-                params.creds.gateway = IPAddress(0, 0, 0, 0);
-                params.creds.subnet = IPAddress(0, 0, 0, 0);
-                params.creds.dns1 = IPAddress(0, 0, 0, 0);
-                params.creds.dns2 = IPAddress(0, 0, 0, 0);
+                params.config.local_ip = IPAddress(0, 0, 0, 0);
+                params.config.gateway = IPAddress(0, 0, 0, 0);
+                params.config.subnet = IPAddress(0, 0, 0, 0);
+                params.config.dns1 = IPAddress(0, 0, 0, 0);
+                params.config.dns2 = IPAddress(0, 0, 0, 0);
             }
-            if (!m_credentialManager->updateCredential(params.creds, params.password.c_str())) {
-                m_credentialManager->addCredential(params.creds, params.password.c_str());
+            if (!m_credentialManager->updateCredential(params.config, params.password.c_str())) {
+                m_credentialManager->addCredential(params.config, params.password.c_str());
             }
 #if defined(ESP32)
             m_credentialManager->saveToNVS();
@@ -783,6 +793,37 @@ void AsyncFsWebServer::sendOK(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", "OK");
 }
 
+void AsyncFsWebServer::handleIndex(AsyncWebServerRequest *request) {
+    if (m_authAll && m_pageUser != nullptr) {
+        if(!request->authenticate(m_pageUser, m_pagePswd))
+            return request->requestAuthentication();
+    }
+
+    const char *indexCandidates[] = {
+        "/index.htm",
+        "/index.html",
+        "/index.htm.gz",
+        "/index.html.gz"
+    };
+
+    for (const char *candidate : indexCandidates) {
+        if (!m_filesystem->exists(candidate)) {
+            continue;
+        }
+        log_debug("Serving %s for /", candidate);
+        String path = candidate;
+        request->redirect(path);
+        return;
+    }
+
+#if ESP_FS_WS_SETUP
+    log_debug("No index file found, redirecting / to /setup");
+    request->redirect("/setup");
+#else
+    request->send(404, "text/plain", "AsyncFsWebServer: resource not found");
+#endif
+}
+
 void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {    
 
     // Check if authentication for all routes is turned on, and credentials are present:
@@ -817,6 +858,39 @@ void AsyncFsWebServer::notFound(AsyncWebServerRequest *request) {
 
 #if    ESP_FS_WS_SETUP_HTM
 void AsyncFsWebServer::handleSetup(AsyncWebServerRequest *request) {
+    if (request->url() != "/setup") {
+        const String path = request->url();
+        const String logoPath = String(ESP_FS_WS_CONFIG_FOLDER) + "/logo.svg";
+        const String logoBase = String(ESP_FS_WS_CONFIG_FOLDER) + "/logo";
+
+        if (path == logoPath &&
+            !m_filesystem->exists(logoBase + ".svg") &&
+            !m_filesystem->exists(logoBase + ".svg.gz") &&
+            !m_filesystem->exists(logoBase + ".png") &&
+            !m_filesystem->exists(logoBase + ".jpg") &&
+            !m_filesystem->exists(logoBase + ".gif")) {
+            AsyncWebServerResponse *response = request->beginResponse(200, "image/svg+xml", (uint8_t*)_aclogo_svg, sizeof(_aclogo_svg));
+            response->addHeader("Content-Encoding", "gzip");
+            response->addHeader("Cache-Control", "public, max-age=86400");
+            request->send(response);
+            return;
+        }
+
+        if (m_filesystem->exists(path)) {
+            request->send(*m_filesystem, path);
+            return;
+        }
+
+        const String gzPath = path + ".gz";
+        if (m_filesystem->exists(gzPath)) {
+            request->redirect(gzPath);
+            return;
+        }
+
+        notFound(request);
+        return;
+    }
+
     if (m_pageUser != nullptr) {
         if(!request->authenticate(m_pageUser, m_pagePswd))
             return request->requestAuthentication();
@@ -1054,8 +1128,8 @@ bool AsyncFsWebServer::startWiFi(uint32_t timeout, CallbackF fn) {
 
 bool AsyncFsWebServer::startCaptivePortal(const char* ssid, const char* pass, const char* redirectTargetURL) {
     WiFiConnectParams params;
-    strncpy(params.creds.ssid, ssid, sizeof(params.creds.ssid) - 1);
-    params.creds.ssid[sizeof(params.creds.ssid) - 1] = '\0';
+    strncpy(params.config.ssid, ssid, sizeof(params.config.ssid) - 1);
+    params.config.ssid[sizeof(params.config.ssid) - 1] = '\0';
     params.password = pass;     
     return startCaptivePortal(params, redirectTargetURL);
 }

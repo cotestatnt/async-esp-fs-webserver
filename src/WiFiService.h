@@ -35,7 +35,7 @@ struct WiFiStartResult {
 };
 
 struct WiFiConnectParams {
-    WiFiCredential creds;                       // WiFi credentials (ssid, encrypted password, IP config, DNS)
+    WiFiCredential config;                       // WiFi credentials (ssid, encrypted password, IP config, DNS)
     bool fromApClient = false;                  // True if the setup client started the connection while AP mode is active
     bool dhcp = true;                           // True to use DHCP, false for static IP
     String password;                            // Plaintext password (temporary, not stored in credential)
@@ -43,6 +43,21 @@ struct WiFiConnectParams {
     uint32_t timeout = 0;                       // Connection timeout in milliseconds
     uint32_t wdtLongTimeout = 0;                // Long WDT timeout in milliseconds 
     uint32_t wdtTimeout = 0;                    // Regular WDT timeout in milliseconds
+
+    WiFiConnectParams() {
+        config = WiFiCredential();
+    }
+
+    WiFiConnectParams(const char* ssid, const char* plaintext_password) {
+        config = WiFiCredential();
+        if (ssid) {
+            strncpy(config.ssid, ssid, sizeof(config.ssid) - 1);
+            config.ssid[sizeof(config.ssid) - 1] = '\0';
+        }
+        if (plaintext_password) {
+            password = plaintext_password;
+        }
+    }
 };
 
 struct WiFiConnectResult {
