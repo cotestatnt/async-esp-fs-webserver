@@ -55,6 +55,9 @@ bool startFilesystem() {
   return false;
 }
 
+//////////////////////////////// WiFi Event Callbacks /////////////////////////////////////////
+uint8_t wifiStatus = WL_IDLE_STATUS;  // WiFi status variable to track connection state
+
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -62,6 +65,38 @@ void setup() {
 
   // FILESYSTEM INIT
   startFilesystem();
+
+  // Register WiFi event callbacks
+  #ifdef ESP32
+  server.setWiFiConnectionCallbacks(
+    [](WiFiEvent_t event, WiFiEventInfo_t info) {
+      (void)event;
+      (void)info;
+      Serial.println("WiFi connected, IP address: " + WiFi.localIP().toString());
+      wifiStatus = WL_CONNECTED;
+    },
+    [](WiFiEvent_t event, WiFiEventInfo_t info) {
+      (void)event;
+      if (wifiStatus == WL_CONNECTED) {
+        Serial.println("WiFi disconnected, reason: " + String(info.wifi_sta_disconnected.reason));
+      }
+      wifiStatus = WiFi.status();
+    }
+  );
+  #elif defined(ESP8266)
+  server.setWiFiConnectionCallbacks(
+    [](const WiFiEventStationModeGotIP& event) {
+      Serial.println("WiFi connected, IP address: " + event.ip.toString());
+      wifiStatus = WL_CONNECTED;
+    },
+    [](const WiFiEventStationModeDisconnected& event) {
+      if (wifiStatus == WL_CONNECTED) {
+        Serial.println("WiFi disconnected, reason: " + String(event.reason));
+      }
+      wifiStatus = WiFi.status();
+    }
+  );
+  #endif
 
   // Try to connect to WiFi (will start AP if not connected after timeout)
   if (!server.startWiFi(10000)) {
@@ -78,7 +113,7 @@ void setup() {
   // Start HTTP server
   server.init();
 
-  Serial.print(F("ESP Async Web Server started on IP Address: "));
+  Serial.print(F("\n\nESP Async Web Server started on IP Address: "));
   Serial.println(server.getServerIP());
   Serial.println(F(
     "This is \"websocketEcharts.ino\" example (AsyncFsWebServer).\n"

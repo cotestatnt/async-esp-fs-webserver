@@ -67,6 +67,14 @@ struct WiFiConnectResult {
     String body;
 };
 
+#ifdef ESP32
+using WiFiConnectedCallbackF = std::function<void(WiFiEvent_t, WiFiEventInfo_t)>;
+using WiFiDisconnectedCallbackF = std::function<void(WiFiEvent_t, WiFiEventInfo_t)>;
+#elif defined(ESP8266)
+using WiFiConnectedCallbackF = std::function<void(const WiFiEventStationModeGotIP&)>;
+using WiFiDisconnectedCallbackF = std::function<void(const WiFiEventStationModeDisconnected&)>;
+#endif
+
 class WiFiService {
 public:
     static void setTaskWdt(uint32_t timeout);
@@ -76,4 +84,22 @@ public:
     static bool startAccessPoint(WiFiConnectParams& params, IPAddress& outIp);
     static bool startMDNSResponder(DNSServer*& dnsServer, const String& host, uint16_t port, const IPAddress& serverIp);
     static bool startMDNSOnly(const String& host, uint16_t port);
+#if defined(ESP32) || defined(ESP8266)
+    static void setWiFiConnectionCallbacks(WiFiConnectedCallbackF connectedCallback, WiFiDisconnectedCallbackF disconnectedCallback) {
+        m_wifiConnectedCallback = connectedCallback;
+        m_wifiDisconnectedCallback = disconnectedCallback;
+    }
+#endif
+
+private:
+#if defined(ESP32) || defined(ESP8266)
+    static WiFiConnectedCallbackF m_wifiConnectedCallback;
+    static WiFiDisconnectedCallbackF m_wifiDisconnectedCallback;
+#endif
+#ifdef ESP8266
+    static WiFiEventHandler m_wifiConnectedHandler;
+    static WiFiEventHandler m_wifiDisconnectedHandler;
+    static void handleWiFiConnected(const WiFiEventStationModeGotIP& event);
+    static void handleWiFiDisconnected(const WiFiEventStationModeDisconnected& event);
+#endif
 };

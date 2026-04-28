@@ -1,6 +1,28 @@
 #include "WiFiService.h"
 #include "Json.h"
 
+#if defined(ESP32) || defined(ESP8266)
+WiFiConnectedCallbackF WiFiService::m_wifiConnectedCallback = nullptr;
+WiFiDisconnectedCallbackF WiFiService::m_wifiDisconnectedCallback = nullptr;
+#endif
+
+#if defined(ESP8266)
+WiFiEventHandler WiFiService::m_wifiConnectedHandler;
+WiFiEventHandler WiFiService::m_wifiDisconnectedHandler;
+
+void WiFiService::handleWiFiConnected(const WiFiEventStationModeGotIP& event) {
+    if (m_wifiConnectedCallback) {
+        m_wifiConnectedCallback(event);
+    }
+}
+
+void WiFiService::handleWiFiDisconnected(const WiFiEventStationModeDisconnected& event) {
+    if (m_wifiDisconnectedCallback) {
+        m_wifiDisconnectedCallback(event);
+    }
+}
+#endif
+
 // Helper: log the actual station network configuration as seen by the core
 // (independent from WiFiConnectParams / CredentialManager values).
 static void logCurrentStaNetworkConfig() {
@@ -208,8 +230,22 @@ WiFiConnectResult WiFiService::connectWithParams(const WiFiConnectParams& params
 WiFiStartResult WiFiService::startWiFi(CredentialManager* credentialManager, fs::FS* filesystem, const char* configFile, uint32_t timeout) {
     WiFiStartResult result;
     WiFi.mode(WIFI_STA);
-    WiFiCredential* bestCred = nullptr;
+    WiFi.setAutoReconnect(true);
+#ifdef ESP32    
+    if (m_wifiDisconnectedCallback)
+        WiFi.onEvent(m_wifiDisconnectedCallback, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    if (m_wifiConnectedCallback)
+        WiFi.onEvent(m_wifiConnectedCallback, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+#elif defined(ESP8266)
+    if (m_wifiDisconnectedCallback) {
+        m_wifiDisconnectedHandler = WiFi.onStationModeDisconnected(&WiFiService::handleWiFiDisconnected);
+    }
+    if (m_wifiConnectedCallback) {
+        m_wifiConnectedHandler = WiFi.onStationModeGotIP(&WiFiService::handleWiFiConnected);
+    }
+#endif
 
+    WiFiCredential* bestCred = nullptr;
     if (credentialManager) {
 #ifdef ESP32
         credentialManager->loadFromNVS();
