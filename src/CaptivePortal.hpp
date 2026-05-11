@@ -40,7 +40,7 @@ public:
         return s;
     }
 
-    bool canHandle(AsyncWebServerRequest *request) const override {
+    bool canHandle(AsyncWebServerRequest *request) override {
         if (request->host() != WiFi.softAPIP().toString())
             return true;
         else
