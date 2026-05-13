@@ -69,6 +69,9 @@ void setup() {
     server.startCaptivePortal("ESP_AP", "123456789", "/setup");
   }
 
+  // Activate ntp 
+  configTzTime(MYTZ, "pool.ntp.org");
+  
   // Enable ACE FS file web editor
   server.enableFsCodeEditor();
 
